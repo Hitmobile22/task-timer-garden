@@ -2,7 +2,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
-import { TaskForm } from '@/components/TaskForm';
 import {
   Table,
   TableBody,
@@ -12,7 +11,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, PencilIcon, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useNavigate } from 'react-router-dom';
 
 type Task = {
   id: number;
@@ -30,6 +31,9 @@ type Task = {
 
 export default function TaskView() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [editingTaskId, setEditingTaskId] = React.useState<number | null>(null);
+  const [editingTaskName, setEditingTaskName] = React.useState("");
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -82,81 +86,155 @@ export default function TaskView() {
     },
   });
 
-  const handleTasksCreate = async (tasks: string[]) => {
-    try {
+  const updateTaskNameMutation = useMutation({
+    mutationFn: async ({ taskId, taskName }: { taskId: number; taskName: string }) => {
       const { error } = await supabase
         .from('Tasks')
-        .insert(tasks.map(task => ({ "Task Name": task })));
+        .update({ "Task Name": taskName })
+        .eq('id', taskId);
       
       if (error) throw error;
-      
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Tasks created successfully');
-    } catch (error) {
-      toast.error('Failed to create tasks');
-      console.error('Create error:', error);
+      toast.success('Task name updated');
+      setEditingTaskId(null);
+    },
+    onError: (error) => {
+      toast.error('Failed to update task name');
+      console.error('Update error:', error);
+    },
+  });
+
+  const handleEditStart = (task: Task) => {
+    setEditingTaskId(task.id);
+    setEditingTaskName(task["Task Name"]);
+  };
+
+  const handleEditCancel = () => {
+    setEditingTaskId(null);
+    setEditingTaskName("");
+  };
+
+  const handleEditSave = (taskId: number) => {
+    if (editingTaskName.trim()) {
+      updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName });
+    } else {
+      toast.error('Task name cannot be empty');
     }
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <h1 className="text-3xl font-bold">Task Manager</h1>
+    <div 
+      className="min-h-screen p-6 space-y-8 animate-fadeIn"
+      style={{
+        background: 'linear-gradient(135deg, #9b87f5 0%, #7E69AB 50%, #6E59A5 100%)',
+      }}
+    >
+      <div className="container mx-auto max-w-4xl">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-white hover:bg-white/20"
+          onClick={() => navigate('/')}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+      </div>
       
-      <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
-        <TaskForm onTasksCreate={handleTasksCreate} />
-      </div>
+      <main className="container mx-auto max-w-4xl space-y-8">
+        <header className="text-center space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight text-white">Task Manager</h1>
+          <p className="text-white/80">View and manage your tasks</p>
+        </header>
 
-      <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
-        <h2 className="text-2xl font-semibold mb-4">Task List</h2>
-        
-        {isLoading ? (
-          <p>Loading tasks...</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Task Name</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tasks?.map((task) => (
-                <TableRow key={task.id}>
-                  <TableCell className="font-medium">{task["Task Name"]}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={task.Progress}
-                      onValueChange={(value: Task['Progress']) => 
-                        updateProgressMutation.mutate({ taskId: task.id, progress: value })
-                      }
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Select progress" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Not started">Not started</SelectItem>
-                        <SelectItem value="In progress">In progress</SelectItem>
-                        <SelectItem value="Completed">Completed</SelectItem>
-                        <SelectItem value="Backlog">Backlog</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteMutation.mutate(task.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+        <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
+          {isLoading ? (
+            <p>Loading tasks...</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Task Name</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead className="w-[150px]">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+              </TableHeader>
+              <TableBody>
+                {tasks?.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell className="font-medium">
+                      {editingTaskId === task.id ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={editingTaskName}
+                            onChange={(e) => setEditingTaskName(e.target.value)}
+                            className="w-full"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditSave(task.id)}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleEditCancel}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        task["Task Name"]
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={task.Progress}
+                        onValueChange={(value: Task['Progress']) => 
+                          updateProgressMutation.mutate({ taskId: task.id, progress: value })
+                        }
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Select progress" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Not started">Not started</SelectItem>
+                          <SelectItem value="In progress">In progress</SelectItem>
+                          <SelectItem value="Completed">Completed</SelectItem>
+                          <SelectItem value="Backlog">Backlog</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {editingTaskId !== task.id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditStart(task)}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(task.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Play, Pause, RotateCcw } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -27,13 +28,16 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks }) => {
               setIsBreak(false);
               if (currentTaskIndex < tasks.length - 1) {
                 setCurrentTaskIndex(c => c + 1);
+                toast.success("Break finished! Starting next task.");
               } else {
                 setIsRunning(false);
+                toast.success("All tasks completed!");
               }
               return 25 * 60;
             } else {
               // End of work session
               setIsBreak(true);
+              toast.success("Work session complete! Time for a break.");
               return 5 * 60;
             }
           }
@@ -56,6 +60,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks }) => {
     setCurrentTaskIndex(0);
     setIsBreak(false);
     setIsRunning(false);
+    toast.info("Timer reset");
   };
 
   const progress = isBreak
@@ -85,7 +90,12 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks }) => {
 
       <div className="flex justify-center gap-4">
         <Button
-          onClick={() => setIsRunning(!isRunning)}
+          onClick={() => {
+            setIsRunning(!isRunning);
+            if (!isRunning) {
+              toast.info(isBreak ? "Break started" : "Work session started");
+            }
+          }}
           disabled={tasks.length === 0}
           className="hover-lift"
         >

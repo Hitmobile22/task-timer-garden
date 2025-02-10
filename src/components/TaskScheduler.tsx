@@ -3,10 +3,20 @@ import React, { useState } from 'react';
 import { TaskForm } from './TaskForm';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
+import { Button } from './ui/button';
+import { MoreVertical } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const TaskScheduler = () => {
   const [tasks, setTasks] = useState<string[]>([]);
   const [showTimer, setShowTimer] = useState(false);
+  const navigate = useNavigate();
 
   const handleTasksCreate = (newTasks: string[]) => {
     setTasks(newTasks);
@@ -20,7 +30,21 @@ export const TaskScheduler = () => {
         background: 'linear-gradient(135deg, #9b87f5 0%, #7E69AB 50%, #6E59A5 100%)',
       }}
     >
-      <MenuBar />
+      <div className="container mx-auto max-w-4xl flex justify-between items-center">
+        <MenuBar />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => navigate('/tasks')}>
+              Task View
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       
       <main className="container mx-auto max-w-4xl space-y-8">
         <header className="text-center space-y-2">

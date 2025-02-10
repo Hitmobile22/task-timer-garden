@@ -3,8 +3,15 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from 'sonner';
+import { ChevronDown } from 'lucide-react';
 
 interface TaskFormProps {
   onTasksCreate: (tasks: string[]) => void;
@@ -37,18 +44,23 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onTasksCreate }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 glass p-6 rounded-lg shadow-sm animate-slideIn">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="numTasks">Number of Tasks</Label>
         <Select
-          defaultValue="1"
+          value={numTasks.toString()}
           onValueChange={handleNumTasksChange}
         >
-          {[...Array(10)].map((_, i) => (
-            <option key={i + 1} value={i + 1}>
-              {i + 1} {i === 0 ? 'Task' : 'Tasks'}
-            </option>
-          ))}
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select number of tasks" />
+          </SelectTrigger>
+          <SelectContent>
+            {[...Array(10)].map((_, i) => (
+              <SelectItem key={i + 1} value={(i + 1).toString()}>
+                {i + 1} {i === 0 ? 'Task' : 'Tasks'}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
       </div>
 

@@ -13,19 +13,19 @@ export type Database = {
         Row: {
           created_at: string
           id: number
-          Progress: Database["public"]["Enums"]["Status"] | null
+          Progress: Database["public"]["Enums"]["status"] | null
           "Task Name": string | null
         }
         Insert: {
           created_at?: string
           id?: number
-          Progress?: Database["public"]["Enums"]["Status"] | null
+          Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null
         }
         Update: {
           created_at?: string
           id?: number
-          Progress?: Database["public"]["Enums"]["Status"] | null
+          Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null
         }
         Relationships: []
@@ -38,6 +38,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      status: "Not started" | "In progress" | "Completed" | "Backlog"
       Status: "Not started" | "In progress" | "Completed" | "Backlog"
     }
     CompositeTypes: {

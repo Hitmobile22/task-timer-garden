@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { TaskForm } from './TaskForm';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
-import { TaskList } from './TaskList';
 
 export const TaskScheduler = () => {
   const [tasks, setTasks] = useState<string[]>([]);
@@ -33,7 +32,6 @@ export const TaskScheduler = () => {
           <div className="grid gap-8 md:grid-cols-[1fr,auto] items-start">
             <div className="space-y-6">
               <TaskForm onTasksCreate={handleTasksCreate} />
-              <TaskList tasks={tasks} />
             </div>
             
             {showTimer && (

@@ -7,12 +7,14 @@ import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
 import { MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from 'sonner';
 
 interface SubTask {
   name: string;
@@ -29,10 +31,45 @@ export const TaskScheduler = () => {
   const [timerStarted, setTimerStarted] = useState(false);
   const navigate = useNavigate();
 
-  const handleTasksCreate = (newTasks: Task[]) => {
-    setTasks(newTasks);
-    setShowTimer(true);
-    setTimerStarted(true); // This will trigger the timer to start automatically
+  const handleTasksCreate = async (newTasks: Task[]) => {
+    try {
+      // Create main tasks
+      for (const task of newTasks) {
+        const { data: taskData, error: taskError } = await supabase
+          .from('Tasks')
+          .insert([{ 
+            "Task Name": task.name,
+            "Progress": "Not started"
+          }])
+          .select()
+          .single();
+
+        if (taskError) throw taskError;
+
+        // Create subtasks for this task
+        if (task.subtasks.length > 0) {
+          const subtasksToInsert = task.subtasks.map(subtask => ({
+            "Task Name": subtask.name,
+            "Progress": "Not started",
+            "Parent Task ID": taskData.id
+          }));
+
+          const { error: subtaskError } = await supabase
+            .from('subtasks')
+            .insert(subtasksToInsert);
+
+          if (subtaskError) throw subtaskError;
+        }
+      }
+
+      setTasks(newTasks);
+      setShowTimer(true);
+      setTimerStarted(true);
+      toast.success('Tasks created successfully');
+    } catch (error) {
+      console.error('Error creating tasks:', error);
+      toast.error('Failed to create tasks');
+    }
   };
 
   return (

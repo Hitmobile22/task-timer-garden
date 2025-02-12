@@ -12,18 +12,24 @@ export type Database = {
       Tasks: {
         Row: {
           created_at: string
+          date_due: string | null
+          date_started: string | null
           id: number
           Progress: Database["public"]["Enums"]["status"] | null
           "Task Name": string | null
         }
         Insert: {
           created_at?: string
+          date_due?: string | null
+          date_started?: string | null
           id?: number
           Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null
         }
         Update: {
           created_at?: string
+          date_due?: string | null
+          date_started?: string | null
           id?: number
           Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null

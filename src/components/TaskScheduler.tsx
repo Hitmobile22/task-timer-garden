@@ -26,11 +26,13 @@ interface Task {
 export const TaskScheduler = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showTimer, setShowTimer] = useState(false);
+  const [timerStarted, setTimerStarted] = useState(false);
   const navigate = useNavigate();
 
   const handleTasksCreate = (newTasks: Task[]) => {
     setTasks(newTasks);
     setShowTimer(true);
+    setTimerStarted(true); // This will trigger the timer to start automatically
   };
 
   return (
@@ -71,7 +73,7 @@ export const TaskScheduler = () => {
             
             {showTimer && (
               <div className="w-full md:w-[350px] animate-slideIn">
-                <PomodoroTimer tasks={tasks.map(t => t.name)} />
+                <PomodoroTimer tasks={tasks.map(t => t.name)} autoStart={timerStarted} />
               </div>
             )}
           </div>

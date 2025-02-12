@@ -7,13 +7,22 @@ import { toast } from 'sonner';
 
 interface PomodoroTimerProps {
   tasks: string[];
+  autoStart?: boolean;
 }
 
-export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks }) => {
+export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks, autoStart = false }) => {
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+
+  useEffect(() => {
+    // Start the timer automatically if autoStart is true and there are tasks
+    if (autoStart && tasks.length > 0 && !isRunning) {
+      setIsRunning(true);
+      toast.info("Timer started automatically");
+    }
+  }, [autoStart, tasks.length]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;

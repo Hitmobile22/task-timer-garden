@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { TaskForm } from './TaskForm';
+import { TaskList } from './TaskList';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
@@ -13,12 +14,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+interface SubTask {
+  name: string;
+}
+
+interface Task {
+  name: string;
+  subtasks: SubTask[];
+}
+
 export const TaskScheduler = () => {
-  const [tasks, setTasks] = useState<string[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [showTimer, setShowTimer] = useState(false);
   const navigate = useNavigate();
 
-  const handleTasksCreate = (newTasks: string[]) => {
+  const handleTasksCreate = (newTasks: Task[]) => {
     setTasks(newTasks);
     setShowTimer(true);
   };
@@ -56,11 +66,12 @@ export const TaskScheduler = () => {
           <div className="grid gap-8 md:grid-cols-[1fr,auto] items-start">
             <div className="space-y-6">
               <TaskForm onTasksCreate={handleTasksCreate} />
+              <TaskList tasks={tasks} />
             </div>
             
             {showTimer && (
               <div className="w-full md:w-[350px] animate-slideIn">
-                <PomodoroTimer tasks={tasks} />
+                <PomodoroTimer tasks={tasks.map(t => t.name)} />
               </div>
             )}
           </div>

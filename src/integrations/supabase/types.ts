@@ -9,6 +9,38 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      subtasks: {
+        Row: {
+          created_at: string
+          id: number
+          "Parent Task ID": number | null
+          Progress: Database["public"]["Enums"]["status"] | null
+          "Task Name": string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          "Parent Task ID"?: number | null
+          Progress?: Database["public"]["Enums"]["status"] | null
+          "Task Name"?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          "Parent Task ID"?: number | null
+          Progress?: Database["public"]["Enums"]["status"] | null
+          "Task Name"?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subtasks_Parent Task ID_fkey"
+            columns: ["Parent Task ID"]
+            isOneToOne: false
+            referencedRelation: "Tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       Tasks: {
         Row: {
           created_at: string

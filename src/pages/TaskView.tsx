@@ -60,7 +60,7 @@ export default function TaskView() {
     queryKey: ['subtasks'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('Subtasks')
+        .from('subtasks')  // Changed from 'Subtasks' to 'subtasks'
         .select('*')
         .order('created_at', { ascending: true });
       
@@ -92,7 +92,7 @@ export default function TaskView() {
   const updateProgressMutation = useMutation({
     mutationFn: async ({ taskId, progress, isSubtask = false }: { taskId: number; progress: Task['Progress']; isSubtask?: boolean }) => {
       const { error } = await supabase
-        .from(isSubtask ? 'Subtasks' : 'Tasks')
+        .from(isSubtask ? 'subtasks' : 'Tasks')  // Changed from 'Subtasks' to 'subtasks'
         .update({ Progress: progress })
         .eq('id', taskId);
       
@@ -112,7 +112,7 @@ export default function TaskView() {
   const updateTaskNameMutation = useMutation({
     mutationFn: async ({ taskId, taskName, isSubtask = false }: { taskId: number; taskName: string; isSubtask?: boolean }) => {
       const { error } = await supabase
-        .from(isSubtask ? 'Subtasks' : 'Tasks')
+        .from(isSubtask ? 'subtasks' : 'Tasks')  // Changed from 'Subtasks' to 'subtasks'
         .update({ "Task Name": taskName })
         .eq('id', taskId);
       

@@ -1,9 +1,17 @@
 
-import React from 'react';
-import { Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, Filter } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SubTask {
   name: string;
@@ -19,7 +27,10 @@ interface TaskListProps {
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks }) => {
+  const location = useLocation();
   const queryClient = useQueryClient();
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const isTaskView = location.pathname === '/tasks';
 
   const { data: dbTasks } = useQuery({
     queryKey: ['tasks'],
@@ -59,17 +70,50 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks }) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Task updated');
     },
   });
 
   if (!dbTasks || dbTasks.length === 0) return null;
 
+  const filteredTasks = dbTasks.filter(task => {
+    if (!isTaskView) {
+      return task.Progress !== 'Completed';
+    }
+    
+    switch (filter) {
+      case 'active':
+        return task.Progress !== 'Completed';
+      case 'completed':
+        return task.Progress === 'Completed';
+      default:
+        return true;
+    }
+  });
+
   return (
     <div className="space-y-4 animate-slideIn">
-      <h2 className="text-lg font-semibold">Your Tasks</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">Your Tasks</h2>
+        {isTaskView && (
+          <Select
+            value={filter}
+            onValueChange={(value: 'all' | 'active' | 'completed') => setFilter(value)}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter tasks" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tasks</SelectItem>
+              <SelectItem value="active">Active Tasks</SelectItem>
+              <SelectItem value="completed">Completed Tasks</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </div>
       <ul className="space-y-4">
-        {dbTasks.map((task) => (
+        {filteredTasks.map((task) => (
           <li key={task.id} className="space-y-2">
             <div 
               className={`flex items-center gap-3 p-3 rounded-md bg-white/50 hover:bg-white/80 transition-colors cursor-pointer ${

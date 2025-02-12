@@ -4,30 +4,48 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from "@/integrations/supabase/client";
 
 interface PomodoroTimerProps {
   tasks: string[];
   autoStart?: boolean;
 }
 
-export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks, autoStart = false }) => {
-  const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
+export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks: initialTasks, autoStart = false }) => {
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
 
+  // Fetch active tasks from Supabase
+  const { data: activeTasks } = useQuery({
+    queryKey: ['active-tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('Tasks')
+        .select('*')
+        .eq('Progress', 'Not started')
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const currentTask = activeTasks && activeTasks.length > 0 ? activeTasks[0] : null;
+
   useEffect(() => {
     // Start the timer automatically if autoStart is true and there are tasks
-    if (autoStart && tasks.length > 0 && !isRunning) {
+    if (autoStart && activeTasks && activeTasks.length > 0 && !isRunning) {
       setIsRunning(true);
       toast.info("Timer started automatically");
     }
-  }, [autoStart, tasks.length]);
+  }, [autoStart, activeTasks?.length]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (isRunning && tasks.length > 0) {
+    if (isRunning && currentTask) {
       interval = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
@@ -35,13 +53,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks, autoStart =
             if (isBreak) {
               // End of break
               setIsBreak(false);
-              if (currentTaskIndex < tasks.length - 1) {
-                setCurrentTaskIndex(c => c + 1);
-                toast.success("Break finished! Starting next task.");
-              } else {
-                setIsRunning(false);
-                toast.success("All tasks completed!");
-              }
+              toast.success("Break finished! Starting next task.");
               return 25 * 60;
             } else {
               // End of work session
@@ -56,7 +68,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks, autoStart =
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, currentTaskIndex, isBreak, tasks.length]);
+  }, [isRunning, currentTask, isBreak]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -66,7 +78,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks, autoStart =
 
   const handleReset = () => {
     setTimeLeft(25 * 60);
-    setCurrentTaskIndex(0);
     setIsBreak(false);
     setIsRunning(false);
     toast.info("Timer reset");
@@ -82,9 +93,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks, autoStart =
         <h2 className="text-2xl font-semibold text-center">
           {isBreak ? 'Break Time' : 'Work Session'}
         </h2>
-        {tasks[currentTaskIndex] && (
+        {currentTask && (
           <p className="text-center text-muted-foreground">
-            {isBreak ? 'Take a breather' : `Working on: ${tasks[currentTaskIndex]}`}
+            {isBreak ? 'Take a breather' : `Working on: ${currentTask["Task Name"]}`}
           </p>
         )}
       </div>
@@ -105,7 +116,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks, autoStart =
               toast.info(isBreak ? "Break started" : "Work session started");
             }
           }}
-          disabled={tasks.length === 0}
+          disabled={!currentTask}
           className="hover-lift"
         >
           {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}

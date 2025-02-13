@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,9 @@ import { Plus, Minus } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSubtasksFromAI } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type Status = Database['public']['Enums']['status'];
 
 interface SubTask {
   name: string;
@@ -130,7 +134,7 @@ export const TaskForm = ({ onTasksCreate }) => {
           .from('Tasks')
           .insert([{ 
             "Task Name": task.name,
-            "Progress": "Not started",
+            "Progress": "Not started" as Status,
             "date_started": taskStartTime.toISOString(),
             "date_due": taskDueTime.toISOString()
           }])
@@ -143,7 +147,7 @@ export const TaskForm = ({ onTasksCreate }) => {
         if (task.subtasks.length > 0) {
           const subtasksToInsert = task.subtasks.map(subtask => ({
             "Task Name": subtask.name,
-            "Progress": "Not started",
+            "Progress": "Not started" as Status,
             "Parent Task ID": taskData.id
           }));
 

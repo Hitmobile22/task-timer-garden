@@ -204,7 +204,7 @@ export default function TaskView() {
     <div 
       className="min-h-screen p-6 space-y-8 animate-fadeIn"
       style={{
-        background: 'linear-gradient(135deg, #9b87f5 0%, #7E69AB 50%, #6E59A5 100%)',
+        background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
       }}
     >
       <div className="container mx-auto max-w-4xl">

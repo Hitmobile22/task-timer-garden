@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock } from "lucide-react";
+import { ArrowLeft, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, ArrowUpDown, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -38,12 +38,19 @@ type Subtask = {
   "Parent Task ID": number;
 };
 
+type SortField = "Task Name" | "Progress" | "date_started" | "date_due";
+type SortOrder = "asc" | "desc";
+
 export default function TaskView() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [editingTaskId, setEditingTaskId] = React.useState<number | null>(null);
   const [editingTaskName, setEditingTaskName] = React.useState("");
   const [expandedTasks, setExpandedTasks] = React.useState<number[]>([]);
+  const [sortField, setSortField] = React.useState<SortField>("Task Name");
+  const [sortOrder, setSortOrder] = React.useState<SortOrder>("asc");
+  const [progressFilter, setProgressFilter] = React.useState<Task['Progress'] | "all">("all");
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['tasks'],
@@ -164,6 +171,35 @@ export default function TaskView() {
 
   const isLoading = tasksLoading || subtasksLoading;
 
+  const getSortedAndFilteredTasks = (tasks: Task[] | undefined) => {
+    if (!tasks) return [];
+    
+    let filteredTasks = [...tasks];
+    
+    // Apply progress filter
+    if (progressFilter !== "all") {
+      filteredTasks = filteredTasks.filter(task => task.Progress === progressFilter);
+    }
+    
+    // Apply search filter
+    if (searchQuery) {
+      filteredTasks = filteredTasks.filter(task => 
+        task["Task Name"].toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    // Apply sorting
+    return filteredTasks.sort((a, b) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+      
+      if (!aValue || !bValue) return 0;
+      
+      const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+  };
+
   return (
     <div 
       className="min-h-screen p-6 space-y-8 animate-fadeIn"
@@ -189,6 +225,66 @@ export default function TaskView() {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
+          <div className="mb-6 space-y-4">
+            <div className="flex flex-wrap gap-4 items-center justify-between">
+              <div className="flex-1 min-w-[200px] max-w-sm">
+                <Input
+                  placeholder="Search tasks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex items-center gap-4">
+                <Select
+                  value={progressFilter}
+                  onValueChange={(value: Task['Progress'] | "all") => setProgressFilter(value)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4" />
+                      <SelectValue placeholder="Filter by status" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="Not started">Not Started</SelectItem>
+                    <SelectItem value="In progress">In Progress</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="Backlog">Backlog</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={sortField}
+                  onValueChange={(value: SortField) => setSortField(value)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <div className="flex items-center gap-2">
+                      <ArrowUpDown className="h-4 w-4" />
+                      <SelectValue placeholder="Sort by" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Task Name">Task Name</SelectItem>
+                    <SelectItem value="Progress">Progress</SelectItem>
+                    <SelectItem value="date_started">Start Date</SelectItem>
+                    <SelectItem value="date_due">Due Date</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSortOrder(current => current === "asc" ? "desc" : "asc")}
+                  className="h-10 w-10"
+                >
+                  <ArrowUpDown className={`h-4 w-4 transition-transform ${
+                    sortOrder === "desc" ? "rotate-180" : ""
+                  }`} />
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {isLoading ? (
             <p>Loading tasks...</p>
           ) : (
@@ -202,7 +298,7 @@ export default function TaskView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tasks?.map((task) => (
+                {getSortedAndFilteredTasks(tasks)?.map((task) => (
                   <React.Fragment key={task.id}>
                     <TableRow>
                       <TableCell className="font-medium">

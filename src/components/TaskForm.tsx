@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +12,7 @@ import {
 import { Plus, Minus } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSubtasksFromAI } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SubTask {
   name: string;

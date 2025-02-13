@@ -14,7 +14,7 @@ export async function fetchSubtasksFromAI(taskName: string): Promise<string[]> {
       },
       body: JSON.stringify({
         model: "qwen2.5-coder:3b",
-        prompt: `Provide a JSON response with exactly three subtasks for the task: '${taskName}'. Format it like this: { "subtasks": ["Subtask 1", "Subtask 2", "Subtask 3"] }`,
+        prompt: `Provide a JSON response with exactly four subtasks to fully accomplish the task in 25 minutes: '${taskName}'. Format it like this: { "subtasks": ["Subtask 1", "Subtask 2", "Subtask 3", "Subtask 4] your response should be practical, knowledgable and demonstrate understanding of the context of the task}`,
         stream: false,
       }),
     });

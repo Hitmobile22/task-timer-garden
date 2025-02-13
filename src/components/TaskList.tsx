@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Check, Filter } from 'lucide-react';
+import { Check, Filter, Play } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from './ui/button';
 
 interface SubTask {
   name: string;
@@ -24,9 +25,10 @@ interface Task {
 
 interface TaskListProps {
   tasks: Task[];
+  onTaskStart?: (taskId: number) => void;
 }
 
-export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks }) => {
+export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart }) => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
@@ -75,6 +77,52 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks }) => {
     },
   });
 
+  const handleTaskStart = async (taskId: number) => {
+    try {
+      // Get all not started tasks
+      const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started') || [];
+      const selectedTask = dbTasks?.find(t => t.id === taskId);
+      
+      if (!selectedTask) return;
+
+      // Remove selected task from list and put it first
+      const otherTasks = notStartedTasks.filter(t => t.id !== taskId);
+      const orderedTasks = [selectedTask, ...otherTasks];
+
+      // Update start and due times for all tasks
+      const currentTime = new Date();
+      
+      for (let i = 0; i < orderedTasks.length; i++) {
+        const task = orderedTasks[i];
+        const taskStartTime = new Date(currentTime);
+        // Add 30 minutes for each previous task (25min task + 5min break)
+        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
+        
+        const taskDueTime = new Date(taskStartTime);
+        taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
+
+        const { error } = await supabase
+          .from('Tasks')
+          .update({
+            date_started: taskStartTime.toISOString(),
+            date_due: taskDueTime.toISOString()
+          })
+          .eq('id', task.id);
+
+        if (error) throw error;
+      }
+
+      // Notify parent component to start timer with selected task
+      onTaskStart?.(taskId);
+      
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Timer started with selected task');
+    } catch (error) {
+      console.error('Error starting task:', error);
+      toast.error('Failed to start task');
+    }
+  };
+
   if (!dbTasks || dbTasks.length === 0) return null;
 
   const filteredTasks = dbTasks.filter(task => {
@@ -116,22 +164,34 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks }) => {
         {filteredTasks.map((task) => (
           <li key={task.id} className="space-y-2">
             <div 
-              className={`flex items-center gap-3 p-3 rounded-md bg-white/50 hover:bg-white/80 transition-colors cursor-pointer ${
+              className={`flex items-center gap-3 p-3 rounded-md bg-white/50 hover:bg-white/80 transition-colors ${
                 task.Progress === 'Completed' ? 'opacity-50' : ''
               }`}
-              onClick={() => {
-                if (task.Progress !== 'Completed') {
-                  updateTaskProgress.mutate({ id: task.id });
-                }
-              }}
             >
-              <span className={`flex-shrink-0 h-6 w-6 flex items-center justify-center rounded-full ${
-                task.Progress === 'Completed' 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-primary/10 text-primary'
-              }`}>
-                <Check className="h-4 w-4" />
-              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className={`flex-shrink-0 h-6 w-6 rounded-full ${
+                  task.Progress === 'Completed' 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-primary/10 text-primary hover:bg-primary/20'
+                }`}
+                onClick={() => {
+                  if (task.Progress !== 'Completed') {
+                    if (task.Progress === 'Not started') {
+                      handleTaskStart(task.id);
+                    } else {
+                      updateTaskProgress.mutate({ id: task.id });
+                    }
+                  }
+                }}
+              >
+                {task.Progress === 'Completed' ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+              </Button>
               <span className={`flex-grow font-medium ${
                 task.Progress === 'Completed' ? 'line-through' : ''
               }`}>

@@ -4,18 +4,24 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 
 interface PomodoroTimerProps {
   tasks: string[];
   autoStart?: boolean;
+  activeTaskId?: number;
 }
 
-export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks: initialTasks, autoStart = false }) => {
+export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ 
+  tasks: initialTasks, 
+  autoStart = false,
+  activeTaskId 
+}) => {
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch active tasks from Supabase
   const { data: activeTasks } = useQuery({
@@ -24,23 +30,41 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks: initialTask
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .eq('Progress', 'Not started')
-        .order('created_at', { ascending: true });
+        .order('date_started', { ascending: true });
       
       if (error) throw error;
       return data || [];
     },
   });
 
-  const currentTask = activeTasks && activeTasks.length > 0 ? activeTasks[0] : null;
+  const updateTaskProgress = useMutation({
+    mutationFn: async (taskId: number) => {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ Progress: 'Completed' })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      toast.success('Task completed');
+    },
+  });
+
+  const currentTask = activeTaskId 
+    ? activeTasks?.find(t => t.id === activeTaskId)
+    : activeTasks?.find(t => t.Progress === 'Not started');
 
   useEffect(() => {
     // Start the timer automatically if autoStart is true and there are tasks
-    if (autoStart && activeTasks && activeTasks.length > 0 && !isRunning) {
+    if ((autoStart || activeTaskId) && activeTasks && activeTasks.length > 0 && !isRunning) {
       setIsRunning(true);
       toast.info("Timer started automatically");
     }
-  }, [autoStart, activeTasks?.length]);
+  }, [autoStart, activeTaskId, activeTasks?.length]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -56,7 +80,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ tasks: initialTask
               toast.success("Break finished! Starting next task.");
               return 25 * 60;
             } else {
-              // End of work session
+              // End of work session - mark current task as completed
+              updateTaskProgress.mutate(currentTask.id);
               setIsBreak(true);
               toast.success("Work session complete! Time for a break.");
               return 5 * 60;

@@ -30,6 +30,7 @@ export const TaskScheduler = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState<number>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -49,6 +50,12 @@ export const TaskScheduler = () => {
       console.error('Error creating tasks:', error);
       toast.error('Failed to create tasks');
     }
+  };
+
+  const handleTaskStart = (taskId: number) => {
+    setActiveTaskId(taskId);
+    setShowTimer(true);
+    setTimerStarted(true);
   };
 
   return (
@@ -84,12 +91,16 @@ export const TaskScheduler = () => {
           <div className="grid gap-8 md:grid-cols-[1fr,auto] items-start">
             <div className="space-y-6">
               <TaskForm onTasksCreate={handleTasksCreate} />
-              <TaskList tasks={tasks} />
+              <TaskList tasks={tasks} onTaskStart={handleTaskStart} />
             </div>
             
             {showTimer && (
               <div className="w-full md:w-[350px] animate-slideIn">
-                <PomodoroTimer tasks={tasks.map(t => t.name)} autoStart={timerStarted} />
+                <PomodoroTimer 
+                  tasks={tasks.map(t => t.name)} 
+                  autoStart={timerStarted}
+                  activeTaskId={activeTaskId}
+                />
               </div>
             )}
           </div>

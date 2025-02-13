@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface SubTask {
   name: string;
@@ -30,41 +31,19 @@ export const TaskScheduler = () => {
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const handleTasksCreate = async (newTasks: Task[]) => {
     try {
-      // Create main tasks
-      for (const task of newTasks) {
-        const { data: taskData, error: taskError } = await supabase
-          .from('Tasks')
-          .insert([{ 
-            "Task Name": task.name,
-            "Progress": "Not started"
-          }])
-          .select()
-          .single();
-
-        if (taskError) throw taskError;
-
-        // Create subtasks for this task
-        if (task.subtasks.length > 0) {
-          const subtasksToInsert = task.subtasks.map(subtask => ({
-            "Task Name": subtask.name,
-            "Progress": "Not started",
-            "Parent Task ID": taskData.id
-          }));
-
-          const { error: subtaskError } = await supabase
-            .from('subtasks')
-            .insert(subtasksToInsert);
-
-          if (subtaskError) throw subtaskError;
-        }
-      }
-
       setTasks(newTasks);
       setShowTimer(true);
       setTimerStarted(true);
+      
+      // Invalidate queries to refresh the task list
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      
       toast.success('Tasks created successfully');
     } catch (error) {
       console.error('Error creating tasks:', error);

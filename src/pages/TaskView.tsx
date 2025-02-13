@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -22,11 +21,14 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
 
 type Task = {
   id: number;
   "Task Name": string;
   Progress: "Not started" | "In progress" | "Completed" | "Backlog";
+  date_started?: string;
+  date_due?: string;
 };
 
 type Subtask = {
@@ -60,7 +62,7 @@ export default function TaskView() {
     queryKey: ['subtasks'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('subtasks')  // Changed from 'Subtasks' to 'subtasks'
+        .from('subtasks')
         .select('*')
         .order('created_at', { ascending: true });
       
@@ -92,7 +94,7 @@ export default function TaskView() {
   const updateProgressMutation = useMutation({
     mutationFn: async ({ taskId, progress, isSubtask = false }: { taskId: number; progress: Task['Progress']; isSubtask?: boolean }) => {
       const { error } = await supabase
-        .from(isSubtask ? 'subtasks' : 'Tasks')  // Changed from 'Subtasks' to 'subtasks'
+        .from(isSubtask ? 'subtasks' : 'Tasks')
         .update({ Progress: progress })
         .eq('id', taskId);
       
@@ -112,7 +114,7 @@ export default function TaskView() {
   const updateTaskNameMutation = useMutation({
     mutationFn: async ({ taskId, taskName, isSubtask = false }: { taskId: number; taskName: string; isSubtask?: boolean }) => {
       const { error } = await supabase
-        .from(isSubtask ? 'subtasks' : 'Tasks')  // Changed from 'Subtasks' to 'subtasks'
+        .from(isSubtask ? 'subtasks' : 'Tasks')
         .update({ "Task Name": taskName })
         .eq('id', taskId);
       
@@ -156,6 +158,10 @@ export default function TaskView() {
     );
   };
 
+  const formatDate = (date: string) => {
+    return format(new Date(date), 'MMM d, h:mm a');
+  };
+
   const isLoading = tasksLoading || subtasksLoading;
 
   return (
@@ -191,6 +197,7 @@ export default function TaskView() {
                 <TableRow>
                   <TableHead>Task Name</TableHead>
                   <TableHead>Progress</TableHead>
+                  <TableHead>Timeline</TableHead>
                   <TableHead className="w-[150px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -258,6 +265,20 @@ export default function TaskView() {
                             <SelectItem value="Backlog">Backlog</SelectItem>
                           </SelectContent>
                         </Select>
+                      </TableCell>
+                      <TableCell>
+                        {task.date_started && task.date_due && (
+                          <div className="flex flex-col gap-1 text-sm">
+                            <div className="flex items-center gap-2 text-primary">
+                              <Clock className="h-3 w-3" />
+                              <span>Starts: {formatDate(task.date_started)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-primary/80">
+                              <Clock className="h-3 w-3" />
+                              <span>Due: {formatDate(task.date_due)}</span>
+                            </div>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -333,6 +354,7 @@ export default function TaskView() {
                             </SelectContent>
                           </Select>
                         </TableCell>
+                        <TableCell></TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {editingTaskId !== subtask.id && (

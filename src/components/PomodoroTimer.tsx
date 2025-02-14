@@ -22,7 +22,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const [isRunning, setIsRunning] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch active tasks from Supabase
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
     queryFn: async () => {
@@ -49,7 +48,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       const startDate = new Date(currentTask.date_started);
       const dueDate = new Date(currentTask.date_due);
       
-      // Only start if we're between start and due dates
       if (now >= startDate && now <= dueDate) {
         const remainingTime = Math.floor((dueDate.getTime() - now.getTime()) / 1000);
         setTimeLeft(remainingTime);
@@ -79,7 +77,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   });
 
   useEffect(() => {
-    // Start the timer automatically if autoStart is true and there are tasks
     if ((autoStart || activeTaskId) && activeTasks && activeTasks.length > 0 && !isRunning) {
       setIsRunning(true);
       toast.info("Timer started automatically");
@@ -93,14 +90,11 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       interval = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
-            // Time's up
             if (isBreak) {
-              // End of break
               setIsBreak(false);
               toast.success("Break finished! Starting next task.");
               return 25 * 60;
             } else {
-              // End of work session - mark current task as completed
               updateTaskProgress.mutate(currentTask.id);
               setIsBreak(true);
               toast.success("Work session complete! Time for a break.");
@@ -132,28 +126,50 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     ? ((5 * 60 - timeLeft) / (5 * 60)) * 100
     : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
 
+  const getTimerColor = () => {
+    if (isBreak) {
+      return 'linear-gradient(135deg, #FFA07A 0%, #FF7F50 100%)';
+    }
+    
+    const progress = ((25 * 60 - timeLeft) / (25 * 60)) * 100;
+    const hue = 120 - (progress * 0.8);
+    return `linear-gradient(135deg, hsl(${hue}, 70%, 60%) 0%, hsl(${hue + 20}, 70%, 45%) 100%)`;
+  };
+
   if (!shouldShowTimer) return null;
 
   return (
-    <div className="glass p-6 rounded-lg shadow-sm space-y-6 animate-slideIn">
+    <div className="glass p-6 rounded-lg shadow-lg space-y-6 animate-slideIn backdrop-blur-md">
       <div className="space-y-2">
-        <h2 className="text-2xl font-semibold text-center">
+        <h2 className="text-2xl font-semibold text-center text-white">
           {isBreak ? 'Break Time' : 'Work Session'}
         </h2>
         {currentTask && (
-          <p className="text-center text-muted-foreground">
+          <p className="text-center text-white/80">
             {isBreak ? 'Take a breather' : `Working on: ${currentTask["Task Name"]}`}
           </p>
         )}
       </div>
 
-      <div className="text-center">
-        <span className="text-5xl font-mono font-bold animate-pulse-subtle">
+      <div 
+        className="relative p-8 rounded-xl transition-all duration-300"
+        style={{
+          background: getTimerColor(),
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+        }}
+      >
+        <span className="text-5xl font-mono font-bold text-white text-center block animate-pulse-subtle">
           {formatTime(timeLeft)}
         </span>
       </div>
 
-      <Progress value={progress} className="h-2" />
+      <Progress 
+        value={progress} 
+        className="h-2" 
+        style={{
+          background: 'rgba(255, 255, 255, 0.2)',
+        }}
+      />
 
       <div className="flex justify-center gap-4">
         <Button
@@ -164,14 +180,14 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
             }
           }}
           disabled={!currentTask}
-          className="hover-lift"
+          className="hover-lift bg-white/20 text-white hover:bg-white/30"
         >
           {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
         <Button
           onClick={handleReset}
           variant="outline"
-          className="hover-lift"
+          className="hover-lift bg-white/10 text-white hover:bg-white/20 border-white/20"
         >
           <RotateCcw className="h-4 w-4" />
         </Button>

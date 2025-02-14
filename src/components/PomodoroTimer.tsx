@@ -29,6 +29,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
+        .neq('Progress', 'Completed') // Don't include completed tasks
         .order('date_started', { ascending: true });
       
       if (error) throw error;

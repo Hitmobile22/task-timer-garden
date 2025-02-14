@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, ArrowUpDown, Filter, ListFilter } from "lucide-react";
+import { ArrowLeft, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, ArrowUpDown, Filter, ListFilter, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -24,6 +24,14 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 type Task = {
   id: number;
@@ -67,6 +75,8 @@ export default function TaskView() {
   const [sortOrder, setSortOrder] = React.useState<SortOrder>("asc");
   const [progressFilter, setProgressFilter] = React.useState<Task['Progress'] | "all">("all");
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [newTaskListName, setNewTaskListName] = React.useState("");
+  const [showNewTaskListDialog, setShowNewTaskListDialog] = React.useState(false);
 
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['tasks'],
@@ -152,6 +162,26 @@ export default function TaskView() {
     onError: (error) => {
       toast.error('Failed to update task name');
       console.error('Update error:', error);
+    },
+  });
+
+  const createTaskListMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const { error } = await supabase
+        .from('TaskLists')
+        .insert([{ name }]);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
+      setNewTaskListName("");
+      setShowNewTaskListDialog(false);
+      toast.success('Task list created');
+    },
+    onError: (error) => {
+      toast.error('Failed to create task list');
+      console.error('Create error:', error);
     },
   });
 
@@ -248,7 +278,6 @@ export default function TaskView() {
     },
   });
 
-  // Group tasks by task list
   const groupedTasks = React.useMemo(() => {
     if (!tasks || !taskLists) return new Map();
     
@@ -311,6 +340,35 @@ export default function TaskView() {
                 />
               </div>
               <div className="flex items-center gap-4">
+                <Dialog open={showNewTaskListDialog} onOpenChange={setShowNewTaskListDialog}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Task List</DialogTitle>
+                      <DialogDescription>
+                        Enter a name for your new task list.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      <Input
+                        placeholder="Task List Name"
+                        value={newTaskListName}
+                        onChange={(e) => setNewTaskListName(e.target.value)}
+                      />
+                      <Button 
+                        onClick={() => createTaskListMutation.mutate(newTaskListName)}
+                        disabled={!newTaskListName.trim()}
+                      >
+                        Create List
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
                 <Select
                   value={progressFilter}
                   onValueChange={(value: Task['Progress'] | "all") => setProgressFilter(value)}
@@ -357,136 +415,206 @@ export default function TaskView() {
                     </TableHeader>
                     <TableBody>
                       {listTasks.map((task) => (
-                        <TableRow key={task.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {subtasks?.some(st => st["Parent Task ID"] === task.id) && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-4 w-4 p-0"
-                                  onClick={() => toggleTaskExpansion(task.id)}
-                                >
-                                  {expandedTasks.includes(task.id) ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
-                              {editingTaskId === task.id ? (
-                                <div className="flex items-center gap-2 flex-grow">
-                                  <Input
-                                    value={editingTaskName}
-                                    onChange={(e) => setEditingTaskName(e.target.value)}
-                                    className="w-full"
-                                  />
+                        <React.Fragment key={task.id}>
+                          <TableRow>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {subtasks?.some(st => st["Parent Task ID"] === task.id) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => handleEditSave(task.id)}
+                                    className="h-4 w-4 p-0"
+                                    onClick={() => toggleTaskExpansion(task.id)}
                                   >
-                                    <Check className="h-4 w-4" />
+                                    {expandedTasks.includes(task.id) ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
                                   </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={handleEditCancel}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                task["Task Name"]
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={task.Progress}
-                              onValueChange={(value: Task['Progress']) => 
-                                updateProgressMutation.mutate({ taskId: task.id, progress: value })
-                              }
-                            >
-                              <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Select progress" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Not started">Not started</SelectItem>
-                                <SelectItem value="In progress">In progress</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
-                                <SelectItem value="Backlog">Backlog</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            {task.date_started && task.date_due && (
-                              <div className="flex flex-col gap-1 text-sm">
-                                <div className="flex items-center gap-2 text-primary">
-                                  <Clock className="h-3 w-3" />
-                                  <span>Starts: {formatDate(task.date_started)}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-primary/80">
-                                  <Clock className="h-3 w-3" />
-                                  <span>Due: {formatDate(task.date_due)}</span>
-                                </div>
+                                )}
+                                {editingTaskId === task.id ? (
+                                  <div className="flex items-center gap-2 flex-grow">
+                                    <Input
+                                      value={editingTaskName}
+                                      onChange={(e) => setEditingTaskName(e.target.value)}
+                                      className="w-full"
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleEditSave(task.id)}
+                                    >
+                                      <Check className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={handleEditCancel}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  task["Task Name"]
+                                )}
                               </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
+                            </TableCell>
+                            <TableCell>
                               <Select
-                                value={task.task_list_id?.toString() || ''}
-                                onValueChange={(value) => 
-                                  updateTaskListMutation.mutate({ 
-                                    taskId: task.id, 
-                                    taskListId: parseInt(value) 
-                                  })
+                                value={task.Progress}
+                                onValueChange={(value: Task['Progress']) => 
+                                  updateProgressMutation.mutate({ taskId: task.id, progress: value })
                                 }
                               >
-                                <SelectTrigger className="w-[150px]">
-                                  <div className="flex items-center gap-2">
-                                    <ListFilter className="h-4 w-4" />
-                                    <SelectValue placeholder="Move to list" />
-                                  </div>
+                                <SelectTrigger className="w-[180px]">
+                                  <SelectValue placeholder="Select progress" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {taskLists?.map((list) => (
-                                    <SelectItem 
-                                      key={list.id} 
-                                      value={list.id.toString()}
-                                      className="flex items-center gap-2"
-                                    >
-                                      <div 
-                                        className="w-2 h-2 rounded-full"
-                                        style={{ 
-                                          backgroundColor: TASK_LIST_COLORS[list.name] || TASK_LIST_COLORS['Default']
-                                        }} 
-                                      />
-                                      {list.name}
-                                    </SelectItem>
-                                  ))}
+                                  <SelectItem value="Not started">Not started</SelectItem>
+                                  <SelectItem value="In progress">In progress</SelectItem>
+                                  <SelectItem value="Completed">Completed</SelectItem>
+                                  <SelectItem value="Backlog">Backlog</SelectItem>
                                 </SelectContent>
                               </Select>
-                              {editingTaskId !== task.id && (
+                            </TableCell>
+                            <TableCell>
+                              {task.date_started && task.date_due && (
+                                <div className="flex flex-col gap-1 text-sm">
+                                  <div className="flex items-center gap-2 text-primary">
+                                    <Clock className="h-3 w-3" />
+                                    <span>Starts: {formatDate(task.date_started)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-primary/80">
+                                    <Clock className="h-3 w-3" />
+                                    <span>Due: {formatDate(task.date_due)}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={task.task_list_id?.toString() || ''}
+                                  onValueChange={(value) => 
+                                    updateTaskListMutation.mutate({ 
+                                      taskId: task.id, 
+                                      taskListId: parseInt(value) 
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="w-[150px]">
+                                    <div className="flex items-center gap-2">
+                                      <ListFilter className="h-4 w-4" />
+                                      <SelectValue placeholder="Move to list" />
+                                    </div>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {taskLists?.map((list) => (
+                                      <SelectItem 
+                                        key={list.id} 
+                                        value={list.id.toString()}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <div 
+                                          className="w-2 h-2 rounded-full"
+                                          style={{ 
+                                            backgroundColor: TASK_LIST_COLORS[list.name] || TASK_LIST_COLORS['Default']
+                                          }} 
+                                        />
+                                        {list.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {editingTaskId !== task.id && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleEditStart(task)}
+                                  >
+                                    <PencilIcon className="h-4 w-4" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleEditStart(task)}
+                                  onClick={() => deleteMutation.mutate(task.id)}
                                 >
-                                  <PencilIcon className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => deleteMutation.mutate(task.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
+                            <TableRow key={subtask.id} className="bg-muted/50">
+                              <TableCell className="pl-10">
+                                {editingTaskId === subtask.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      value={editingTaskName}
+                                      onChange={(e) => setEditingTaskName(e.target.value)}
+                                      className="w-full"
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleEditSave(subtask.id, true)}
+                                    >
+                                      <Check className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={handleEditCancel}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span>└─ {subtask["Task Name"]}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleEditStart(subtask)}
+                                    >
+                                      <PencilIcon className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value={subtask.Progress}
+                                  onValueChange={(value: Task['Progress']) => 
+                                    updateProgressMutation.mutate({ taskId: subtask.id, progress: value, isSubtask: true })
+                                  }
+                                >
+                                  <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Select progress" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Not started">Not started</SelectItem>
+                                    <SelectItem value="In progress">In progress</SelectItem>
+                                    <SelectItem value="Completed">Completed</SelectItem>
+                                    <SelectItem value="Backlog">Backlog</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell></TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => deleteMutation.mutate(subtask.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </React.Fragment>
                       ))}
                     </TableBody>
                   </Table>

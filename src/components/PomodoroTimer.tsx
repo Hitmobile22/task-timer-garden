@@ -29,7 +29,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .neq('Progress', 'Completed') // Don't include completed tasks
+        .neq('Progress', 'Completed')
         .order('date_started', { ascending: true });
       
       if (error) throw error;
@@ -41,19 +41,21 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     ? activeTasks?.find(t => t.id === activeTaskId)
     : activeTasks?.find(t => t.Progress === 'In progress' || t.Progress === 'Not started');
 
+  const shouldShowTimer = currentTask && new Date() >= new Date(currentTask.date_started);
+
   useEffect(() => {
     if (currentTask?.date_started && currentTask?.date_due) {
       const now = new Date();
-      const dueDate = new Date(currentTask.date_due);
       const startDate = new Date(currentTask.date_started);
+      const dueDate = new Date(currentTask.date_due);
       
-      // If task is currently running (between start and due dates)
+      // Only start if we're between start and due dates
       if (now >= startDate && now <= dueDate) {
         const remainingTime = Math.floor((dueDate.getTime() - now.getTime()) / 1000);
         setTimeLeft(remainingTime);
         if (!isRunning) {
           setIsRunning(true);
-          toast.info(`Resuming task: ${currentTask["Task Name"]}`);
+          toast.info(`Starting task: ${currentTask["Task Name"]}`);
         }
       }
     }
@@ -129,6 +131,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const progress = isBreak
     ? ((5 * 60 - timeLeft) / (5 * 60)) * 100
     : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
+
+  if (!shouldShowTimer) return null;
 
   return (
     <div className="glass p-6 rounded-lg shadow-sm space-y-6 animate-slideIn">

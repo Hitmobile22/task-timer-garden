@@ -157,33 +157,21 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       
       if (!selectedTask) return;
 
-      const otherTasks = notStartedTasks.filter(t => t.id !== taskId);
-      const orderedTasks = [selectedTask, ...otherTasks];
+      const { error } = await supabase
+        .from('Tasks')
+        .update({
+          Progress: 'In progress',
+          date_started: new Date().toISOString(),
+          date_due: new Date(Date.now() + 25 * 60 * 1000).toISOString()
+        })
+        .eq('id', taskId);
 
-      const currentTime = new Date();
-      
-      for (let i = 0; i < orderedTasks.length; i++) {
-        const task = orderedTasks[i];
-        const taskStartTime = new Date(currentTime);
-        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
-        
-        const taskDueTime = new Date(taskStartTime);
-        taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
-
-        const { error } = await supabase
-          .from('Tasks')
-          .update({
-            date_started: taskStartTime.toISOString(),
-            date_due: taskDueTime.toISOString()
-          })
-          .eq('id', task.id);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       onTaskStart?.(taskId);
       
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Timer started with selected task');
     } catch (error) {
       console.error('Error starting task:', error);
@@ -239,6 +227,50 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       // Sort by start time for non-completed tasks
       return new Date(a.date_started).getTime() - new Date(b.date_started).getTime();
     });
+
+  if (!isTaskView) {
+    return (
+      <div className="space-y-4 animate-slideIn">
+        <h2 className="text-lg font-semibold">Your Tasks</h2>
+        <ul className="space-y-4">
+          {(dbTasks || [])
+            .filter(task => task.Progress !== 'Completed')
+            .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime())
+            .map((task) => (
+              <li key={task.id} className="space-y-2">
+                <div className={`flex items-center gap-3 p-3 rounded-md bg-white/50 hover:bg-white/80 transition-colors`}>
+                  <div className="flex gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                      onClick={() => updateTaskProgress.mutate({ id: task.id })}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                      onClick={() => handleTaskStart(task.id)}
+                    >
+                      <Play className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex-grow">
+                    <span className="font-medium">{task["Task Name"]}</span>
+                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {format(new Date(task.date_started), 'MMM d, h:mm a')}
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+        </ul>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-slideIn">

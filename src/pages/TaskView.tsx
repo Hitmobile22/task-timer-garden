@@ -53,7 +53,7 @@ type SortField = "Task Name" | "Progress" | "date_started" | "date_due";
 type SortOrder = "asc" | "desc";
 
 const TASK_LIST_COLORS = {
-  'Default': 'linear-gradient(90deg, hsla(221, 45%, 73%, 1) 0%, hsla(220, 78%, 29%, 1) 100%)',
+  'Day to Day': 'linear-gradient(90deg, hsla(221, 45%, 73%, 1) 0%, hsla(220, 78%, 29%, 1) 100%)',
   'Personal': 'linear-gradient(90deg, hsla(277, 75%, 84%, 1) 0%, hsla(297, 50%, 51%, 1) 100%)',
   'Work': 'linear-gradient(90deg, hsla(39, 100%, 77%, 1) 0%, hsla(22, 90%, 57%, 1) 100%)',
   'Shopping': 'linear-gradient(90deg, hsla(24, 100%, 83%, 1) 0%, hsla(341, 91%, 68%, 1) 100%)',
@@ -697,8 +697,8 @@ export default function TaskView() {
                                     value={task.task_list_id?.toString() || ''}
                                     onValueChange={(value) => 
                                       updateTaskListMutation.mutate({ 
-                                        listId: task.id, 
-                                        name: value
+                                        taskId: task.id, 
+                                        listId: parseInt(value)
                                       })
                                     }
                                   >
@@ -718,7 +718,7 @@ export default function TaskView() {
                                           <div 
                                             className="w-2 h-2 rounded-full"
                                             style={{ 
-                                              backgroundColor: TASK_LIST_COLORS[list.name] || TASK_LIST_COLORS['Default']
+                                              backgroundColor: TASK_LIST_COLORS[list.name] || TASK_LIST_COLORS['Day to Day']
                                             }} 
                                           />
                                           {list.name}
@@ -917,8 +917,8 @@ export default function TaskView() {
                             value={task.task_list_id?.toString() || ''}
                             onValueChange={(value) => 
                               updateTaskListMutation.mutate({ 
-                                listId: task.id, 
-                                name: value
+                                taskId: task.id, 
+                                listId: parseInt(value)
                               })
                             }
                           >
@@ -938,7 +938,7 @@ export default function TaskView() {
                                   <div 
                                     className="w-2 h-2 rounded-full"
                                     style={{ 
-                                      backgroundColor: TASK_LIST_COLORS[list.name] || TASK_LIST_COLORS['Default']
+                                      backgroundColor: TASK_LIST_COLORS[list.name] || TASK_LIST_COLORS['Day to Day']
                                     }} 
                                   />
                                   {list.name}

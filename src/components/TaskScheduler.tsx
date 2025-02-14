@@ -62,10 +62,10 @@ export const TaskScheduler = () => {
       setShowTimer(true);
       setTimerStarted(true);
       
-      // Invalidate queries to refresh the task list
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
       
       toast.success('Tasks created successfully');
     } catch (error) {
@@ -112,19 +112,18 @@ export const TaskScheduler = () => {
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
           <div className="grid gap-8 md:grid-cols-[1fr,auto] items-start">
             <div className="space-y-6">
+              {showTimer && (
+                <div className="w-full animate-slideIn">
+                  <PomodoroTimer 
+                    tasks={tasks.map(t => t.name)} 
+                    autoStart={timerStarted}
+                    activeTaskId={activeTaskId}
+                  />
+                </div>
+              )}
               <TaskForm onTasksCreate={handleTasksCreate} />
               <TaskList tasks={tasks} onTaskStart={handleTaskStart} />
             </div>
-            
-            {showTimer && (
-              <div className="w-full md:w-[350px] animate-slideIn">
-                <PomodoroTimer 
-                  tasks={tasks.map(t => t.name)} 
-                  autoStart={timerStarted}
-                  activeTaskId={activeTaskId}
-                />
-              </div>
-            )}
           </div>
         </div>
       </main>

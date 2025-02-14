@@ -41,6 +41,27 @@ export type Database = {
           },
         ]
       }
+      TaskLists: {
+        Row: {
+          created_at: string
+          id: number
+          name: string
+          order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          name: string
+          order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          name?: string
+          order?: number
+        }
+        Relationships: []
+      }
       Tasks: {
         Row: {
           created_at: string
@@ -49,8 +70,10 @@ export type Database = {
           delay_type: string | null
           delay_value: string | null
           id: number
+          order: number
           Progress: Database["public"]["Enums"]["status"] | null
           "Task Name": string | null
+          task_list_id: number | null
         }
         Insert: {
           created_at?: string
@@ -59,8 +82,10 @@ export type Database = {
           delay_type?: string | null
           delay_value?: string | null
           id?: number
+          order?: number
           Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null
+          task_list_id?: number | null
         }
         Update: {
           created_at?: string
@@ -69,10 +94,20 @@ export type Database = {
           delay_type?: string | null
           delay_value?: string | null
           id?: number
+          order?: number
           Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null
+          task_list_id?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "Tasks_task_list_id_fkey"
+            columns: ["task_list_id"]
+            isOneToOne: false
+            referencedRelation: "TaskLists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

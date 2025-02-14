@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +23,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Clock } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 type Status = Database['public']['Enums']['status'];
 
@@ -37,6 +37,19 @@ interface Task {
 }
 
 export const TaskForm = ({ onTasksCreate }) => {
+  const { data: taskLists } = useQuery({
+    queryKey: ['task-lists'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('TaskLists')
+        .select('*')
+        .order('order', { ascending: true });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const [numTasks, setNumTasks] = useState(1);
   const [tasks, setTasks] = useState<Task[]>([{ name: "", subtasks: [] }]);
   const [loadingTaskIndex, setLoadingTaskIndex] = useState<number | null>(null);
@@ -204,31 +217,36 @@ export const TaskForm = ({ onTasksCreate }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-[1fr,auto,auto]">
-          <div>
-            <Label htmlFor="numTasks">Number of Tasks</Label>
-            <Select value={numTasks.toString()} onValueChange={handleNumTasksChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select number of tasks" />
-              </SelectTrigger>
-              <SelectContent>
-                {[...Array(10)].map((_, i) => (
-                  <SelectItem key={i + 1} value={(i + 1).toString()}>
-                    {i + 1} {i === 0 ? "Task" : "Tasks"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div>
+          <Label htmlFor="numTasks">Number of Tasks</Label>
+          <Select value={numTasks.toString()} onValueChange={handleNumTasksChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select number of tasks" />
+            </SelectTrigger>
+            <SelectContent>
+              {[...Array(10)].map((_, i) => (
+                <SelectItem key={i + 1} value={(i + 1).toString()}>
+                  {i + 1} {i === 0 ? "Task" : "Tasks"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
+        <div className="grid gap-4 md:grid-cols-2">
           <div>
             <Label>Delay by Minutes</Label>
             <Select
               value={delayType === 'minutes' ? selectedMinutes : ''}
               onValueChange={(value) => {
-                setDelayType('minutes');
-                setSelectedMinutes(value);
-                setSelectedDate(undefined);
+                if (value === 'none') {
+                  setDelayType(null);
+                  setSelectedMinutes('');
+                } else {
+                  setDelayType('minutes');
+                  setSelectedMinutes(value);
+                  setSelectedDate(undefined);
+                }
               }}
               disabled={delayType === 'datetime'}
             >
@@ -236,6 +254,7 @@ export const TaskForm = ({ onTasksCreate }) => {
                 <SelectValue placeholder="Select delay" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">None</SelectItem>
                 {[5, 10, 25, 30, 45, 60, 120, 180].map((minutes) => (
                   <SelectItem key={minutes} value={minutes.toString()}>
                     {minutes >= 60 
@@ -267,16 +286,42 @@ export const TaskForm = ({ onTasksCreate }) => {
                   }}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                  {selectedDate ? (
+                    format(selectedDate, "PPP p")
+                  ) : (
+                    <span>Pick date and time</span>
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  initialFocus
-                />
+                <div className="p-4 space-y-4">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        const currentTime = selectedDate || new Date();
+                        date.setHours(currentTime.getHours());
+                        date.setMinutes(currentTime.getMinutes());
+                        setSelectedDate(date);
+                      }
+                    }}
+                    initialFocus
+                  />
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="time"
+                      value={selectedDate ? format(selectedDate, "HH:mm") : ""}
+                      onChange={(e) => {
+                        const [hours, minutes] = e.target.value.split(':').map(Number);
+                        const newDate = selectedDate || new Date();
+                        newDate.setHours(hours);
+                        newDate.setMinutes(minutes);
+                        setSelectedDate(new Date(newDate));
+                      }}
+                    />
+                  </div>
+                </div>
               </PopoverContent>
             </Popover>
           </div>

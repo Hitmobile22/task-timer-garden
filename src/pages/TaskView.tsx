@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -443,7 +443,6 @@ export default function TaskView() {
           </div>
 
           {sortBy === 'list' ? (
-            // Grouped by task list view
             <DndContext collisionDetection={closestCenter}>
               {Array.from(groupedTasks.values()).map(({ list, tasks: listTasks }) => (
                 <div key={list.id} className="mb-8">
@@ -676,7 +675,6 @@ export default function TaskView() {
               ))}
             </DndContext>
           ) : (
-            // Date-sorted view with task list column
             <Table>
               <TableHeader>
                 <TableRow>
@@ -856,4 +854,59 @@ export default function TaskView() {
                                 size="icon"
                                 onClick={handleEditCancel}
                               >
-                                <X className="h-4 w
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span>└─ {subtask["Task Name"]}</span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditStart(subtask)}
+                              >
+                                <PencilIcon className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={subtask.Progress}
+                            onValueChange={(value: Task['Progress']) => 
+                              updateProgressMutation.mutate({ taskId: subtask.id, progress: value, isSubtask: true })
+                            }
+                          >
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue placeholder="Select progress" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Not started">Not started</SelectItem>
+                              <SelectItem value="In progress">In progress</SelectItem>
+                              <SelectItem value="Completed">Completed</SelectItem>
+                              <SelectItem value="Backlog">Backlog</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell></TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteMutation.mutate(subtask.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

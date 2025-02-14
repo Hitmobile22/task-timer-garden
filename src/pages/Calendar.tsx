@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -190,7 +189,7 @@ export default function CalendarView() {
         background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
       }}
     >
-      <div className="container mx-auto max-w-4xl">
+      <div className="container mx-auto max-w-6xl">
         <Button
           variant="ghost"
           size="icon"
@@ -201,7 +200,7 @@ export default function CalendarView() {
         </Button>
       </div>
 
-      <main className="container mx-auto max-w-4xl space-y-8">
+      <main className="container mx-auto max-w-6xl space-y-8">
         <header className="text-center space-y-2">
           <h1 className="text-4xl font-bold tracking-tight text-white">Calendar</h1>
           <p className="text-white/80">View your tasks in calendar format</p>
@@ -209,14 +208,13 @@ export default function CalendarView() {
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
           <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
-            <TabsList className="grid w-full grid-cols-3 mb-8">
-              <TabsTrigger value="day">Today</TabsTrigger>
-              <TabsTrigger value="week">Week</TabsTrigger>
-              <TabsTrigger value="month">Month</TabsTrigger>
-            </TabsList>
-            
-            <div className="grid md:grid-cols-[auto,1fr] gap-8">
-              <div className="w-full md:w-auto">
+            <div className="flex flex-col space-y-8">
+              <div className="flex items-center justify-between">
+                <TabsList>
+                  <TabsTrigger value="day">Today</TabsTrigger>
+                  <TabsTrigger value="week">Week</TabsTrigger>
+                  <TabsTrigger value="month">Month</TabsTrigger>
+                </TabsList>
                 <CalendarComponent
                   mode="single"
                   selected={date}
@@ -225,19 +223,17 @@ export default function CalendarView() {
                 />
               </div>
 
-              <div className="space-y-8">
-                <TabsContent value="day" className="m-0">
-                  <DayView />
-                </TabsContent>
+              <TabsContent value="day" className="m-0">
+                <DayView />
+              </TabsContent>
 
-                <TabsContent value="week" className="m-0">
-                  <WeekView />
-                </TabsContent>
+              <TabsContent value="week" className="m-0">
+                <WeekView />
+              </TabsContent>
 
-                <TabsContent value="month" className="m-0">
-                  <MonthView />
-                </TabsContent>
-              </div>
+              <TabsContent value="month" className="m-0">
+                <MonthView />
+              </TabsContent>
             </div>
           </Tabs>
         </div>

@@ -43,18 +43,21 @@ export type Database = {
       }
       TaskLists: {
         Row: {
+          color: string | null
           created_at: string
           id: number
           name: string
           order: number
         }
         Insert: {
+          color?: string | null
           created_at?: string
           id?: number
           name: string
           order?: number
         }
         Update: {
+          color?: string | null
           created_at?: string
           id?: number
           name?: string

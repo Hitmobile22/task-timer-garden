@@ -65,12 +65,14 @@ const TASK_LIST_COLORS = {
   'Goals': 'linear-gradient(to right, #ee9ca7, #ffdde1)',
 };
 
-const getTaskListColor = (listName: string) => {
-  if (TASK_LIST_COLORS[listName]) return TASK_LIST_COLORS[listName];
-  
-  // Generate a color for new lists
+const generateRandomColor = () => {
   const hue = Math.random() * 360;
   return `linear-gradient(90deg, hsla(${hue}, 70%, 75%, 1) 0%, hsla(${(hue + 30) % 360}, 90%, 76%, 1) 100%)`;
+};
+
+const getTaskListColor = (listId: number, taskLists: any[]) => {
+  const list = taskLists?.find(l => l.id === listId);
+  return list?.color || TASK_LIST_COLORS['Default'];
 };
 
 export default function TaskView() {
@@ -85,6 +87,14 @@ export default function TaskView() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [newTaskListName, setNewTaskListName] = React.useState("");
   const [showNewTaskListDialog, setShowNewTaskListDialog] = React.useState(false);
+  const [editingListId, setEditingListId] = useState<number | null>(null);
+  const [editingListName, setEditingListName] = useState("");
+  const [showEditTimelineDialog, setShowEditTimelineDialog] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [timelineDate, setTimelineDate] = useState<{ start: Date; end: Date }>({
+    start: new Date(),
+    end: new Date(new Date().setHours(new Date().getHours() + 1))
+  });
 
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['tasks'],
@@ -175,9 +185,10 @@ export default function TaskView() {
 
   const createTaskListMutation = useMutation({
     mutationFn: async (name: string) => {
+      const color = generateRandomColor();
       const { error } = await supabase
         .from('TaskLists')
-        .insert([{ name }]);
+        .insert([{ name, color }]);
       
       if (error) throw error;
     },
@@ -190,6 +201,57 @@ export default function TaskView() {
     onError: (error) => {
       toast.error('Failed to create task list');
       console.error('Create error:', error);
+    },
+  });
+
+  const deleteTaskListMutation = useMutation({
+    mutationFn: async (listId: number) => {
+      const { error } = await supabase
+        .from('TaskLists')
+        .delete()
+        .eq('id', listId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
+      toast.success('Task list deleted');
+    },
+  });
+
+  const updateTaskListMutation = useMutation({
+    mutationFn: async ({ listId, name }: { listId: number; name: string }) => {
+      const { error } = await supabase
+        .from('TaskLists')
+        .update({ name })
+        .eq('id', listId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
+      setEditingListId(null);
+      toast.success('Task list updated');
+    },
+  });
+
+  const updateTaskTimelineMutation = useMutation({
+    mutationFn: async ({ taskId, start, end }: { taskId: number; start: Date; end: Date }) => {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({
+          date_started: start.toISOString(),
+          date_due: end.toISOString()
+        })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      setShowEditTimelineDialog(false);
+      setSelectedTaskId(null);
+      toast.success('Task timeline updated');
     },
   });
 
@@ -264,25 +326,6 @@ export default function TaskView() {
       
       if (error) throw error;
       return data;
-    },
-  });
-
-  const updateTaskListMutation = useMutation({
-    mutationFn: async ({ taskId, taskListId }: { taskId: number; taskListId: number }) => {
-      const { error } = await supabase
-        .from('Tasks')
-        .update({ task_list_id: taskListId })
-        .eq('id', taskId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Task list updated');
-    },
-    onError: (error) => {
-      toast.error('Failed to update task list');
-      console.error('Update error:', error);
     },
   });
 
@@ -442,6 +485,55 @@ export default function TaskView() {
             </div>
           </div>
 
+          <Dialog open={showEditTimelineDialog} onOpenChange={setShowEditTimelineDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Task Timeline</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Start Time</label>
+                    <input
+                      type="datetime-local"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2"
+                      value={timelineDate.start.toISOString().slice(0, 16)}
+                      onChange={(e) => setTimelineDate(prev => ({
+                        ...prev,
+                        start: new Date(e.target.value)
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">End Time</label>
+                    <input
+                      type="datetime-local"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2"
+                      value={timelineDate.end.toISOString().slice(0, 16)}
+                      onChange={(e) => setTimelineDate(prev => ({
+                        ...prev,
+                        end: new Date(e.target.value)
+                      }))}
+                    />
+                  </div>
+                </div>
+                <Button 
+                  onClick={() => {
+                    if (selectedTaskId) {
+                      updateTaskTimelineMutation.mutate({
+                        taskId: selectedTaskId,
+                        start: timelineDate.start,
+                        end: timelineDate.end
+                      });
+                    }
+                  }}
+                >
+                  Update Timeline
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {sortBy === 'list' ? (
             <DndContext collisionDetection={closestCenter}>
               {Array.from(groupedTasks.values()).map(({ list, tasks: listTasks }) => (
@@ -449,11 +541,66 @@ export default function TaskView() {
                   <div 
                     className="mb-4 p-2 rounded"
                     style={{
-                      background: getTaskListColor(list.name),
+                      background: list.color || getTaskListColor(list.id, taskLists),
                       color: 'white'
                     }}
                   >
-                    <h3 className="text-lg font-semibold">{list.name}</h3>
+                    {editingListId === list.id ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <Input
+                          value={editingListName}
+                          onChange={(e) => setEditingListName(e.target.value)}
+                          className="max-w-sm"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => updateTaskListMutation.mutate({
+                            listId: list.id,
+                            name: editingListName
+                          })}
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditingListId(null);
+                            setEditingListName("");
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="text-lg font-semibold">{list.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-white hover:bg-white/20"
+                            onClick={() => {
+                              setEditingListId(list.id);
+                              setEditingListName(list.name);
+                            }}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </Button>
+                          {list.name !== 'Default' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-white hover:bg-white/20"
+                              onClick={() => deleteTaskListMutation.mutate(list.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                   <SortableContext items={listTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                     <Table>

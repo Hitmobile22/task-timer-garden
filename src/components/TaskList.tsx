@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Check, Filter, Play } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -68,34 +67,66 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         .eq('id', id);
       
       if (error) throw error;
+
+      if (!isSubtask) {
+        await updateRemainingTaskTimes();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-      toast.success('Task updated');
+      toast.success('Task completed');
     },
   });
 
+  const updateRemainingTaskTimes = async () => {
+    try {
+      const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started') || [];
+      
+      if (notStartedTasks.length === 0) return;
+
+      const currentTime = new Date();
+      
+      for (let i = 0; i < notStartedTasks.length; i++) {
+        const task = notStartedTasks[i];
+        const taskStartTime = new Date(currentTime);
+        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
+        
+        const taskDueTime = new Date(taskStartTime);
+        taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
+
+        const { error } = await supabase
+          .from('Tasks')
+          .update({
+            date_started: taskStartTime.toISOString(),
+            date_due: taskDueTime.toISOString()
+          })
+          .eq('id', task.id);
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error updating task times:', error);
+      toast.error('Failed to update task times');
+    }
+  };
+
   const handleTaskStart = async (taskId: number) => {
     try {
-      // Get all not started tasks
       const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started') || [];
       const selectedTask = dbTasks?.find(t => t.id === taskId);
       
       if (!selectedTask) return;
 
-      // Remove selected task from list and put it first
       const otherTasks = notStartedTasks.filter(t => t.id !== taskId);
       const orderedTasks = [selectedTask, ...otherTasks];
 
-      // Update start and due times for all tasks
       const currentTime = new Date();
       
       for (let i = 0; i < orderedTasks.length; i++) {
         const task = orderedTasks[i];
         const taskStartTime = new Date(currentTime);
-        // Add 30 minutes for each previous task (25min task + 5min break)
         taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
         
         const taskDueTime = new Date(taskStartTime);
@@ -112,7 +143,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         if (error) throw error;
       }
 
-      // Notify parent component to start timer with selected task
       onTaskStart?.(taskId);
       
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -168,30 +198,34 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                 task.Progress === 'Completed' ? 'opacity-50' : ''
               }`}
             >
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`flex-shrink-0 h-6 w-6 rounded-full ${
-                  task.Progress === 'Completed' 
-                    ? 'bg-green-500 text-white' 
-                    : 'bg-primary/10 text-primary hover:bg-primary/20'
-                }`}
-                onClick={() => {
-                  if (task.Progress !== 'Completed') {
-                    if (task.Progress === 'Not started') {
-                      handleTaskStart(task.id);
-                    } else {
+              <div className="flex gap-2">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className={`flex-shrink-0 h-6 w-6 rounded-full ${
+                    task.Progress === 'Completed' 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-primary/10 text-primary hover:bg-primary/20'
+                  }`}
+                  onClick={() => {
+                    if (task.Progress !== 'Completed') {
                       updateTaskProgress.mutate({ id: task.id });
                     }
-                  }
-                }}
-              >
-                {task.Progress === 'Completed' ? (
+                  }}
+                >
                   <Check className="h-4 w-4" />
-                ) : (
-                  <Play className="h-4 w-4" />
+                </Button>
+                {task.Progress !== 'Completed' && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                    onClick={() => handleTaskStart(task.id)}
+                  >
+                    <Play className="h-4 w-4" />
+                  </Button>
                 )}
-              </Button>
+              </div>
               <span className={`flex-grow font-medium ${
                 task.Progress === 'Completed' ? 'line-through' : ''
               }`}>

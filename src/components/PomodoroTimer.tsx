@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -18,7 +17,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   autoStart = false,
   activeTaskId 
 }) => {
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const queryClient = useQueryClient();
@@ -37,6 +36,28 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     },
   });
 
+  const currentTask = activeTaskId 
+    ? activeTasks?.find(t => t.id === activeTaskId)
+    : activeTasks?.find(t => t.Progress === 'In progress' || t.Progress === 'Not started');
+
+  useEffect(() => {
+    if (currentTask?.date_started && currentTask?.date_due) {
+      const now = new Date();
+      const dueDate = new Date(currentTask.date_due);
+      const startDate = new Date(currentTask.date_started);
+      
+      // If task is currently running (between start and due dates)
+      if (now >= startDate && now <= dueDate) {
+        const remainingTime = Math.floor((dueDate.getTime() - now.getTime()) / 1000);
+        setTimeLeft(remainingTime);
+        if (!isRunning) {
+          setIsRunning(true);
+          toast.info(`Resuming task: ${currentTask["Task Name"]}`);
+        }
+      }
+    }
+  }, [currentTask]);
+
   const updateTaskProgress = useMutation({
     mutationFn: async (taskId: number) => {
       const { error } = await supabase
@@ -53,10 +74,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       toast.success('Task completed');
     },
   });
-
-  const currentTask = activeTaskId 
-    ? activeTasks?.find(t => t.id === activeTaskId)
-    : activeTasks?.find(t => t.Progress === 'Not started');
 
   useEffect(() => {
     // Start the timer automatically if autoStart is true and there are tasks

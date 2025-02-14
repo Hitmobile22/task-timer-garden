@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
 import { PomodoroTimer } from './PomodoroTimer';
@@ -33,6 +32,28 @@ export const TaskScheduler = () => {
   const [activeTaskId, setActiveTaskId] = useState<number>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const { data: activeTasks } = useQuery({
+    queryKey: ['active-tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('Tasks')
+        .select('*')
+        .or('Progress.eq.In progress,Progress.eq.Not started')
+        .order('date_started', { ascending: true });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (activeTasks && activeTasks.length > 0) {
+      setShowTimer(true);
+      setTimerStarted(true);
+      setActiveTaskId(activeTasks[0].id);
+    }
+  }, [activeTasks]);
 
   const handleTasksCreate = async (newTasks: Task[]) => {
     try {

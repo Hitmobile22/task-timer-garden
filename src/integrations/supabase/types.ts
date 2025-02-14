@@ -46,6 +46,8 @@ export type Database = {
           created_at: string
           date_due: string | null
           date_started: string | null
+          delay_type: string | null
+          delay_value: string | null
           id: number
           Progress: Database["public"]["Enums"]["status"] | null
           "Task Name": string | null
@@ -54,6 +56,8 @@ export type Database = {
           created_at?: string
           date_due?: string | null
           date_started?: string | null
+          delay_type?: string | null
+          delay_value?: string | null
           id?: number
           Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null
@@ -62,6 +66,8 @@ export type Database = {
           created_at?: string
           date_due?: string | null
           date_started?: string | null
+          delay_type?: string | null
+          delay_value?: string | null
           id?: number
           Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null

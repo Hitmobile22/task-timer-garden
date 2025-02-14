@@ -15,6 +15,15 @@ import { toast } from "sonner";
 import { fetchSubtasksFromAI } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { CalendarIcon, Clock } from "lucide-react";
 
 type Status = Database['public']['Enums']['status'];
 
@@ -31,6 +40,9 @@ export const TaskForm = ({ onTasksCreate }) => {
   const [numTasks, setNumTasks] = useState(1);
   const [tasks, setTasks] = useState<Task[]>([{ name: "", subtasks: [] }]);
   const [loadingTaskIndex, setLoadingTaskIndex] = useState<number | null>(null);
+  const [delayType, setDelayType] = useState<'minutes' | 'datetime' | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>();
+  const [selectedMinutes, setSelectedMinutes] = useState<string>('');
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const handleNumTasksChange = (value: string) => {
@@ -119,24 +131,37 @@ export const TaskForm = ({ onTasksCreate }) => {
 
     try {
       const currentTime = new Date();
+      let delayMilliseconds = 0;
+
+      if (delayType === 'minutes' && selectedMinutes) {
+        delayMilliseconds = parseInt(selectedMinutes) * 60 * 1000;
+      } else if (delayType === 'datetime' && selectedDate) {
+        delayMilliseconds = selectedDate.getTime() - currentTime.getTime();
+        if (delayMilliseconds < 0) {
+          toast.error("Selected time is in the past");
+          return;
+        }
+      }
 
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
-        const taskStartTime = new Date(currentTime);
+        const taskStartTime = new Date(currentTime.getTime() + delayMilliseconds);
         // Add 30 minutes for each previous task (25min task + 5min break)
         taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
         
         const taskDueTime = new Date(taskStartTime);
         taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
 
-        // Create main task with timestamps
+        // Create main task with timestamps and delay info
         const { data: taskData, error: taskError } = await supabase
           .from('Tasks')
           .insert([{ 
             "Task Name": task.name,
             "Progress": "Not started" as Status,
             "date_started": taskStartTime.toISOString(),
-            "date_due": taskDueTime.toISOString()
+            "date_due": taskDueTime.toISOString(),
+            "delay_type": delayType,
+            "delay_value": delayType === 'minutes' ? selectedMinutes : selectedDate?.toISOString()
           }])
           .select()
           .single();
@@ -162,6 +187,9 @@ export const TaskForm = ({ onTasksCreate }) => {
       // Reset form state
       setTasks([{ name: "", subtasks: [] }]);
       setNumTasks(1);
+      setDelayType(null);
+      setSelectedDate(undefined);
+      setSelectedMinutes('');
       
       // Update parent component with new tasks
       onTasksCreate(tasks);
@@ -175,20 +203,84 @@ export const TaskForm = ({ onTasksCreate }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="numTasks">Number of Tasks</Label>
-        <Select value={numTasks.toString()} onValueChange={handleNumTasksChange}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select number of tasks" />
-          </SelectTrigger>
-          <SelectContent>
-            {[...Array(10)].map((_, i) => (
-              <SelectItem key={i + 1} value={(i + 1).toString()}>
-                {i + 1} {i === 0 ? "Task" : "Tasks"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-[1fr,auto,auto]">
+          <div>
+            <Label htmlFor="numTasks">Number of Tasks</Label>
+            <Select value={numTasks.toString()} onValueChange={handleNumTasksChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select number of tasks" />
+              </SelectTrigger>
+              <SelectContent>
+                {[...Array(10)].map((_, i) => (
+                  <SelectItem key={i + 1} value={(i + 1).toString()}>
+                    {i + 1} {i === 0 ? "Task" : "Tasks"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Delay by Minutes</Label>
+            <Select
+              value={delayType === 'minutes' ? selectedMinutes : ''}
+              onValueChange={(value) => {
+                setDelayType('minutes');
+                setSelectedMinutes(value);
+                setSelectedDate(undefined);
+              }}
+              disabled={delayType === 'datetime'}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select delay" />
+              </SelectTrigger>
+              <SelectContent>
+                {[5, 10, 25, 30, 45, 60, 120, 180].map((minutes) => (
+                  <SelectItem key={minutes} value={minutes.toString()}>
+                    {minutes >= 60 
+                      ? `${minutes / 60} ${minutes === 60 ? 'hour' : 'hours'}`
+                      : `${minutes} minutes`
+                    }
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Schedule for</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !selectedDate && "text-muted-foreground"
+                  )}
+                  disabled={delayType === 'minutes'}
+                  onClick={() => {
+                    if (delayType !== 'datetime') {
+                      setDelayType('datetime');
+                      setSelectedMinutes('');
+                    }
+                  }}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-6">

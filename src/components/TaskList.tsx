@@ -1,9 +1,11 @@
+
 import React, { useState } from 'react';
-import { Check, Filter, Play } from 'lucide-react';
+import { Check, Filter, Play, Clock } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
+import { format } from 'date-fns';
 import {
   Select,
   SelectContent,
@@ -39,7 +41,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('date_started', { ascending: true });
       
       if (error) throw error;
       return data;
@@ -155,20 +157,29 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
   if (!dbTasks || dbTasks.length === 0) return null;
 
-  const filteredTasks = dbTasks.filter(task => {
-    if (!isTaskView) {
-      return task.Progress !== 'Completed';
-    }
-    
-    switch (filter) {
-      case 'active':
+  const filteredTasks = dbTasks
+    .filter(task => {
+      if (!isTaskView) {
         return task.Progress !== 'Completed';
-      case 'completed':
-        return task.Progress === 'Completed';
-      default:
-        return true;
-    }
-  });
+      }
+      
+      switch (filter) {
+        case 'active':
+          return task.Progress !== 'Completed';
+        case 'completed':
+          return task.Progress === 'Completed';
+        default:
+          return true;
+      }
+    })
+    .sort((a, b) => {
+      // Always put completed tasks at the bottom
+      if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
+      if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
+      
+      // Sort by start time for non-completed tasks
+      return new Date(a.date_started).getTime() - new Date(b.date_started).getTime();
+    });
 
   return (
     <div className="space-y-4 animate-slideIn">
@@ -226,16 +237,31 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                   </Button>
                 )}
               </div>
-              <span className={`flex-grow font-medium ${
-                task.Progress === 'Completed' ? 'line-through' : ''
-              }`}>
-                {task["Task Name"]}
-              </span>
+              <div className="flex-grow">
+                <span className={`font-medium ${
+                  task.Progress === 'Completed' ? 'line-through' : ''
+                }`}>
+                  {task["Task Name"]}
+                </span>
+                {task.Progress !== 'Completed' && (
+                  <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {format(new Date(task.date_started), 'MMM d, h:mm a')}
+                  </div>
+                )}
+              </div>
             </div>
+
             {dbSubtasks && dbSubtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
               <ul className="pl-8 space-y-2">
                 {dbSubtasks
                   .filter(subtask => subtask["Parent Task ID"] === task.id)
+                  .sort((a, b) => {
+                    // Put completed subtasks at the bottom
+                    if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
+                    if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
+                    return 0;
+                  })
                   .map((subtask) => (
                     <li
                       key={subtask.id}

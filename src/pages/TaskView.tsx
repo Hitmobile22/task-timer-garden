@@ -222,16 +222,19 @@ export default function TaskView() {
   const updateTaskListMutation = useMutation({
     mutationFn: async ({ listId, name }: { listId: number; name: string }) => {
       const { error } = await supabase
-        .from('TaskLists')
-        .update({ name })
-        .eq('id', listId);
+        .from('Tasks')
+        .update({ task_list_id: listId })
+        .eq('id', name);
       
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
-      setEditingListId(null);
-      toast.success('Task list updated');
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Task moved to new list');
+    },
+    onError: (error) => {
+      toast.error('Failed to move task');
+      console.error('Update error:', error);
     },
   });
 
@@ -697,8 +700,8 @@ export default function TaskView() {
                                     value={task.task_list_id?.toString() || ''}
                                     onValueChange={(value) => 
                                       updateTaskListMutation.mutate({ 
-                                        taskId: task.id, 
-                                        listId: parseInt(value)
+                                        listId: parseInt(value),
+                                        name: task.id.toString()
                                       })
                                     }
                                   >
@@ -917,8 +920,8 @@ export default function TaskView() {
                             value={task.task_list_id?.toString() || ''}
                             onValueChange={(value) => 
                               updateTaskListMutation.mutate({ 
-                                taskId: task.id, 
-                                listId: parseInt(value)
+                                listId: parseInt(value),
+                                name: task.id.toString()
                               })
                             }
                           >

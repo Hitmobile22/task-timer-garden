@@ -224,7 +224,7 @@ export default function TaskView() {
       const { error } = await supabase
         .from('Tasks')
         .update({ task_list_id: listId })
-        .eq('id', name);
+        .eq('id', parseInt(name)); // Convert the string ID to a number
       
       if (error) throw error;
     },

@@ -4,10 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, startOfWeek, addDays, startOfMonth, getDaysInMonth } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type Task = {
   id: number;
@@ -45,53 +46,142 @@ export default function CalendarView() {
     });
   };
 
-  const getTasksForWeek = () => {
-    const start = new Date(date);
-    start.setDate(start.getDate() - start.getDay());
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
+  const TimelineTask = ({ task }: { task: Task }) => {
+    const startTime = new Date(task.date_started);
+    const endTime = new Date(task.date_due);
+    const startHour = startTime.getHours() + startTime.getMinutes() / 60;
+    const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
     
-    return tasks?.filter(task => {
-      const taskStart = new Date(task.date_started);
-      const taskDue = new Date(task.date_due);
-      return taskStart <= end && taskDue >= start;
-    });
-  };
-
-  const getTasksForMonth = () => {
-    const start = new Date(date.getFullYear(), date.getMonth(), 1);
-    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-    
-    return tasks?.filter(task => {
-      const taskStart = new Date(task.date_started);
-      const taskDue = new Date(task.date_due);
-      return taskStart <= end && taskDue >= start;
-    });
-  };
-
-  const TaskList = ({ tasks }: { tasks: Task[] }) => (
-    <div className="space-y-3">
-      {tasks.map(task => (
-        <div 
-          key={task.id}
-          className="p-3 rounded-lg glass"
-          style={{
-            background: task.Progress === 'Completed' 
-              ? 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)'
-              : task.Progress === 'In progress'
-              ? 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)'
-              : 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)',
-            color: 'white',
-          }}
-        >
-          <div className="font-medium">{task["Task Name"]}</div>
-          <div className="text-sm opacity-80 mt-1">
-            {format(new Date(task.date_started), 'MMM d, h:mm a')} - {format(new Date(task.date_due), 'MMM d, h:mm a')}
-          </div>
+    return (
+      <div 
+        className="absolute left-[120px] right-4 rounded p-2 text-sm"
+        style={{
+          top: `${startHour * 60}px`,
+          height: `${duration * 60}px`,
+          background: task.Progress === 'Completed' 
+            ? 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)'
+            : task.Progress === 'In progress'
+            ? 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)'
+            : 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)',
+          color: 'white',
+        }}
+      >
+        <div className="font-medium">{task["Task Name"]}</div>
+        <div className="text-xs opacity-80">
+          {format(startTime, 'h:mm a')} - {format(endTime, 'h:mm a')}
         </div>
-      ))}
-    </div>
-  );
+      </div>
+    );
+  };
+
+  const DayView = () => {
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const dayTasks = getTasksForDay(date) || [];
+
+    return (
+      <ScrollArea className="h-[600px] relative">
+        <div className="relative">
+          {hours.map(hour => (
+            <div 
+              key={hour} 
+              className="flex items-start h-[60px] border-t border-gray-200"
+            >
+              <div className="w-[100px] pr-4 text-sm text-gray-500 sticky left-0 bg-white">
+                {format(new Date().setHours(hour, 0), 'h:mm a')}
+              </div>
+            </div>
+          ))}
+          {dayTasks.map(task => (
+            <TimelineTask key={task.id} task={task} />
+          ))}
+        </div>
+      </ScrollArea>
+    );
+  };
+
+  const WeekView = () => {
+    const startDate = startOfWeek(date);
+    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
+
+    return (
+      <div className="grid grid-cols-7 gap-4">
+        {weekDays.map(day => (
+          <div key={day.toString()} className="space-y-2">
+            <div className="text-sm font-medium text-center p-2 bg-muted rounded">
+              {format(day, 'EEE dd')}
+            </div>
+            <div className="space-y-2">
+              {getTasksForDay(day)?.map(task => (
+                <div 
+                  key={task.id}
+                  className="p-2 rounded text-sm"
+                  style={{
+                    background: task.Progress === 'Completed' 
+                      ? 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)'
+                      : task.Progress === 'In progress'
+                      ? 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)'
+                      : 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)',
+                    color: 'white',
+                  }}
+                >
+                  <div className="font-medium">{task["Task Name"]}</div>
+                  <div className="text-xs opacity-80">
+                    {format(new Date(task.date_started), 'h:mm a')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const MonthView = () => {
+    const monthStart = startOfMonth(date);
+    const daysInMonth = getDaysInMonth(date);
+    const days = Array.from({ length: daysInMonth }, (_, i) => addDays(monthStart, i));
+
+    return (
+      <div className="grid grid-cols-7 gap-4">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="text-sm font-medium text-center p-2">
+            {day}
+          </div>
+        ))}
+        {Array(monthStart.getDay()).fill(null).map((_, i) => (
+          <div key={`empty-${i}`} />
+        ))}
+        {days.map(day => (
+          <div key={day.toString()} className="min-h-[100px] border rounded p-1">
+            <div className="text-sm text-gray-500 mb-1">
+              {format(day, 'd')}
+            </div>
+            <ScrollArea className="h-[80px]">
+              <div className="space-y-1">
+                {getTasksForDay(day)?.map(task => (
+                  <div 
+                    key={task.id}
+                    className="p-1 rounded text-xs"
+                    style={{
+                      background: task.Progress === 'Completed' 
+                        ? 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)'
+                        : task.Progress === 'In progress'
+                        ? 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)'
+                        : 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)',
+                      color: 'white',
+                    }}
+                  >
+                    {task["Task Name"]}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div 
@@ -137,30 +227,15 @@ export default function CalendarView() {
 
               <div className="space-y-8">
                 <TabsContent value="day" className="m-0">
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">
-                      Tasks for {format(date, 'MMMM d, yyyy')}
-                    </h3>
-                    <TaskList tasks={getTasksForDay(date) || []} />
-                  </div>
+                  <DayView />
                 </TabsContent>
 
                 <TabsContent value="week" className="m-0">
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">
-                      Tasks for week of {format(date, 'MMMM d, yyyy')}
-                    </h3>
-                    <TaskList tasks={getTasksForWeek() || []} />
-                  </div>
+                  <WeekView />
                 </TabsContent>
 
                 <TabsContent value="month" className="m-0">
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-medium">
-                      Tasks for {format(date, 'MMMM yyyy')}
-                    </h3>
-                    <TaskList tasks={getTasksForMonth() || []} />
-                  </div>
+                  <MonthView />
                 </TabsContent>
               </div>
             </div>

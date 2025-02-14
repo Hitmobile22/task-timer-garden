@@ -128,47 +128,59 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   const getTimerColor = () => {
     if (isBreak) {
-      return 'linear-gradient(135deg, #FFA07A 0%, #FF7F50 100%)';
+      return 'linear-gradient(184.1deg, rgba(249,255,182,1) 44.7%, rgba(226,255,172,1) 67.2%)';
     }
     
     const progress = ((25 * 60 - timeLeft) / (25 * 60)) * 100;
-    const hue = 120 - (progress * 0.8);
-    return `linear-gradient(135deg, hsl(${hue}, 70%, 60%) 0%, hsl(${hue + 20}, 70%, 45%) 100%)`;
+    const colors = {
+      start: {
+        hue: 150,
+        saturation: 70,
+        lightness: 90
+      },
+      end: {
+        hue: 200,
+        saturation: 70,
+        lightness: 85
+      }
+    };
+
+    const currentHue = colors.start.hue + (progress * (colors.end.hue - colors.start.hue) / 100);
+    const currentSaturation = colors.start.saturation + (progress * (colors.end.saturation - colors.start.saturation) / 100);
+    const currentLightness = colors.start.lightness + (progress * (colors.end.lightness - colors.start.lightness) / 100);
+
+    return `linear-gradient(109.6deg, hsl(${currentHue}, ${currentSaturation}%, ${currentLightness}%) 11.2%, hsl(${currentHue + 10}, ${currentSaturation - 10}%, ${currentLightness + 5}%) 91.1%)`;
   };
 
   if (!shouldShowTimer) return null;
 
   return (
-    <div className="glass p-6 rounded-lg shadow-lg space-y-6 animate-slideIn backdrop-blur-md">
+    <div className="glass p-6 rounded-lg shadow-lg space-y-6 animate-slideIn">
       <div className="space-y-2">
-        <h2 className="text-2xl font-semibold text-center text-white">
+        <h2 className="text-2xl font-semibold text-primary">
           {isBreak ? 'Break Time' : 'Work Session'}
         </h2>
         {currentTask && (
-          <p className="text-center text-white/80">
+          <p className="text-primary/80">
             {isBreak ? 'Take a breather' : `Working on: ${currentTask["Task Name"]}`}
           </p>
         )}
       </div>
 
       <div 
-        className="relative p-8 rounded-xl transition-all duration-300"
+        className="relative p-8 rounded-xl transition-all duration-300 shadow-lg"
         style={{
           background: getTimerColor(),
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
         }}
       >
-        <span className="text-5xl font-mono font-bold text-white text-center block animate-pulse-subtle">
+        <span className="text-5xl font-mono font-bold text-primary text-center block">
           {formatTime(timeLeft)}
         </span>
       </div>
 
       <Progress 
         value={progress} 
-        className="h-2" 
-        style={{
-          background: 'rgba(255, 255, 255, 0.2)',
-        }}
+        className="h-2"
       />
 
       <div className="flex justify-center gap-4">
@@ -180,14 +192,15 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
             }
           }}
           disabled={!currentTask}
-          className="hover-lift bg-white/20 text-white hover:bg-white/30"
+          className="hover-lift"
+          variant="outline"
         >
           {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
         <Button
           onClick={handleReset}
           variant="outline"
-          className="hover-lift bg-white/10 text-white hover:bg-white/20 border-white/20"
+          className="hover-lift"
         >
           <RotateCcw className="h-4 w-4" />
         </Button>

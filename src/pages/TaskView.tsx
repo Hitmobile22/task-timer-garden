@@ -541,7 +541,7 @@ export default function TaskView() {
                   <div 
                     className="mb-4 p-2 rounded flex items-center justify-between"
                     style={{
-                      background: list.color || getTaskListColor(list.id, taskLists),
+                      background: list.color || TASK_LIST_COLORS['Default'],
                       color: 'white'
                     }}
                   >
@@ -860,3 +860,118 @@ export default function TaskView() {
                                 className="w-full"
                               />
                               <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditSave(task.id)}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleEditCancel}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            task["Task Name"]
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={task.Progress}
+                          onValueChange={(value: Task['Progress']) => 
+                            updateProgressMutation.mutate({ taskId: task.id, progress: value })
+                          }
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Select progress" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Not started">Not started</SelectItem>
+                            <SelectItem value="In progress">In progress</SelectItem>
+                            <SelectItem value="Completed">Completed</SelectItem>
+                            <SelectItem value="Backlog">Backlog</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        {task.date_started && task.date_due && (
+                          <div className="flex flex-col gap-1 text-sm">
+                            <div className="flex items-center gap-2 text-primary">
+                              <Clock className="h-3 w-3" />
+                              <span>Starts: {formatDate(task.date_started)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-primary/80">
+                              <Clock className="h-3 w-3" />
+                              <span>Due: {formatDate(task.date_due)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={task.task_list_id?.toString() || ''}
+                            onValueChange={(value) => 
+                              updateTaskListMutation.mutate({ 
+                                listId: task.id, 
+                                name: value
+                              })
+                            }
+                          >
+                            <SelectTrigger className="w-[150px]">
+                              <div className="flex items-center gap-2">
+                                <ListFilter className="h-4 w-4" />
+                                <SelectValue placeholder="Move to list" />
+                              </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {taskLists?.map((list) => (
+                                <SelectItem 
+                                  key={list.id} 
+                                  value={list.id.toString()}
+                                  className="flex items-center gap-2"
+                                >
+                                  <div 
+                                    className="w-2 h-2 rounded-full"
+                                    style={{ 
+                                      backgroundColor: TASK_LIST_COLORS[list.name] || TASK_LIST_COLORS['Default']
+                                    }} 
+                                  />
+                                  {list.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {editingTaskId !== task.id && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditStart(task)}
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteMutation.mutate(task.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

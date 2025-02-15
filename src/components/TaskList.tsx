@@ -205,46 +205,47 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
   const handleTaskStart = async (taskId: number) => {
     try {
-      const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started')
+      // Get all not started tasks and sort them by creation time
+      const allTasks = dbTasks?.filter(t => t.Progress === 'Not started')
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || [];
       
-      // Reset scheduling for all not started tasks
-      let currentTime = new Date();
+      const currentTime = new Date();
+      const selectedTaskIndex = allTasks.findIndex(t => t.id === taskId);
       
-      // Set the selected task to start now
-      const { error: updateError } = await supabase
-        .from('Tasks')
-        .update({
-          Progress: 'In progress',
-          date_started: currentTime.toISOString(),
-          date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
-        })
-        .eq('id', taskId);
+      if (selectedTaskIndex === -1) return;
 
-      if (updateError) throw updateError;
+      // Create an array of tasks in the desired order:
+      // 1. Tasks before the selected task stay in their position
+      // 2. Selected task moves to the front
+      // 3. Tasks after the selected task maintain their relative order
+      const reorderedTasks = [
+        allTasks[selectedTaskIndex], // Selected task first
+        ...allTasks.slice(0, selectedTaskIndex), // Tasks before
+        ...allTasks.slice(selectedTaskIndex + 1) // Tasks after
+      ];
 
-      // Move currentTime 30 minutes ahead for the next task
-      currentTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
-
-      // Schedule all other not started tasks
-      for (const task of notStartedTasks) {
-        if (task.id === taskId) continue;
-
-        const startTime = new Date(currentTime);
-        const endTime = new Date(currentTime.getTime() + 25 * 60 * 1000);
+      // Schedule all tasks with proper intervals
+      for (let i = 0; i < reorderedTasks.length; i++) {
+        const task = reorderedTasks[i];
+        const isSelectedTask = task.id === taskId;
+        
+        // Calculate start and end times
+        const taskStartTime = new Date(currentTime);
+        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30)); // 30-minute intervals
+        
+        const taskEndTime = new Date(taskStartTime);
+        taskEndTime.setMinutes(taskEndTime.getMinutes() + 25); // 25-minute duration
 
         const { error } = await supabase
           .from('Tasks')
           .update({
-            date_started: startTime.toISOString(),
-            date_due: endTime.toISOString()
+            Progress: isSelectedTask ? 'In progress' : 'Not started',
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString()
           })
           .eq('id', task.id);
 
         if (error) throw error;
-
-        // Move currentTime 30 minutes ahead for the next task
-        currentTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       }
 
       onTaskStart?.(taskId);

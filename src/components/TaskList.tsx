@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -206,47 +207,47 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     try {
       const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started')
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || [];
-      const selectedTask = dbTasks?.find(t => t.id === taskId);
       
-      if (!selectedTask) return;
-
+      // Reset scheduling for all not started tasks
+      let currentTime = new Date();
+      
+      // Set the selected task to start now
       const { error: updateError } = await supabase
         .from('Tasks')
         .update({
           Progress: 'In progress',
-          date_started: new Date().toISOString(),
-          date_due: new Date(Date.now() + 25 * 60 * 1000).toISOString()
+          date_started: currentTime.toISOString(),
+          date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
         })
         .eq('id', taskId);
 
       if (updateError) throw updateError;
 
-      const currentTime = new Date();
-      currentTime.setMinutes(currentTime.getMinutes() + 30); // Start next task after 30 minutes
-      
-      for (let i = 0; i < notStartedTasks.length; i++) {
-        const task = notStartedTasks[i];
+      // Move currentTime 30 minutes ahead for the next task
+      currentTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
+
+      // Schedule all other not started tasks
+      for (const task of notStartedTasks) {
         if (task.id === taskId) continue;
 
-        const taskStartTime = new Date(currentTime);
-        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30)); // 25 min task + 5 min break
-        
-        const taskDueTime = new Date(taskStartTime);
-        taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
+        const startTime = new Date(currentTime);
+        const endTime = new Date(currentTime.getTime() + 25 * 60 * 1000);
 
         const { error } = await supabase
           .from('Tasks')
           .update({
-            date_started: taskStartTime.toISOString(),
-            date_due: taskDueTime.toISOString()
+            date_started: startTime.toISOString(),
+            date_due: endTime.toISOString()
           })
           .eq('id', task.id);
 
         if (error) throw error;
+
+        // Move currentTime 30 minutes ahead for the next task
+        currentTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       }
 
       onTaskStart?.(taskId);
-      
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Timer started with selected task');
@@ -274,30 +275,27 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       }
     })
     .sort((a, b) => {
-      // Always put completed tasks at the bottom
       if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
       if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
-      
-      // Sort by start time for non-completed tasks
       return new Date(a.date_started).getTime() - new Date(b.date_started).getTime();
     });
 
   if (!isTaskView) {
     return (
-      <div className="space-y-4 animate-slideIn">
-        <h2 className="text-lg font-semibold">Your Tasks</h2>
+      <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn">
+        <h2 className="text-xl font-semibold">Your Tasks</h2>
         <ul className="space-y-4">
           {(dbTasks || [])
             .filter(task => task.Progress !== 'Completed')
             .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime())
             .map((task) => (
               <li key={task.id} className="space-y-2">
-                <div className={`flex items-center gap-3 p-3 rounded-md bg-white/50 hover:bg-white/80 transition-colors`}>
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
                   <div className="flex gap-2">
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                      className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
                       onClick={() => updateTaskProgress.mutate({ id: task.id })}
                     >
                       <Check className="h-4 w-4" />
@@ -305,42 +303,39 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                      className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
                       onClick={() => handleTaskStart(task.id)}
                     >
                       <Play className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="flex-grow">
-                    <span className="font-medium">{task["Task Name"]}</span>
+                  <div className="flex-grow min-w-0">
+                    <span className="font-medium block truncate">{task["Task Name"]}</span>
                     <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {format(new Date(task.date_started), 'MMM d, h:mm a')}
+                      <Clock className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{format(new Date(task.date_started), 'MMM d, h:mm a')}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Show subtasks */}
                 {dbSubtasks && dbSubtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
-                  <ul className="pl-8 space-y-2">
+                  <ul className="pl-6 space-y-2">
                     {dbSubtasks
                       .filter(subtask => subtask["Parent Task ID"] === task.id)
                       .map((subtask) => (
                         <li
                           key={subtask.id}
-                          className="flex items-center gap-3 p-2 rounded-md bg-white/30 hover:bg-white/50 transition-colors cursor-pointer"
+                          className="flex items-center gap-3 p-3 rounded-lg bg-white/30 hover:bg-white/50 transition-colors"
                         >
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="flex-shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                            className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
                             onClick={() => updateTaskProgress.mutate({ id: subtask.id, isSubtask: true })}
                           >
                             <Check className="h-3 w-3" />
                           </Button>
-                          <span className="text-sm">
-                            {subtask["Task Name"]}
-                          </span>
+                          <span className="text-sm truncate">{subtask["Task Name"]}</span>
                         </li>
                       ))}
                   </ul>
@@ -353,16 +348,16 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
   }
 
   return (
-    <div className="space-y-4 animate-slideIn">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">Your Tasks</h2>
+    <div className="w-full max-w-5xl mx-auto space-y-6 p-4 sm:p-6 animate-slideIn">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-xl font-semibold">Your Tasks</h2>
         {isTaskView && (
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
             <Select
               value={filter}
               onValueChange={(value: 'all' | 'active' | 'completed') => setFilter(value)}
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filter tasks" />
               </SelectTrigger>
               <SelectContent>
@@ -373,7 +368,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
             </Select>
             
             <Select>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Select task list" />
               </SelectTrigger>
               <SelectContent>
@@ -400,25 +395,23 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
             {filteredTasks.map((task) => (
               <SortableTaskItem key={task.id} task={task}>
                 <li className="space-y-2">
-                  <div 
-                    className={`flex items-center gap-3 p-3 rounded-md bg-white/50 hover:bg-white/80 transition-colors ${
-                      task.Progress === 'Completed' ? 'opacity-50' : ''
-                    }`}
-                  >
+                  <div className={cn(
+                    "flex items-center gap-3 p-4 rounded-lg transition-colors shadow-sm",
+                    task.Progress === 'Completed' 
+                      ? "bg-gray-50/50 opacity-75" 
+                      : "bg-white/50 hover:bg-white/80"
+                  )}>
                     <div className="flex gap-2">
                       <Button
                         size="icon"
                         variant="ghost"
-                        className={`flex-shrink-0 h-6 w-6 rounded-full ${
-                          task.Progress === 'Completed' 
-                            ? 'bg-green-500 text-white' 
-                            : 'bg-primary/10 text-primary hover:bg-primary/20'
-                        }`}
-                        onClick={() => {
-                          if (task.Progress !== 'Completed') {
-                            updateTaskProgress.mutate({ id: task.id });
-                          }
-                        }}
+                        className={cn(
+                          "flex-shrink-0 h-8 w-8 rounded-full",
+                          task.Progress === 'Completed'
+                            ? "bg-green-500 text-white"
+                            : "bg-primary/10 text-primary hover:bg-primary/20"
+                        )}
+                        onClick={() => updateTaskProgress.mutate({ id: task.id })}
                       >
                         <Check className="h-4 w-4" />
                       </Button>
@@ -426,34 +419,36 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                          className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
                           onClick={() => handleTaskStart(task.id)}
                         >
                           <Play className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
-                    <div className="flex-grow">
-                      <span className={`font-medium ${
-                        task.Progress === 'Completed' ? 'line-through' : ''
-                      }`}>
+                    <div className="flex-grow min-w-0">
+                      <span className={cn(
+                        "font-medium block truncate",
+                        task.Progress === 'Completed' && "line-through"
+                      )}>
                         {task["Task Name"]}
                       </span>
                       {task.Progress !== 'Completed' && (
                         <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {format(new Date(task.date_started), 'MMM d, h:mm a')}
+                          <Clock className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">
+                            {format(new Date(task.date_started), 'MMM d, h:mm a')}
+                          </span>
                         </div>
                       )}
                     </div>
                   </div>
 
                   {dbSubtasks && dbSubtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
-                    <ul className="pl-8 space-y-2">
+                    <ul className="pl-6 space-y-2">
                       {dbSubtasks
                         .filter(subtask => subtask["Parent Task ID"] === task.id)
                         .sort((a, b) => {
-                          // Put completed subtasks at the bottom
                           if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
                           if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
                           return 0;
@@ -461,25 +456,30 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                         .map((subtask) => (
                           <li
                             key={subtask.id}
-                            className={`flex items-center gap-3 p-2 rounded-md bg-white/30 hover:bg-white/50 transition-colors cursor-pointer ${
-                              subtask.Progress === 'Completed' ? 'opacity-50' : ''
-                            }`}
-                            onClick={() => {
-                              if (subtask.Progress !== 'Completed') {
-                                updateTaskProgress.mutate({ id: subtask.id, isSubtask: true });
-                              }
-                            }}
-                          >
-                            <span className={`flex-shrink-0 h-5 w-5 flex items-center justify-center rounded-full ${
+                            className={cn(
+                              "flex items-center gap-3 p-3 rounded-lg transition-colors",
                               subtask.Progress === 'Completed'
-                                ? 'bg-green-500 text-white'
-                                : 'bg-primary/10 text-primary'
-                            }`}>
+                                ? "bg-gray-50/50 opacity-75"
+                                : "bg-white/30 hover:bg-white/50"
+                            )}
+                          >
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className={cn(
+                                "flex-shrink-0 h-6 w-6 rounded-full",
+                                subtask.Progress === 'Completed'
+                                  ? "bg-green-500 text-white"
+                                  : "bg-primary/10 text-primary hover:bg-primary/20"
+                              )}
+                              onClick={() => updateTaskProgress.mutate({ id: subtask.id, isSubtask: true })}
+                            >
                               <Check className="h-3 w-3" />
-                            </span>
-                            <span className={`flex-grow text-sm ${
-                              subtask.Progress === 'Completed' ? 'line-through' : ''
-                            }`}>
+                            </Button>
+                            <span className={cn(
+                              "text-sm truncate",
+                              subtask.Progress === 'Completed' && "line-through"
+                            )}>
                               {subtask["Task Name"]}
                             </span>
                           </li>

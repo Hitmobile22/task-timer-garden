@@ -195,35 +195,36 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
 
-      if (!shouldResetTimer && tasks.length > 0) {
-        // Find the first in-progress task and preserve its time
-        const inProgressTask = tasks.find(t => t.Progress === 'In progress');
-        if (inProgressTask) {
-          nextStartTime = new Date(inProgressTask.date_started);
-        }
-      }
-
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
-        const isInProgress = task.Progress === 'In progress';
+        const isFirst = i === 0;
+        const taskStartTime = isFirst && shouldResetTimer ? currentTime : new Date(nextStartTime);
+        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000); // 25 minutes later
 
-        if (shouldResetTimer || !isInProgress) {
-          const taskStartTime = new Date(nextStartTime);
-          const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000); // 25 minutes later
+        const updates: any = {
+          date_due: taskEndTime.toISOString()
+        };
 
-          const { error } = await supabase
-            .from('Tasks')
-            .update({
-              date_started: taskStartTime.toISOString(),
-              date_due: taskEndTime.toISOString()
-            })
-            .eq('id', task.id);
-
-          if (error) throw error;
-
-          // Add 30 minutes (25 min task + 5 min break) for the next task
-          nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
+        // Only update start time if it's the first task and should reset timer
+        if (isFirst && shouldResetTimer) {
+          updates.date_started = currentTime.toISOString();
+          updates.Progress = 'In progress';
+        } else if (!isFirst) {
+          updates.date_started = taskStartTime.toISOString();
+          if (task.Progress === 'In progress') {
+            updates.Progress = 'Not started';
+          }
         }
+
+        const { error } = await supabase
+          .from('Tasks')
+          .update(updates)
+          .eq('id', task.id);
+
+        if (error) throw error;
+
+        // Add 30 minutes (25 min task + 5 min break) for the next task
+        nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
       }
     },
     onSuccess: () => {
@@ -248,10 +249,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
 
-    const inProgressTask = dbTasks.find(t => t.Progress === 'In progress');
-    const shouldResetTimer = inProgressTask && 
-      newIndex === 0 && 
-      inProgressTask.id !== movedTask.id;
+    // If any task is moved to the first position, it should start now
+    const shouldResetTimer = newIndex === 0;
 
     await updateTaskOrder.mutate({ 
       tasks: reorderedTasks,
@@ -284,7 +283,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
             <ul className="space-y-4">
               {(dbTasks || [])
-                .filter(task => task.Progress !== 'Completed')
+                .filter(task => ['Not started', 'In progress'].includes(task.Progress))
                 .map((task) => (
                   <SortableTaskItem key={task.id} task={task}>
                     <TaskItem

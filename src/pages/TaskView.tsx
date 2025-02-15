@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Task, Subtask, SortField, SortOrder } from '@/types/task.types';  // Added SortField and SortOrder imports
+import { Task, Subtask, SortField, SortOrder } from '@/types/task.types';
 import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
 import { generateRandomColor } from '@/utils/taskUtils';
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowUpDown, Filter, ListFilter, Plus, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock } from "lucide-react";
 import { format } from 'date-fns';
-import { DEFAULT_LIST_COLOR, TASK_LIST_COLORS } from '@/constants/taskColors';
+import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 
 export function TaskView() {
   const queryClient = useQueryClient();
@@ -215,6 +215,27 @@ export function TaskView() {
     },
   });
 
+  const updateListNameMutation = useMutation({
+    mutationFn: async ({ listId, name }: { listId: number; name: string }) => {
+      const { error } = await supabase
+        .from('TaskLists')
+        .update({ name })
+        .eq('id', listId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
+      setEditingListId(null);
+      setEditingListName("");
+      toast.success('List name updated');
+    },
+    onError: (error) => {
+      toast.error('Failed to update list name');
+      console.error('Update error:', error);
+    },
+  });
+
   const handleEditStart = (task: Task | Subtask) => {
     setEditingTaskId(task.id);
     setEditingTaskName(task["Task Name"]);
@@ -389,7 +410,7 @@ export function TaskView() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => updateTaskListNameMutation.mutate({
+                            onClick={() => updateListNameMutation.mutate({
                               listId: list.id,
                               name: editingListName
                             })}

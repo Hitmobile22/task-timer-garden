@@ -360,12 +360,22 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                            className={cn(
+                              "flex-shrink-0 h-6 w-6 rounded-full",
+                              subtask.Progress === 'Completed'
+                                ? "bg-green-500 text-white"
+                                : "bg-primary/10 text-primary hover:bg-primary/20"
+                            )}
                             onClick={() => updateTaskProgress.mutate({ id: subtask.id, isSubtask: true })}
                           >
                             <Check className="h-3 w-3" />
                           </Button>
-                          <span className="text-sm truncate">{subtask["Task Name"]}</span>
+                          <span className={cn(
+                            "text-sm truncate",
+                            subtask.Progress === 'Completed' && "line-through text-gray-500"
+                          )}>
+                            {subtask["Task Name"]}
+                          </span>
                         </li>
                       ))}
                   </ul>

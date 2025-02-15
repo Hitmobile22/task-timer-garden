@@ -190,6 +190,23 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     },
   });
 
+  const { data: dbSubtasks } = useQuery({
+    queryKey: ['today-subtasks'],
+    queryFn: async () => {
+      if (!dbTasks || dbTasks.length === 0) return [];
+      
+      const taskIds = dbTasks.map(task => task.id);
+      const { data, error } = await supabase
+        .from('subtasks')
+        .select('*')
+        .in('Parent Task ID', taskIds);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!dbTasks?.length,
+  });
+
   const updateTaskOrder = useMutation({
     mutationFn: async ({ tasks, shouldResetTimer }: { tasks: any[], shouldResetTimer: boolean }) => {
       const currentTime = new Date();
@@ -288,7 +305,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                   <SortableTaskItem key={task.id} task={task}>
                     <TaskItem
                       task={task}
-                      subtasks={subtasks}
+                      subtasks={dbSubtasks}
                       updateTaskProgress={updateTaskProgress}
                       onTaskStart={onTaskStart}
                     />

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -82,30 +83,31 @@ export const TaskScheduler = () => {
       
       if (!selectedTask) return;
 
+      const currentTime = new Date();
+      
+      // Start the selected task immediately
       const { error: updateError } = await supabase
         .from('Tasks')
         .update({
           Progress: 'In progress',
-          date_started: new Date().toISOString(),
-          date_due: new Date(Date.now() + 25 * 60 * 1000).toISOString()
+          date_started: currentTime.toISOString(),
+          date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString() // 25 minutes later
         })
         .eq('id', taskId);
 
       if (updateError) throw updateError;
 
-      const currentTime = new Date();
-      currentTime.setMinutes(currentTime.getMinutes() + 30); // Start next task after 30 minutes (25 min task + 5 min break)
+      // Schedule remaining tasks with breaks
+      let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000); // Start 30 minutes after current task (25 min work + 5 min break)
       
       for (let i = 0; i < notStartedTasks.length; i++) {
         const task = notStartedTasks[i];
         if (task.id === taskId) continue;
 
-        const taskStartTime = new Date(currentTime);
-        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30)); // 25 min task + 5 min break
+        // Calculate task times
+        const taskStartTime = new Date(nextStartTime);
+        const taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000); // 25 minute duration
         
-        const taskDueTime = new Date(taskStartTime);
-        taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
-
         const { error } = await supabase
           .from('Tasks')
           .update({
@@ -115,6 +117,9 @@ export const TaskScheduler = () => {
           .eq('id', task.id);
 
         if (error) throw error;
+
+        // Move to next slot (add 30 minutes for next task: 25 min work + 5 min break)
+        nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
       }
 
       queryClient.invalidateQueries({ queryKey: ['tasks'] });

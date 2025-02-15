@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -40,10 +41,51 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     ? activeTasks?.find(t => t.id === activeTaskId)
     : activeTasks?.find(t => t.Progress === 'In progress' || t.Progress === 'Not started');
 
-  const shouldShowTimer = currentTask && new Date() >= new Date(currentTask.date_started);
+  const getNextTask = () => {
+    if (!activeTasks || activeTasks.length === 0) return null;
+    
+    const now = new Date();
+    return activeTasks.find(task => {
+      const startTime = new Date(task.date_started);
+      const timeDiff = startTime.getTime() - now.getTime();
+      // Check if task starts within the next 10 minutes
+      return timeDiff > 0 && timeDiff <= 10 * 60 * 1000;
+    });
+  };
+
+  const shouldShowTimer = () => {
+    if (currentTask && new Date() >= new Date(currentTask.date_started)) {
+      return true;
+    }
+
+    const nextTask = getNextTask();
+    if (nextTask) {
+      const now = new Date();
+      const startTime = new Date(nextTask.date_started);
+      const timeDiff = startTime.getTime() - now.getTime();
+      // Show timer if we're within 10 minutes of the next task
+      return timeDiff <= 10 * 60 * 1000 && timeDiff > 0;
+    }
+
+    return false;
+  };
 
   useEffect(() => {
-    if (currentTask?.date_started && currentTask?.date_due) {
+    const nextTask = getNextTask();
+    if (nextTask && !currentTask) {
+      const now = new Date();
+      const startTime = new Date(nextTask.date_started);
+      const breakTimeLeft = Math.floor((startTime.getTime() - now.getTime()) / 1000);
+      
+      if (breakTimeLeft <= 10 * 60 && breakTimeLeft > 0) {
+        setTimeLeft(breakTimeLeft);
+        setIsBreak(true);
+        if (!isRunning) {
+          setIsRunning(true);
+          toast.info(`Break until next task: ${nextTask["Task Name"]}`);
+        }
+      }
+    } else if (currentTask?.date_started && currentTask?.date_due) {
       const now = new Date();
       const startDate = new Date(currentTask.date_started);
       const dueDate = new Date(currentTask.date_due);
@@ -51,13 +93,14 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       if (now >= startDate && now <= dueDate) {
         const remainingTime = Math.floor((dueDate.getTime() - now.getTime()) / 1000);
         setTimeLeft(remainingTime);
+        setIsBreak(false);
         if (!isRunning) {
           setIsRunning(true);
           toast.info(`Starting task: ${currentTask["Task Name"]}`);
         }
       }
     }
-  }, [currentTask]);
+  }, [currentTask, activeTasks]);
 
   const updateTaskProgress = useMutation({
     mutationFn: async (taskId: number) => {
@@ -86,7 +129,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (isRunning && currentTask) {
+    if (isRunning) {
       interval = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
@@ -94,7 +137,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
               setIsBreak(false);
               toast.success("Break finished! Starting next task.");
               return 25 * 60;
-            } else {
+            } else if (currentTask) {
               updateTaskProgress.mutate(currentTask.id);
               setIsBreak(true);
               toast.success("Work session complete! Time for a break.");
@@ -123,7 +166,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   };
 
   const progress = isBreak
-    ? ((5 * 60 - timeLeft) / (5 * 60)) * 100
+    ? ((timeLeft) / (10 * 60)) * 100
     : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
 
   const getTimerColor = () => {
@@ -152,7 +195,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     return `linear-gradient(109.6deg, hsl(${currentHue}, ${currentSaturation}%, ${currentLightness}%) 11.2%, hsl(${currentHue + 10}, ${currentSaturation - 10}%, ${currentLightness + 5}%) 91.1%)`;
   };
 
-  if (!shouldShowTimer) return null;
+  if (!shouldShowTimer()) return null;
 
   return (
     <div className="glass p-6 rounded-lg shadow-lg space-y-6 animate-slideIn">
@@ -160,9 +203,14 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         <h2 className="text-2xl font-semibold text-primary">
           {isBreak ? 'Break Time' : 'Work Session'}
         </h2>
-        {currentTask && (
+        {currentTask && !isBreak && (
           <p className="text-primary/80">
-            {isBreak ? 'Take a breather' : `Working on: ${currentTask["Task Name"]}`}
+            Working on: {currentTask["Task Name"]}
+          </p>
+        )}
+        {isBreak && getNextTask() && (
+          <p className="text-primary/80">
+            Next up: {getNextTask()?.["Task Name"]}
           </p>
         )}
       </div>
@@ -191,7 +239,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
               toast.info(isBreak ? "Break started" : "Work session started");
             }
           }}
-          disabled={!currentTask}
           className="hover-lift"
           variant="outline"
         >

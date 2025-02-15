@@ -59,6 +59,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
+  const formatDateTime = (date: Date | undefined) => {
+    if (!date) return '';
+    return format(date, 'M/d h:mm a');
+  };
+
   return (
     <React.Fragment>
       <TableRow>
@@ -129,15 +134,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-[200px] justify-start text-left font-normal",
+                      "w-[140px] justify-start text-left font-normal",
                       !selectedStartDate && "text-muted-foreground"
                     )}
                   >
                     <Clock className="mr-2 h-4 w-4" />
-                    {selectedStartDate ? (
-                      format(selectedStartDate, "PPP HH:mm")
-                    ) : (
-                      <span>Start date & time</span>
+                    {selectedStartDate ? formatDateTime(selectedStartDate) : (
+                      <span>Start time</span>
                     )}
                   </Button>
                 </PopoverTrigger>
@@ -185,15 +188,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-[200px] justify-start text-left font-normal",
+                      "w-[140px] justify-start text-left font-normal",
                       !selectedEndDate && "text-muted-foreground"
                     )}
                   >
                     <Clock className="mr-2 h-4 w-4" />
-                    {selectedEndDate ? (
-                      format(selectedEndDate, "PPP HH:mm")
-                    ) : (
-                      <span>Due date & time</span>
+                    {selectedEndDate ? formatDateTime(selectedEndDate) : (
+                      <span>Due time</span>
                     )}
                   </Button>
                 </PopoverTrigger>

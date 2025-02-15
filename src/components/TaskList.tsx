@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -74,7 +73,17 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         .order('date_started', { ascending: true });
       
       if (error) throw error;
-      return data;
+      
+      // Filter for today's tasks
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      return data.filter(task => {
+        const taskDate = task.date_started ? new Date(task.date_started) : null;
+        return taskDate && taskDate >= today && taskDate < tomorrow;
+      });
     },
   });
 
@@ -206,12 +215,16 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
   const handleTaskStart = async (taskId: number) => {
     try {
-      const allTasks = dbTasks?.filter(t => t.Progress === 'Not started' || t.Progress === 'In progress') || [];
+      const allTasks = dbTasks?.filter(t => 
+        t.Progress === 'Not started' || t.Progress === 'In progress'
+      ) || [];
       const selectedTask = allTasks.find(t => t.id === taskId);
       
       if (!selectedTask) return;
 
       const currentTime = new Date();
+      const today = new Date(currentTime);
+      today.setHours(23, 59, 59, 999); // End of today
       
       // First, handle the selected task
       const { error: startError } = await supabase
@@ -225,15 +238,18 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
       if (startError) throw startError;
 
-      // Get all other active tasks and sort them by start time
+      // Get all other active tasks for today and sort them by start time
       const otherTasks = allTasks
-        .filter(t => t.id !== taskId)
+        .filter(t => t.id !== taskId && t.date_started && new Date(t.date_started) < today)
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
 
       // Reschedule other tasks to avoid overlaps
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60000); // Start 30 minutes after current task
 
       for (const task of otherTasks) {
+        // Don't schedule past end of day
+        if (nextStartTime > today) break;
+        
         const taskStartTime = new Date(nextStartTime);
         const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60000);
 
@@ -362,7 +378,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
   }
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 p-4 sm:p-6 animate-slideIn">
+    <div className="w-full max-w-3xl mx-auto space-y-6 p-4 sm:p-6 animate-slideIn">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-xl font-semibold">Your Tasks</h2>
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">

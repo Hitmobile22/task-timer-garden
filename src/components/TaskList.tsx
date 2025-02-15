@@ -41,8 +41,8 @@ const SortableTaskItem = ({ task, children }) => {
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} >
-      {children}
+    <div ref={setNodeRef} style={style}>
+      {React.cloneElement(children, { dragHandleProps: { ...attributes, ...listeners } })}
     </div>
   );
 };
@@ -134,7 +134,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
 
-    // Check if we need to reset the timer
     const inProgressTask = dbTasks.find(t => t.Progress === 'In progress');
     const shouldResetTimer = inProgressTask && 
       newIndex === 0 && 
@@ -333,8 +332,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                             size="icon"
                             variant="ghost"
                             className="cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                            {...useSortable({ id: task.id }).attributes}
-                            {...useSortable({ id: task.id }).listeners}
+                            {...(dragHandleProps || {})}
                           >
                             <span className="text-xl">👆</span>
                           </Button>
@@ -364,9 +362,9 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                         </div>
                       </div>
 
-                      {dbSubtasks && dbSubtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
+                      {subtasks && subtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
                         <ul className="pl-6 space-y-2">
-                          {dbSubtasks
+                          {subtasks
                             .filter(subtask => subtask["Parent Task ID"] === task.id)
                             .map((subtask) => (
                               <li
@@ -498,9 +496,9 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                       </div>
                     </div>
 
-                    {dbSubtasks && dbSubtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
+                    {subtasks && subtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
                       <ul className="pl-6 space-y-2">
-                        {dbSubtasks
+                        {subtasks
                           .filter(subtask => subtask["Parent Task ID"] === task.id)
                           .sort((a, b) => {
                             if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;

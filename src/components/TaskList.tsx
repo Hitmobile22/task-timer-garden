@@ -7,7 +7,7 @@ import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
-import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -46,12 +46,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <li className="space-y-2">
-      <div className="flex items-center gap-3 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
-        <div className="flex gap-2">
+      <div className="flex items-start gap-3 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
+        <div className="flex gap-2 flex-shrink-0">
           <Button
             size="icon"
             variant="ghost"
-            className="cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+            className="touch-none cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
             {...dragHandleProps}
           >
             <GripVertical className="h-4 w-4" />
@@ -81,15 +81,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
           )}
         </div>
         <div className="flex-grow min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2 flex-wrap">
             <span className={cn(
-              "font-bold block truncate",
+              "font-bold break-words",
               task.Progress === 'Completed' && "line-through text-gray-500"
             )}>
               {task["Task Name"]}
             </span>
             {task.Progress !== 'Completed' && (
-              <span className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
+              <span className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap mt-1">
                 <Clock className="h-3 w-3" />
                 {format(new Date(task.date_started), 'M/d h:mm a')}
               </span>
@@ -125,7 +125,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               <li
                 key={subtask.id}
                 className={cn(
-                  "flex items-center gap-3 p-3 rounded-lg bg-white/30 hover:bg-white/50 transition-colors"
+                  "flex items-start gap-3 p-3 rounded-lg bg-white/30 hover:bg-white/50 transition-colors"
                 )}
               >
                 <Button
@@ -142,7 +142,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   <Check className="h-3 w-3" />
                 </Button>
                 <span className={cn(
-                  "text-sm font-bold truncate",
+                  "text-sm font-bold break-words",
                   subtask.Progress === 'Completed' && "line-through text-gray-500"
                 )}>
                   {subtask["Task Name"]}
@@ -184,6 +184,20 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const isTaskView = location.pathname === '/tasks';
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 10,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    })
+  );
 
   const { data: dbTasks } = useQuery({
     queryKey: ['tasks'],
@@ -313,7 +327,11 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     return (
       <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn">
         <h2 className="text-xl font-semibold">Today's Tasks</h2>
-        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext 
+          sensors={sensors}
+          collisionDetection={closestCenter} 
+          onDragEnd={handleDragEnd}
+        >
           <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
             <ul className="space-y-4">
               {(dbTasks || [])
@@ -502,6 +520,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       
       <div className="bg-white/50 backdrop-blur-sm rounded-xl p-4 shadow-sm">
         <DndContext
+          sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >

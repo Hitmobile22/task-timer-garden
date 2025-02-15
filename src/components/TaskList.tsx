@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -28,8 +29,97 @@ interface TaskListProps {
 
 interface SortableTaskItemProps {
   task: any;
-  children: React.ReactElement;
+  children: React.ReactElement<TaskItemProps>;
 }
+
+interface TaskItemProps {
+  dragHandleListeners?: any;
+  dragHandleAttributes?: any;
+  className?: string;
+}
+
+const TaskItem: React.FC<TaskItemProps & { task: any; subtasks?: any[]; updateTaskProgress: any; onTaskStart?: any }> = ({
+  task,
+  subtasks,
+  dragHandleListeners,
+  dragHandleAttributes,
+  updateTaskProgress,
+  onTaskStart
+}) => {
+  return (
+    <li className="space-y-2">
+      <div className="flex items-center gap-3 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
+        <div className="flex gap-2">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+            {...dragHandleAttributes}
+            {...dragHandleListeners}
+          >
+            <span className="text-xl">👆</span>
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+            onClick={() => updateTaskProgress.mutate({ id: task.id })}
+          >
+            <Check className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+            onClick={() => onTaskStart?.(task.id)}
+          >
+            <Play className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-grow min-w-0">
+          <span className="font-medium block truncate">{task["Task Name"]}</span>
+          <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+            <Clock className="h-3 w-3 flex-shrink-0" />
+            <span>{format(new Date(task.date_started), 'M/d h:mm a')}</span>
+          </div>
+        </div>
+      </div>
+
+      {subtasks && subtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
+        <ul className="pl-6 space-y-2">
+          {subtasks
+            .filter(subtask => subtask["Parent Task ID"] === task.id)
+            .map((subtask) => (
+              <li
+                key={subtask.id}
+                className="flex items-center gap-3 p-3 rounded-lg bg-white/30 hover:bg-white/50 transition-colors"
+              >
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className={cn(
+                    "flex-shrink-0 h-6 w-6 rounded-full",
+                    subtask.Progress === 'Completed'
+                      ? "bg-green-500 text-white"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
+                  )}
+                  onClick={() => updateTaskProgress.mutate({ id: subtask.id, isSubtask: true })}
+                >
+                  <Check className="h-3 w-3" />
+                </Button>
+                <span className={cn(
+                  "text-sm truncate",
+                  subtask.Progress === 'Completed' && "line-through text-gray-500"
+                )}>
+                  {subtask["Task Name"]}
+                </span>
+              </li>
+            ))}
+        </ul>
+      )}
+    </li>
+  );
+};
 
 const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, children }) => {
   const {
@@ -54,11 +144,6 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, children }) =
     </div>
   );
 };
-
-interface TaskItemProps {
-  dragHandleListeners?: any;
-  dragHandleAttributes?: any;
-}
 
 export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart, subtasks }) => {
   const location = useLocation();
@@ -338,77 +423,12 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                 .filter(task => task.Progress !== 'Completed')
                 .map((task) => (
                   <SortableTaskItem key={task.id} task={task}>
-                    <li className="space-y-2">
-                      <div className="flex items-center gap-3 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
-                        <div className="flex gap-2">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                            {...dragHandleAttributes}
-                            {...dragHandleListeners}
-                          >
-                            <span className="text-xl">👆</span>
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                            onClick={() => updateTaskProgress.mutate({ id: task.id })}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                            onClick={() => onTaskStart?.(task.id)}
-                          >
-                            <Play className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="flex-grow min-w-0">
-                          <span className="font-medium block truncate">{task["Task Name"]}</span>
-                          <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
-                            <span>{formatTaskDateTime(task.date_started)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {subtasks && subtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
-                        <ul className="pl-6 space-y-2">
-                          {subtasks
-                            .filter(subtask => subtask["Parent Task ID"] === task.id)
-                            .map((subtask) => (
-                              <li
-                                key={subtask.id}
-                                className="flex items-center gap-3 p-3 rounded-lg bg-white/30 hover:bg-white/50 transition-colors"
-                              >
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className={cn(
-                                    "flex-shrink-0 h-6 w-6 rounded-full",
-                                    subtask.Progress === 'Completed'
-                                      ? "bg-green-500 text-white"
-                                      : "bg-primary/10 text-primary hover:bg-primary/20"
-                                  )}
-                                  onClick={() => updateTaskProgress.mutate({ id: subtask.id, isSubtask: true })}
-                                >
-                                  <Check className="h-3 w-3" />
-                                </Button>
-                                <span className={cn(
-                                  "text-sm truncate",
-                                  subtask.Progress === 'Completed' && "line-through text-gray-500"
-                                )}>
-                                  {subtask["Task Name"]}
-                                </span>
-                              </li>
-                            ))}
-                        </ul>
-                      )}
-                    </li>
+                    <TaskItem
+                      task={task}
+                      subtasks={subtasks}
+                      updateTaskProgress={updateTaskProgress}
+                      onTaskStart={onTaskStart}
+                    />
                   </SortableTaskItem>
                 ))}
             </ul>

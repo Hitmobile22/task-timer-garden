@@ -46,6 +46,19 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onDeleteTask,
   onTimelineEdit,
 }) => {
+  const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
+    task.date_started ? new Date(task.date_started) : undefined
+  );
+  const [selectedEndDate, setSelectedEndDate] = React.useState<Date | undefined>(
+    task.date_due ? new Date(task.date_due) : undefined
+  );
+
+  const handleTimelineUpdate = (startDate?: Date, endDate?: Date) => {
+    if (startDate && endDate) {
+      onTimelineEdit(task.id, startDate, endDate);
+    }
+  };
+
   return (
     <React.Fragment>
       <TableRow>
@@ -110,39 +123,119 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         </TableCell>
         <TableCell>
           <div className="flex flex-col gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "justify-start text-left font-normal",
-                    !task.date_started && "text-muted-foreground"
-                  )}
-                >
-                  <Clock className="mr-2 h-4 w-4" />
-                  {task.date_started ? (
-                    format(new Date(task.date_started), "PPP")
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={new Date(task.date_started)}
-                  onSelect={(date) => {
-                    if (date) {
-                      const startDate = new Date(date);
-                      const endDate = new Date(startDate);
-                      endDate.setMinutes(endDate.getMinutes() + 25);
-                      onTimelineEdit(task.id, startDate, endDate);
-                    }
-                  }}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[200px] justify-start text-left font-normal",
+                      !selectedStartDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    {selectedStartDate ? (
+                      format(selectedStartDate, "PPP HH:mm")
+                    ) : (
+                      <span>Start date & time</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedStartDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        const newDate = new Date(date);
+                        if (selectedStartDate) {
+                          newDate.setHours(selectedStartDate.getHours());
+                          newDate.setMinutes(selectedStartDate.getMinutes());
+                        } else {
+                          newDate.setHours(new Date().getHours());
+                          newDate.setMinutes(new Date().getMinutes());
+                        }
+                        setSelectedStartDate(newDate);
+                        handleTimelineUpdate(newDate, selectedEndDate);
+                      }
+                    }}
+                    initialFocus
+                  />
+                  <div className="border-t p-3">
+                    <Input
+                      type="time"
+                      value={selectedStartDate ? format(selectedStartDate, "HH:mm") : ""}
+                      onChange={(e) => {
+                        if (selectedStartDate && e.target.value) {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const newDate = new Date(selectedStartDate);
+                          newDate.setHours(parseInt(hours));
+                          newDate.setMinutes(parseInt(minutes));
+                          setSelectedStartDate(newDate);
+                          handleTimelineUpdate(newDate, selectedEndDate);
+                        }
+                      }}
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[200px] justify-start text-left font-normal",
+                      !selectedEndDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    {selectedEndDate ? (
+                      format(selectedEndDate, "PPP HH:mm")
+                    ) : (
+                      <span>Due date & time</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedEndDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        const newDate = new Date(date);
+                        if (selectedEndDate) {
+                          newDate.setHours(selectedEndDate.getHours());
+                          newDate.setMinutes(selectedEndDate.getMinutes());
+                        } else {
+                          newDate.setHours(new Date().getHours());
+                          newDate.setMinutes(new Date().getMinutes());
+                        }
+                        setSelectedEndDate(newDate);
+                        handleTimelineUpdate(selectedStartDate, newDate);
+                      }
+                    }}
+                    initialFocus
+                  />
+                  <div className="border-t p-3">
+                    <Input
+                      type="time"
+                      value={selectedEndDate ? format(selectedEndDate, "HH:mm") : ""}
+                      onChange={(e) => {
+                        if (selectedEndDate && e.target.value) {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const newDate = new Date(selectedEndDate);
+                          newDate.setHours(parseInt(hours));
+                          newDate.setMinutes(parseInt(minutes));
+                          setSelectedEndDate(newDate);
+                          handleTimelineUpdate(selectedStartDate, newDate);
+                        }
+                      }}
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </TableCell>
         <TableCell>

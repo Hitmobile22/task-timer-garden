@@ -57,6 +57,14 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
           </div>
         ) : (
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+              onClick={() => onUpdateProgress(subtask.id, 'Completed', true)}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
             <span>└─ {subtask["Task Name"]}</span>
             <Button
               variant="ghost"

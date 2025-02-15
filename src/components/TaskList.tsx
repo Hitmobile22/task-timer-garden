@@ -209,14 +209,12 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       
       if (error) throw error;
       
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrow = new Date();
+      tomorrow.setHours(24, 0, 0, 0);
       
       return data.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
-        return taskDate && taskDate >= today && taskDate < tomorrow;
+        return taskDate && taskDate < tomorrow;
       });
     },
   });
@@ -317,7 +315,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Task completed');
     },

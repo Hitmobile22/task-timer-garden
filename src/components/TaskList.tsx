@@ -89,6 +89,19 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     },
   });
 
+  const { data: taskLists } = useQuery({
+    queryKey: ['task-lists'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('TaskLists')
+        .select('*')
+        .order('order', { ascending: true });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const updateTaskTimes = useMutation({
     mutationFn: async ({ taskId, startDate, endDate }: { taskId: number; startDate: Date; endDate: Date }) => {
       const { error } = await supabase
@@ -127,6 +140,26 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       toast.success('Task completed');
     },
   });
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ order: over.data.current?.sortable?.index })
+        .eq('id', active.id);
+
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    } catch (error) {
+      console.error('Error reordering tasks:', error);
+      toast.error('Failed to reorder tasks');
+    }
+  };
 
   const updateRemainingTaskTimes = async () => {
     try {

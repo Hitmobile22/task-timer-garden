@@ -76,7 +76,20 @@ export const TaskScheduler = () => {
 
   const handleTaskStart = async (taskId: number) => {
     try {
-      const notStartedTasks = activeTasks?.filter(t => t.Progress === 'Not started')
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Get all not started tasks for today only
+      const notStartedTasks = activeTasks
+        ?.filter(t => {
+          const taskDate = t.date_started ? new Date(t.date_started) : null;
+          return t.Progress === 'Not started' && 
+                 taskDate && 
+                 taskDate >= today && 
+                 taskDate < tomorrow;
+        })
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || [];
       
       const selectedTask = activeTasks?.find(t => t.id === taskId);
@@ -97,12 +110,14 @@ export const TaskScheduler = () => {
 
       if (updateError) throw updateError;
 
-      // Schedule remaining tasks with breaks
-      let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000); // Start 30 minutes after current task (25 min work + 5 min break)
+      // Schedule remaining tasks with breaks, but only for today
+      let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000); // Start 30 minutes after current task
       
-      for (let i = 0; i < notStartedTasks.length; i++) {
-        const task = notStartedTasks[i];
+      for (const task of notStartedTasks) {
         if (task.id === taskId) continue;
+        
+        // Stop scheduling if we reach tomorrow
+        if (nextStartTime >= tomorrow) break;
 
         // Calculate task times
         const taskStartTime = new Date(nextStartTime);

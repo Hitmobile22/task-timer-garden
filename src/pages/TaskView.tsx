@@ -213,6 +213,10 @@ export function TaskView() {
       setSelectedTaskId(null);
       toast.success('Task timeline updated');
     },
+    onError: (error) => {
+      toast.error('Failed to update task timeline');
+      console.error('Update error:', error);
+    },
   });
 
   const updateListNameMutation = useMutation({
@@ -509,9 +513,11 @@ export function TaskView() {
               }
               onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
               onTimelineEdit={(taskId, start, end) => {
-                setSelectedTaskId(taskId);
-                setTimelineDate({ start, end });
-                setShowEditTimelineDialog(true);
+                updateTaskTimelineMutation.mutate({ 
+                  taskId, 
+                  start: new Date(start),
+                  end: new Date(end)
+                });
               }}
             />
           )}

@@ -157,7 +157,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       
       if (!selectedTask) return;
 
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('Tasks')
         .update({
           Progress: 'In progress',
@@ -166,7 +166,29 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         })
         .eq('id', taskId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      const currentTime = new Date();
+      for (let i = 0; i < notStartedTasks.length; i++) {
+        const task = notStartedTasks[i];
+        if (task.id === taskId) continue; // Skip the selected task
+
+        const taskStartTime = new Date(currentTime);
+        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
+        
+        const taskDueTime = new Date(taskStartTime);
+        taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
+
+        const { error } = await supabase
+          .from('Tasks')
+          .update({
+            date_started: taskStartTime.toISOString(),
+            date_due: taskDueTime.toISOString()
+          })
+          .eq('id', task.id);
+
+        if (error) throw error;
+      }
 
       onTaskStart?.(taskId);
       

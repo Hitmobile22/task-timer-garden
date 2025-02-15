@@ -80,7 +80,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn(
-              "font-medium block truncate",
+              "font-bold block truncate",
               task.Progress === 'Completed' && "line-through text-gray-500"
             )}>
               {task["Task Name"]}
@@ -125,7 +125,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   <Check className="h-3 w-3" />
                 </Button>
                 <span className={cn(
-                  "text-sm truncate",
+                  "text-sm font-bold truncate",
                   subtask.Progress === 'Completed' && "line-through text-gray-500"
                 )}>
                   {subtask["Task Name"]}

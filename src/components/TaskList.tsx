@@ -3,6 +3,7 @@ import { Check, Filter, Play, Clock } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { GripVertical } from "lucide-react"; // Import drag handle icon
 import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -50,11 +51,19 @@ const SortableTaskItem = ({ task, children }) => {
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      {children}
-    </div>
+      <div ref={setNodeRef} style={style} {...attributes} className="flex items-center gap-2">
+        {/* Drag Handle Button */}
+        <button
+            {...listeners}
+            className="cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+        >
+          <span className="text-xl">👆</span> {/* TEMPORARY TEST ICON */}
+        </button>
+        {children}
+      </div>
   );
 };
+
 
 export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart, subtasks }) => {
   const location = useLocation();
@@ -322,33 +331,42 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
             .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime())
             .map((task) => (
               <li key={task.id} className="space-y-2">
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
-                  <div className="flex gap-2">
+                <div className="relative flex items-center gap-2 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
+                  {/* Drag Handle - Now Closer to the Edge & More Subtle */}
+                  <GripVertical
+                      className="absolute left-0.5 h-5 w-5 text-gray-400 cursor-grab hover:text-gray-600"
+                  />
+
+                  <div className="flex gap-2 pl-5">  {/* Move content slightly less */}
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                      onClick={() => updateTaskProgress.mutate({ id: task.id })}
+                        size="icon"
+                        variant="ghost"
+                        className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                        onClick={() => updateTaskProgress.mutate({ id: task.id })}
                     >
                       <Check className="h-4 w-4" />
                     </Button>
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                      onClick={() => handleTaskStart(task.id)}
+                        size="icon"
+                        variant="ghost"
+                        className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                        onClick={() => handleTaskStart(task.id)}
                     >
                       <Play className="h-4 w-4" />
                     </Button>
                   </div>
+
                   <div className="flex-grow min-w-0">
-                    <span className="font-medium block break-words whitespace-normal">{task["Task Name"]}</span>
+    <span className="font-medium block break-words whitespace-normal">
+      {task["Task Name"]}
+    </span>
                     <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                       <Clock className="h-3 w-3 flex-shrink-0" />
                       <span>{formatTaskDateTime(task.date_started)}</span>
                     </div>
                   </div>
                 </div>
+
 
                 {dbSubtasks && dbSubtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
                   <ul className="pl-6 space-y-2">
@@ -434,8 +452,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                   <li className="space-y-2">
                     <div className={cn(
                       "flex items-center gap-3 p-3 rounded-lg transition-colors border border-gray-100",
-                      task.Progress === 'Completed' 
-                        ? "bg-gray-50/80" 
+                      task.Progress === 'Completed'
+                        ? "bg-gray-50/80"
                         : "bg-white hover:bg-gray-50"
                     )}>
                       <div className="flex gap-2">

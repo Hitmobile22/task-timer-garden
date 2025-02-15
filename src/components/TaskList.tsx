@@ -29,6 +29,7 @@ interface Task {
 interface TaskListProps {
   tasks: Task[];
   onTaskStart?: (taskId: number) => void;
+  subtasks?: any[];
 }
 
 const SortableTaskItem = ({ task, children }) => {
@@ -52,7 +53,7 @@ const SortableTaskItem = ({ task, children }) => {
   );
 };
 
-export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart }) => {
+export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart, subtasks }) => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');

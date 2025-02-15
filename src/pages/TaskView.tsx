@@ -37,6 +37,8 @@ export function TaskView() {
   const [editingTaskId, setEditingTaskId] = React.useState<number | null>(null);
   const [editingTaskName, setEditingTaskName] = React.useState("");
   const [expandedTasks, setExpandedTasks] = React.useState<number[]>([]);
+  const [sortField] = React.useState<SortField>("Task Name");
+  const [sortOrder] = React.useState<SortOrder>("asc");
   const [progressFilter, setProgressFilter] = React.useState<Task['Progress'] | "all">("all");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [newTaskListName, setNewTaskListName] = React.useState("");
@@ -292,10 +294,14 @@ export function TaskView() {
     
     const grouped = new Map();
     taskLists.forEach(list => {
-      grouped.set(list.id, {
-        list,
-        tasks: tasks.filter(task => task.task_list_id === list.id)
-      });
+      const listTasks = tasks.filter(task => task.task_list_id === list.id);
+      // Only add lists that have tasks
+      if (listTasks.length > 0) {
+        grouped.set(list.id, {
+          list,
+          tasks: listTasks
+        });
+      }
     });
     
     // Add uncategorized tasks to "Default" list

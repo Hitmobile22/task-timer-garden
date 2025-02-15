@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -74,10 +73,57 @@ export const TaskScheduler = () => {
     }
   };
 
-  const handleTaskStart = (taskId: number) => {
-    setActiveTaskId(taskId);
-    setShowTimer(true);
-    setTimerStarted(true);
+  const handleTaskStart = async (taskId: number) => {
+    try {
+      const notStartedTasks = activeTasks?.filter(t => t.Progress === 'Not started')
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || [];
+      
+      const selectedTask = activeTasks?.find(t => t.id === taskId);
+      
+      if (!selectedTask) return;
+
+      const { error: updateError } = await supabase
+        .from('Tasks')
+        .update({
+          Progress: 'In progress',
+          date_started: new Date().toISOString(),
+          date_due: new Date(Date.now() + 25 * 60 * 1000).toISOString()
+        })
+        .eq('id', taskId);
+
+      if (updateError) throw updateError;
+
+      const currentTime = new Date();
+      currentTime.setMinutes(currentTime.getMinutes() + 30); // Start next task after 30 minutes (25 min task + 5 min break)
+      
+      for (let i = 0; i < notStartedTasks.length; i++) {
+        const task = notStartedTasks[i];
+        if (task.id === taskId) continue;
+
+        const taskStartTime = new Date(currentTime);
+        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30)); // 25 min task + 5 min break
+        
+        const taskDueTime = new Date(taskStartTime);
+        taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
+
+        const { error } = await supabase
+          .from('Tasks')
+          .update({
+            date_started: taskStartTime.toISOString(),
+            date_due: taskDueTime.toISOString()
+          })
+          .eq('id', task.id);
+
+        if (error) throw error;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      toast.success('Timer started with selected task');
+    } catch (error) {
+      console.error('Error starting task:', error);
+      toast.error('Failed to start task');
+    }
   };
 
   return (
@@ -122,7 +168,11 @@ export const TaskScheduler = () => {
                 </div>
               )}
               <TaskForm onTasksCreate={handleTasksCreate} />
-              <TaskList tasks={tasks} onTaskStart={handleTaskStart} />
+              <TaskList 
+                tasks={tasks} 
+                onTaskStart={handleTaskStart} 
+                subtasks={activeTasks?.filter(t => t.Progress !== 'Completed')} 
+              />
             </div>
           </div>
         </div>

@@ -10,6 +10,7 @@ export const TASK_LIST_COLORS = {
   'Home': 'linear-gradient(90deg, hsla(29, 92%, 70%, 1) 0%, hsla(0, 87%, 73%, 1) 100%)',
   'Ideas': 'linear-gradient(90deg, hsla(186, 33%, 94%, 1) 0%, hsla(216, 41%, 79%, 1) 100%)',
   'Goals': 'linear-gradient(to right, #ee9ca7, #ffdde1)',
+  'Default': 'linear-gradient(90deg, #8E9196 0%, #7E69AB 100%)'
 } as const;
 
-export const DEFAULT_LIST_COLOR = 'linear-gradient(90deg, hsla(221, 45%, 73%, 1) 0%, hsla(220, 78%, 29%, 1) 100%)';
+export const DEFAULT_LIST_COLOR = 'linear-gradient(90deg, #8E9196 0%, #7E69AB 100%)';

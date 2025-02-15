@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -147,10 +148,18 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     if (!over || active.id === over.id) return;
 
     try {
+      // Convert the UniqueIdentifier to a number
+      const taskId = typeof active.id === 'string' ? parseInt(active.id, 10) : active.id;
+      const newOrder = over.data.current?.sortable?.index;
+
+      if (isNaN(taskId)) {
+        throw new Error('Invalid task ID');
+      }
+
       const { error } = await supabase
         .from('Tasks')
-        .update({ order: over.data.current?.sortable?.index })
-        .eq('id', active.id);
+        .update({ order: newOrder })
+        .eq('id', taskId);
 
       if (error) throw error;
       

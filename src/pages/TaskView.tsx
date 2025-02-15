@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { MenuBar } from "@/components/MenuBar";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
@@ -45,7 +46,7 @@ export function TaskView() {
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('date_started', { ascending: false });
       
       if (error) throw error;
       return data as Task[];
@@ -343,14 +344,7 @@ export function TaskView() {
       }}
     >
       <div className="container mx-auto max-w-4xl">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-white hover:bg-white/20"
-          onClick={() => navigate('/')}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <MenuBar />
       </div>
       
       <main className="container mx-auto max-w-4xl space-y-8">

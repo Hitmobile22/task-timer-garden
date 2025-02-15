@@ -77,12 +77,14 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       // Filter for today's tasks
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      
+
       return data.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
-        return taskDate && taskDate >= today && taskDate < tomorrow;
+        return taskDate && taskDate >= yesterday && taskDate < tomorrow;
       });
     },
   });
@@ -313,7 +315,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
   if (!isTaskView) {
     return (
       <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn">
-        <h2 className="text-xl font-semibold">Your Tasks</h2>
+        <h2 className="text-xl font-semibold">Today's Tasks</h2>
         <ul className="space-y-4">
           {(dbTasks || [])
             .filter(task => task.Progress !== 'Completed')
@@ -340,7 +342,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                     </Button>
                   </div>
                   <div className="flex-grow min-w-0">
-                    <span className="font-medium block truncate">{task["Task Name"]}</span>
+                    <span className="font-medium block break-words whitespace-normal">{task["Task Name"]}</span>
                     <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                       <Clock className="h-3 w-3 flex-shrink-0" />
                       <span>{formatTaskDateTime(task.date_started)}</span>
@@ -371,8 +373,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                             <Check className="h-3 w-3" />
                           </Button>
                           <span className={cn(
-                            "text-sm truncate",
-                            subtask.Progress === 'Completed' && "line-through text-gray-500"
+                              "text-sm break-words", // or "text-sm whitespace-normal"
+                              subtask.Progress === 'Completed' && "line-through text-gray-500"
                           )}>
                             {subtask["Task Name"]}
                           </span>

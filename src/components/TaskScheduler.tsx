@@ -80,20 +80,23 @@ export const TaskScheduler = () => {
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-
-      // Get all not started tasks for today only
+// Get all not started tasks for today only
       const notStartedTasks = activeTasks
-        ?.filter(t => {
-          const taskDate = t.date_started ? new Date(t.date_started) : null;
-          return t.Progress === 'Not started' && 
-                 taskDate && 
-                 taskDate >= today && 
-                 taskDate < tomorrow;
-        })
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || [];
-      
+          ?.filter(t => {
+            const taskDate = t.date_started ? new Date(t.date_started) : null;
+            return (t.Progress === 'Not started' || t.Progress === 'In progress') &&
+                taskDate &&
+                taskDate >= today &&
+                taskDate < tomorrow;
+          })
+          .sort((a, b) => {
+            const dateA = a.date_started ? new Date(a.date_started).getTime() : 0;
+            const dateB = b.date_started ? new Date(b.date_started).getTime() : 0;
+            return dateA - dateB;
+          }) || [];
+
       const selectedTask = activeTasks?.find(t => t.id === taskId);
-      
+
       if (!selectedTask) return;
 
       const currentTime = new Date();
@@ -171,8 +174,8 @@ export const TaskScheduler = () => {
       
       <main className="container mx-auto max-w-4xl space-y-8">
         <header className="text-center space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight text-white">Task Scheduler</h1>
-          <p className="text-white/80">Organize your time, maximize your productivity</p>
+          <h1 className="text-4xl font-bold tracking-tight text-white">Pomouroboros Timer</h1>
+          <p className="text-white/80">It really whips the ollama's ass</p>
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">

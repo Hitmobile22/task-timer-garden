@@ -26,7 +26,12 @@ interface TaskListProps {
   subtasks?: any[];
 }
 
-const SortableTaskItem = ({ task, children }) => {
+interface SortableTaskItemProps {
+  task: any;
+  children: React.ReactElement;
+}
+
+const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, children }) => {
   const {
     attributes,
     listeners,
@@ -42,10 +47,18 @@ const SortableTaskItem = ({ task, children }) => {
 
   return (
     <div ref={setNodeRef} style={style}>
-      {React.cloneElement(children, { dragHandleProps: { ...attributes, ...listeners } })}
+      {React.cloneElement(children, { 
+        dragHandleListeners: listeners,
+        dragHandleAttributes: attributes 
+      })}
     </div>
   );
 };
+
+interface TaskItemProps {
+  dragHandleListeners?: any;
+  dragHandleAttributes?: any;
+}
 
 export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart, subtasks }) => {
   const location = useLocation();
@@ -332,7 +345,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                             size="icon"
                             variant="ghost"
                             className="cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                            {...(dragHandleProps || {})}
+                            {...dragHandleAttributes}
+                            {...dragHandleListeners}
                           >
                             <span className="text-xl">👆</span>
                           </Button>
@@ -418,22 +432,9 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
               className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          <Select
-            value={filter}
-            onValueChange={(value: 'all' | 'active' | 'completed') => setFilter(value)}
-          >
-            <SelectTrigger className="w-full sm:w-[140px]">
-              <SelectValue placeholder="Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Tasks</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
-
+      
       <div className="bg-white/50 backdrop-blur-sm rounded-xl p-4 shadow-sm">
         <DndContext
           collisionDetection={closestCenter}

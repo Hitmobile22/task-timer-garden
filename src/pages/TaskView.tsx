@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -248,7 +247,7 @@ export function TaskView() {
 
   const isLoading = tasksLoading || subtasksLoading;
 
-  const getSortedAndFilteredTasks = (tasks: Task[] | undefined) => {
+  const getSortedAndFilteredTasks = React.useCallback((tasks: Task[] | undefined) => {
     if (!tasks) return [];
     
     let filteredTasks = [...tasks];
@@ -267,15 +266,17 @@ export function TaskView() {
     
     // Apply sorting
     return filteredTasks.sort((a, b) => {
-      const aValue = a[sortField];
-      const bValue = b[sortField];
-      
-      if (!aValue || !bValue) return 0;
-      
-      const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      return sortOrder === "asc" ? comparison : -comparison;
+      if (sortBy === 'date') {
+        const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
+        const bDate = b.date_started ? new Date(b.date_started) : new Date(0);
+        return aDate.getTime() - bDate.getTime();
+      }
+      // Sort by list
+      const aListId = a.task_list_id || 0;
+      const bListId = b.task_list_id || 0;
+      return aListId - bListId;
     });
-  };
+  }, [progressFilter, searchQuery, sortBy]);
 
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],

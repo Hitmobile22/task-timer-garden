@@ -135,13 +135,13 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     const colors = {
       start: {
         hue: 150,
-        saturation: 70,
-        lightness: 90
+        saturation: 85,
+        lightness: 45
       },
       end: {
         hue: 200,
         saturation: 70,
-        lightness: 85
+        lightness: 70
       }
     };
 

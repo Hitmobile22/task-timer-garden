@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Check, Filter, Play, Clock } from 'lucide-react';
+import { Check, Filter, Play, Clock, GripVertical } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -27,22 +26,18 @@ interface TaskListProps {
   subtasks?: any[];
 }
 
-interface SortableTaskItemProps {
-  task: any;
-  children: React.ReactElement<TaskItemProps>;
-}
-
 interface TaskItemProps {
-  dragHandleListeners?: any;
-  dragHandleAttributes?: any;
-  className?: string;
+  task: any;
+  subtasks?: any[];
+  dragHandleProps?: any;
+  updateTaskProgress: any;
+  onTaskStart?: (taskId: number) => void;
 }
 
-const TaskItem: React.FC<TaskItemProps & { task: any; subtasks?: any[]; updateTaskProgress: any; onTaskStart?: any }> = ({
+const TaskItem: React.FC<TaskItemProps> = ({
   task,
   subtasks,
-  dragHandleListeners,
-  dragHandleAttributes,
+  dragHandleProps,
   updateTaskProgress,
   onTaskStart
 }) => {
@@ -54,33 +49,48 @@ const TaskItem: React.FC<TaskItemProps & { task: any; subtasks?: any[]; updateTa
             size="icon"
             variant="ghost"
             className="cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-            {...dragHandleAttributes}
-            {...dragHandleListeners}
+            {...dragHandleProps}
           >
-            <span className="text-xl">👆</span>
+            <GripVertical className="h-4 w-4" />
           </Button>
           <Button
             size="icon"
             variant="ghost"
-            className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+            className={cn(
+              "flex-shrink-0 h-8 w-8 rounded-full",
+              task.Progress === 'Completed'
+                ? "bg-green-500 text-white"
+                : "bg-primary/10 text-primary hover:bg-primary/20"
+            )}
             onClick={() => updateTaskProgress.mutate({ id: task.id })}
           >
             <Check className="h-4 w-4" />
           </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-            onClick={() => onTaskStart?.(task.id)}
-          >
-            <Play className="h-4 w-4" />
-          </Button>
+          {task.Progress !== 'Completed' && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+              onClick={() => onTaskStart?.(task.id)}
+            >
+              <Play className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <div className="flex-grow min-w-0">
-          <span className="font-medium block truncate">{task["Task Name"]}</span>
-          <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-            <Clock className="h-3 w-3 flex-shrink-0" />
-            <span>{format(new Date(task.date_started), 'M/d h:mm a')}</span>
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "font-medium block truncate",
+              task.Progress === 'Completed' && "line-through text-gray-500"
+            )}>
+              {task["Task Name"]}
+            </span>
+            {task.Progress !== 'Completed' && (
+              <span className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
+                <Clock className="h-3 w-3" />
+                {format(new Date(task.date_started), 'M/d h:mm a')}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -89,10 +99,17 @@ const TaskItem: React.FC<TaskItemProps & { task: any; subtasks?: any[]; updateTa
         <ul className="pl-6 space-y-2">
           {subtasks
             .filter(subtask => subtask["Parent Task ID"] === task.id)
+            .sort((a, b) => {
+              if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
+              if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
+              return 0;
+            })
             .map((subtask) => (
               <li
                 key={subtask.id}
-                className="flex items-center gap-3 p-3 rounded-lg bg-white/30 hover:bg-white/50 transition-colors"
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-lg bg-white/30 hover:bg-white/50 transition-colors"
+                )}
               >
                 <Button
                   size="icon"
@@ -121,7 +138,7 @@ const TaskItem: React.FC<TaskItemProps & { task: any; subtasks?: any[]; updateTa
   );
 };
 
-const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, children }) => {
+const SortableTaskItem: React.FC<{ task: any; children: React.ReactElement }> = ({ task, children }) => {
   const {
     attributes,
     listeners,
@@ -138,8 +155,7 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, children }) =
   return (
     <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, { 
-        dragHandleListeners: listeners,
-        dragHandleAttributes: attributes 
+        dragHandleProps: { ...attributes, ...listeners }
       })}
     </div>
   );
@@ -243,6 +259,49 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     });
   };
 
+  const updateTaskProgress = useMutation({
+    mutationFn: async ({ id, isSubtask = false }: { id: number; isSubtask?: boolean }) => {
+      const { error } = await supabase
+        .from(isSubtask ? 'subtasks' : 'Tasks')
+        .update({ Progress: 'Completed' })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      toast.success('Task completed');
+    },
+  });
+
+  if (!isTaskView) {
+    return (
+      <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn">
+        <h2 className="text-xl font-semibold">Today's Tasks</h2>
+        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
+            <ul className="space-y-4">
+              {(dbTasks || [])
+                .filter(task => task.Progress !== 'Completed')
+                .map((task) => (
+                  <SortableTaskItem key={task.id} task={task}>
+                    <TaskItem
+                      task={task}
+                      subtasks={subtasks}
+                      updateTaskProgress={updateTaskProgress}
+                      onTaskStart={onTaskStart}
+                    />
+                  </SortableTaskItem>
+                ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      </div>
+    );
+  }
+
   const updateTaskTimes = useMutation({
     mutationFn: async ({ taskId, startDate, endDate }: { taskId: number; startDate: Date; endDate: Date }) => {
       const { error } = await supabase
@@ -258,27 +317,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task times updated');
-    },
-  });
-
-  const updateTaskProgress = useMutation({
-    mutationFn: async ({ id, isSubtask = false }: { id: number; isSubtask?: boolean }) => {
-      const { error } = await supabase
-        .from(isSubtask ? 'subtasks' : 'Tasks')
-        .update({ Progress: 'Completed' })
-        .eq('id', id);
-      
-      if (error) throw error;
-
-      if (!isSubtask) {
-        await updateRemainingTaskTimes();
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
-      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-      toast.success('Task completed');
     },
   });
 
@@ -411,32 +449,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
   const formatTaskTime = (date: string) => {
     return format(new Date(date), 'h:mm a');
   };
-
-  if (!isTaskView) {
-    return (
-      <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn">
-        <h2 className="text-xl font-semibold">Today's Tasks</h2>
-        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
-            <ul className="space-y-4">
-              {(dbTasks || [])
-                .filter(task => task.Progress !== 'Completed')
-                .map((task) => (
-                  <SortableTaskItem key={task.id} task={task}>
-                    <TaskItem
-                      task={task}
-                      subtasks={subtasks}
-                      updateTaskProgress={updateTaskProgress}
-                      onTaskStart={onTaskStart}
-                    />
-                  </SortableTaskItem>
-                ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6 p-4 sm:p-6 animate-slideIn">

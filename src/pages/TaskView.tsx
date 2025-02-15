@@ -11,14 +11,6 @@ import { Task, Subtask, SortField, SortOrder } from '@/types/task.types';
 import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
 import { generateRandomColor } from '@/utils/taskUtils';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -45,12 +37,6 @@ export function TaskView() {
   const [showNewTaskListDialog, setShowNewTaskListDialog] = React.useState(false);
   const [editingListId, setEditingListId] = useState<number | null>(null);
   const [editingListName, setEditingListName] = useState("");
-  const [showEditTimelineDialog, setShowEditTimelineDialog] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const [timelineDate, setTimelineDate] = useState<{ start: Date; end: Date }>({
-    start: new Date(),
-    end: new Date(new Date().setHours(new Date().getHours() + 1))
-  });
   const [sortBy, setSortBy] = useState<'date' | 'list'>('list');
 
   const { data: tasks, isLoading: tasksLoading } = useQuery({
@@ -209,8 +195,6 @@ export function TaskView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      setShowEditTimelineDialog(false);
-      setSelectedTaskId(null);
       toast.success('Task timeline updated');
     },
     onError: (error) => {
@@ -492,9 +476,11 @@ export function TaskView() {
                         }
                         onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
                         onTimelineEdit={(taskId, start, end) => {
-                          setSelectedTaskId(taskId);
-                          setTimelineDate({ start, end });
-                          setShowEditTimelineDialog(true);
+                          updateTaskTimelineMutation.mutate({ 
+                            taskId, 
+                            start: new Date(start), 
+                            end: new Date(end) 
+                          });
                         }}
                       />
                     </SortableContext>
@@ -523,12 +509,11 @@ export function TaskView() {
               }
               onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
               onTimelineEdit={(taskId, start, end) => {
-                setSelectedTaskId(taskId);
-                setTimelineDate({ 
-                  start: new Date(start),
-                  end: new Date(end)
+                updateTaskTimelineMutation.mutate({ 
+                  taskId, 
+                  start: new Date(start), 
+                  end: new Date(end) 
                 });
-                setShowEditTimelineDialog(true);
               }}
             />
           )}

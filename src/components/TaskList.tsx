@@ -16,6 +16,9 @@ import { Button } from './ui/button';
 import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface SubTask {
   name: string;
@@ -58,6 +61,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const isTaskView = location.pathname === '/tasks';
+  const [selectedDate, setSelectedDate] = useState<Date>();
 
   const { data: dbTasks } = useQuery({
     queryKey: ['tasks'],
@@ -85,16 +89,21 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     },
   });
 
-  const { data: taskLists } = useQuery({
-    queryKey: ['task-lists'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('TaskLists')
-        .select('*')
-        .order('order', { ascending: true });
+  const updateTaskTimes = useMutation({
+    mutationFn: async ({ taskId, startDate, endDate }: { taskId: number; startDate: Date; endDate: Date }) => {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({
+          date_started: startDate.toISOString(),
+          date_due: endDate.toISOString()
+        })
+        .eq('id', taskId);
       
       if (error) throw error;
-      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Task times updated');
     },
   });
 
@@ -126,11 +135,12 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       if (notStartedTasks.length === 0) return;
 
       const currentTime = new Date();
+      currentTime.setMinutes(currentTime.getMinutes() + 30); // Start with 30-minute offset
       
       for (let i = 0; i < notStartedTasks.length; i++) {
         const task = notStartedTasks[i];
         const taskStartTime = new Date(currentTime);
-        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
+        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30)); // 25 min task + 5 min break
         
         const taskDueTime = new Date(taskStartTime);
         taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
@@ -153,7 +163,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
   const handleTaskStart = async (taskId: number) => {
     try {
-      const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started') || [];
+      const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started')
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || [];
       const selectedTask = dbTasks?.find(t => t.id === taskId);
       
       if (!selectedTask) return;
@@ -170,12 +181,14 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       if (updateError) throw updateError;
 
       const currentTime = new Date();
+      currentTime.setMinutes(currentTime.getMinutes() + 30); // Start next task after 30 minutes
+      
       for (let i = 0; i < notStartedTasks.length; i++) {
         const task = notStartedTasks[i];
-        if (task.id === taskId) continue; // Skip the selected task
+        if (task.id === taskId) continue;
 
         const taskStartTime = new Date(currentTime);
-        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
+        taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30)); // 25 min task + 5 min break
         
         const taskDueTime = new Date(taskStartTime);
         taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
@@ -199,29 +212,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     } catch (error) {
       console.error('Error starting task:', error);
       toast.error('Failed to start task');
-    }
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (over && active.id !== over.id) {
-      const activeTask = dbTasks?.find(t => t.id === active.id);
-      const overTask = dbTasks?.find(t => t.id === over.id);
-      
-      if (activeTask && overTask) {
-        const { error } = await supabase
-          .from('Tasks')
-          .update({ order: overTask.order })
-          .eq('id', activeTask.id);
-
-        if (error) {
-          toast.error('Failed to reorder tasks');
-          return;
-        }
-
-        queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      }
     }
   };
 
@@ -288,6 +278,36 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                     </div>
                   </div>
                 </div>
+
+                {/* Show subtasks */}
+                {dbSubtasks && dbSubtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
+                  <ul className="pl-8 space-y-2">
+                    {dbSubtasks
+                      .filter(subtask => subtask["Parent Task ID"] === task.id)
+                      .map((subtask) => (
+                        <li
+                          key={subtask.id}
+                          className="flex items-center gap-3 p-2 rounded-md bg-white/30 hover:bg-white/50 transition-colors cursor-pointer"
+                          onClick={() => updateTaskProgress.mutate({ id: subtask.id, isSubtask: true })}
+                        >
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="flex-shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTaskStart(subtask.id);
+                            }}
+                          >
+                            <Play className="h-3 w-3" />
+                          </Button>
+                          <span className="text-sm">
+                            {subtask["Task Name"]}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                )}
               </li>
             ))}
         </ul>

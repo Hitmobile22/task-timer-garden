@@ -6,6 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, ListFilter, Trash2 } from "lucide-react";
 import { formatDate } from '@/utils/taskUtils';
+import { cn } from '@/utils';
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from 'date-fns';
 
 interface TaskListProps {
   tasks: Task[];
@@ -42,6 +46,8 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onDeleteTask,
   onTimelineEdit,
 }) => {
+  const [selectedDate, setSelectedDate] = useState<Date>();
+
   return (
     <Table>
       <TableHeader>
@@ -116,18 +122,41 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
                 </Select>
               </TableCell>
               <TableCell>
-                {task.date_started && task.date_due && (
-                  <div className="flex flex-col gap-1 text-sm">
-                    <div className="flex items-center gap-2 text-primary">
-                      <Clock className="h-3 w-3" />
-                      <span>Starts: {formatDate(task.date_started)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-primary/80">
-                      <Clock className="h-3 w-3" />
-                      <span>Due: {formatDate(task.date_due)}</span>
-                    </div>
-                  </div>
-                )}
+                <div className="flex flex-col gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "justify-start text-left font-normal",
+                          !task.date_started && "text-muted-foreground"
+                        )}
+                      >
+                        <Clock className="mr-2 h-4 w-4" />
+                        {task.date_started ? (
+                          format(new Date(task.date_started), "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={new Date(task.date_started)}
+                        onSelect={(date) => {
+                          if (date) {
+                            const startDate = new Date(date);
+                            const endDate = new Date(startDate);
+                            endDate.setMinutes(endDate.getMinutes() + 25);
+                            onTimelineEdit(task.id, startDate, endDate);
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">

@@ -1,12 +1,11 @@
-import React from 'react';
-import { Task, Subtask } from '@/types/task.types';
+
+import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, ListFilter, Trash2 } from "lucide-react";
-import { formatDate } from '@/utils/taskUtils';
-import { cn } from '@/utils';
+import { cn } from '@/lib/utils'; // Fixed import path
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';

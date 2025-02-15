@@ -252,26 +252,30 @@ export function TaskView() {
     
     let filteredTasks = [...tasks];
     
+    // Apply search filter
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      filteredTasks = filteredTasks.filter(task => 
+        task["Task Name"]?.toLowerCase().includes(searchLower)
+      );
+    }
+    
     // Apply progress filter
     if (progressFilter !== "all") {
       filteredTasks = filteredTasks.filter(task => task.Progress === progressFilter);
     }
     
-    // Apply search filter
-    if (searchQuery) {
-      filteredTasks = filteredTasks.filter(task => 
-        task["Task Name"].toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
     // Apply sorting
-    return filteredTasks.sort((a, b) => {
-      if (sortBy === 'date') {
+    if (sortBy === 'date') {
+      return filteredTasks.sort((a, b) => {
         const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
         const bDate = b.date_started ? new Date(b.date_started) : new Date(0);
         return aDate.getTime() - bDate.getTime();
-      }
-      // Sort by list
+      });
+    }
+    
+    // Sort by list
+    return filteredTasks.sort((a, b) => {
       const aListId = a.task_list_id || 0;
       const bListId = b.task_list_id || 0;
       return aListId - bListId;
@@ -291,13 +295,14 @@ export function TaskView() {
     },
   });
 
-  const groupedTasks = React.useMemo(() => {
+  const filteredAndGroupedTasks = React.useMemo(() => {
     if (!tasks || !taskLists) return new Map();
     
+    const filteredTasks = getSortedAndFilteredTasks(tasks);
     const grouped = new Map();
+    
     taskLists.forEach(list => {
-      const listTasks = tasks.filter(task => task.task_list_id === list.id);
-      // Only add lists that have tasks
+      const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
       if (listTasks.length > 0) {
         grouped.set(list.id, {
           list,
@@ -306,8 +311,8 @@ export function TaskView() {
       }
     });
     
-    // Add uncategorized tasks to "Default" list
-    const uncategorizedTasks = tasks.filter(task => !task.task_list_id);
+    // Add uncategorized tasks
+    const uncategorizedTasks = filteredTasks.filter(task => !task.task_list_id);
     if (uncategorizedTasks.length > 0) {
       const defaultList = taskLists.find(list => list.name === 'Default');
       if (defaultList) {
@@ -319,57 +324,7 @@ export function TaskView() {
     }
     
     return grouped;
-  }, [tasks, taskLists]);
-
-  const sortedTasks = React.useMemo(() => {
-    if (!tasks) return [];
-    
-    let filteredTasks = [...tasks];
-    
-    // Apply progress filter
-    if (progressFilter !== "all") {
-      filteredTasks = filteredTasks.filter(task => task.Progress === progressFilter);
-    }
-    
-    // Apply search filter
-    if (searchQuery) {
-      filteredTasks = filteredTasks.filter(task => 
-        task["Task Name"].toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    return filteredTasks.sort((a, b) => {
-      if (sortBy === 'date') {
-        return new Date(a.date_started).getTime() - new Date(b.date_started).getTime();
-      }
-      // Default to list sorting
-      return (a.task_list_id || 0) - (b.task_list_id || 0);
-    });
-  }, [tasks, progressFilter, searchQuery, sortBy]);
-
-  const updateTaskListNameMutation = useMutation({
-    mutationFn: async ({ listId, name }: { listId: number; name: string }) => {
-      const { error } = await supabase
-        .from('TaskLists')
-        .update({ name })
-        .eq('id', listId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
-      setEditingListId(null);
-      setEditingListName("");
-      toast.success('List name updated');
-    },
-  });
-
-  const filteredTaskLists = React.useMemo(() => {
-    if (!taskLists || !tasks) return [];
-    return taskLists.filter(list => {
-      return tasks.some(task => task.task_list_id === list.id);
-    });
-  }, [taskLists, tasks]);
+  }, [tasks, taskLists, getSortedAndFilteredTasks]);
 
   return (
     <div 
@@ -412,7 +367,7 @@ export function TaskView() {
 
           {sortBy === 'list' ? (
             <DndContext collisionDetection={closestCenter}>
-              {Array.from(groupedTasks.values()).map(({ list, tasks: listTasks }) => {
+              {Array.from(filteredAndGroupedTasks.values()).map(({ list, tasks: listTasks }) => {
                 if (listTasks.length === 0) return null;
                 
                 return (
@@ -514,7 +469,7 @@ export function TaskView() {
             </DndContext>
           ) : (
             <TaskListComponent
-              tasks={sortedTasks}
+              tasks={getSortedAndFilteredTasks(tasks)}
               subtasks={subtasks}
               expandedTasks={expandedTasks}
               editingTaskId={editingTaskId}

@@ -12,18 +12,35 @@ import { format } from 'date-fns';
 interface TaskTimelineCellProps {
   startDate: Date | undefined;
   endDate: Date | undefined;
+  isEditing: boolean;
   onTimelineUpdate: (startDate?: Date, endDate?: Date) => void;
 }
 
 export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
   startDate: selectedStartDate,
   endDate: selectedEndDate,
+  isEditing,
   onTimelineUpdate,
 }) => {
   const formatDateTime = (date: Date | undefined) => {
     if (!date) return '';
     return format(date, 'M/d h:mm a');
   };
+
+  if (!isEditing) {
+    return (
+      <TableCell>
+        <div className="space-y-1">
+          <div className="text-sm">
+            Start: {selectedStartDate ? formatDateTime(selectedStartDate) : 'Not set'}
+          </div>
+          <div className="text-sm">
+            Due: {selectedEndDate ? formatDateTime(selectedEndDate) : 'Not set'}
+          </div>
+        </div>
+      </TableCell>
+    );
+  }
 
   return (
     <TableCell>

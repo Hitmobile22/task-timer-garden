@@ -57,6 +57,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
+  const isEditing = editingTaskId === task.id;
+
   return (
     <React.Fragment>
       <TableRow>
@@ -73,19 +75,23 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         />
         <TaskProgressCell
           task={task}
+          isEditing={isEditing}
           onUpdateProgress={onUpdateProgress}
         />
         <TaskTimelineCell
           startDate={selectedStartDate}
           endDate={selectedEndDate}
+          isEditing={isEditing}
           onTimelineUpdate={handleTimelineUpdate}
         />
         <TaskActionsCell
           task={task}
-          editingTaskId={editingTaskId}
+          isEditing={isEditing}
           taskLists={taskLists}
           onMoveTask={onMoveTask}
           onEditStart={onEditStart}
+          onEditCancel={onEditCancel}
+          onEditSave={onEditSave}
           onDeleteTask={onDeleteTask}
         />
       </TableRow>

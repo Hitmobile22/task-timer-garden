@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -330,18 +329,14 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                         <li
                           key={subtask.id}
                           className="flex items-center gap-3 p-2 rounded-md bg-white/30 hover:bg-white/50 transition-colors cursor-pointer"
-                          onClick={() => updateTaskProgress.mutate({ id: subtask.id, isSubtask: true })}
                         >
                           <Button
                             size="icon"
                             variant="ghost"
                             className="flex-shrink-0 h-5 w-5 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTaskStart(subtask.id);
-                            }}
+                            onClick={() => updateTaskProgress.mutate({ id: subtask.id, isSubtask: true })}
                           >
-                            <Play className="h-3 w-3" />
+                            <Check className="h-3 w-3" />
                           </Button>
                           <span className="text-sm">
                             {subtask["Task Name"]}

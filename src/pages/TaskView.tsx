@@ -850,3 +850,127 @@ export default function TaskView() {
                         </TableBody>
                       </Table>
                     </SortableContext>
+                  </div>
+                );
+              })}
+            </DndContext>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Task Name</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead>Timeline</TableHead>
+                  <TableHead className="w-[200px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedTasks.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {editingTaskId === task.id ? (
+                          <div className="flex items-center gap-2 flex-grow">
+                            <Input
+                              value={editingTaskName}
+                              onChange={(e) => setEditingTaskName(e.target.value)}
+                              className="w-full"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditSave(task.id)}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={handleEditCancel}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          task["Task Name"]
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={task.Progress}
+                        onValueChange={(value: Task['Progress']) => 
+                          updateProgressMutation.mutate({ taskId: task.id, progress: value })
+                        }
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Select progress" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Not started">Not started</SelectItem>
+                          <SelectItem value="In progress">In progress</SelectItem>
+                          <SelectItem value="Completed">Completed</SelectItem>
+                          <SelectItem value="Backlog">Backlog</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      {task.date_started && task.date_due && (
+                        <div className="flex flex-col gap-1 text-sm">
+                          <div className="flex items-center gap-2 text-primary">
+                            <Clock className="h-3 w-3" />
+                            <span>Starts: {formatDate(task.date_started)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-primary/80">
+                            <Clock className="h-3 w-3" />
+                            <span>Due: {formatDate(task.date_due)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedTaskId(task.id);
+                            setTimelineDate({
+                              start: task.date_started ? new Date(task.date_started) : new Date(),
+                              end: task.date_due ? new Date(task.date_due) : new Date(new Date().setHours(new Date().getHours() + 1))
+                            });
+                            setShowEditTimelineDialog(true);
+                          }}
+                        >
+                          <Clock className="h-4 w-4" />
+                        </Button>
+                        {editingTaskId !== task.id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditStart(task)}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(task.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default TaskView;

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +8,7 @@ import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Task, Subtask } from '@/types/task.types';
+import { Task, Subtask, SortField, SortOrder } from '@/types/task.types';  // Added SortField and SortOrder imports
 import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
 import { generateRandomColor } from '@/utils/taskUtils';

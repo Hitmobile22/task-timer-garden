@@ -206,15 +206,14 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
   const handleTaskStart = async (taskId: number) => {
     try {
-      const allTasks = dbTasks?.filter(t => t.Progress === 'Not started') || [];
+      const allTasks = dbTasks?.filter(t => t.Progress === 'Not started' || t.Progress === 'In progress') || [];
       const selectedTask = allTasks.find(t => t.id === taskId);
       
       if (!selectedTask) return;
 
       const currentTime = new Date();
-      let nextStartTime = currentTime;
-
-      // Start the selected task immediately
+      
+      // First, handle the selected task
       const { error: startError } = await supabase
         .from('Tasks')
         .update({
@@ -226,11 +225,15 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
       if (startError) throw startError;
 
-      // Schedule remaining tasks
-      const remainingTasks = allTasks.filter(t => t.id !== taskId);
-      nextStartTime = new Date(currentTime.getTime() + 30 * 60000); // Start next task after 30 minutes
+      // Get all other active tasks and sort them by start time
+      const otherTasks = allTasks
+        .filter(t => t.id !== taskId)
+        .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
 
-      for (const task of remainingTasks) {
+      // Reschedule other tasks to avoid overlaps
+      let nextStartTime = new Date(currentTime.getTime() + 30 * 60000); // Start 30 minutes after current task
+
+      for (const task of otherTasks) {
         const taskStartTime = new Date(nextStartTime);
         const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60000);
 
@@ -250,11 +253,15 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       onTaskStart?.(taskId);
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-      toast.success('Timer started with selected task');
+      toast.success('Timer started and schedule adjusted');
     } catch (error) {
       console.error('Error starting task:', error);
       toast.error('Failed to start task');
     }
+  };
+
+  const formatTaskDateTime = (date: string) => {
+    return format(new Date(date), 'M/d h:mm a');
   };
 
   if (!dbTasks || dbTasks.length === 0) return null;
@@ -320,7 +327,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                     <span className="font-medium block truncate">{task["Task Name"]}</span>
                     <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                       <Clock className="h-3 w-3 flex-shrink-0" />
-                      <span>{formatTaskTime(task.date_started)}</span>
+                      <span>{formatTaskDateTime(task.date_started)}</span>
                     </div>
                   </div>
                 </div>
@@ -439,7 +446,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                           {task.Progress !== 'Completed' && (
                             <span className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
                               <Clock className="h-3 w-3" />
-                              {formatTaskTime(task.date_started)}
+                              {formatTaskDateTime(task.date_started)}
                             </span>
                           )}
                         </div>

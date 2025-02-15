@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Filter, Play, Clock, GripVertical } from 'lucide-react';
+import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -41,6 +41,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
   updateTaskProgress,
   onTaskStart
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hasSubtasks = subtasks?.some(st => st["Parent Task ID"] === task.id);
+
   return (
     <li className="space-y-2">
       <div className="flex items-center gap-3 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
@@ -93,9 +96,23 @@ const TaskItem: React.FC<TaskItemProps> = ({
             )}
           </div>
         </div>
+        {hasSubtasks && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-primary/10"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+        )}
       </div>
 
-      {subtasks && subtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && (
+      {hasSubtasks && isExpanded && (
         <ul className="pl-6 space-y-2">
           {subtasks
             .filter(subtask => subtask["Parent Task ID"] === task.id)

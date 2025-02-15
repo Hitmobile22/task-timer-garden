@@ -335,16 +335,6 @@ export function TaskView() {
     return grouped;
   }, [tasks, taskLists, getSortedAndFilteredTasks]);
 
-  const handleTimelineDialogSave = () => {
-    if (selectedTaskId && timelineDate.start && timelineDate.end) {
-      updateTaskTimelineMutation.mutate({
-        taskId: selectedTaskId,
-        start: timelineDate.start,
-        end: timelineDate.end
-      });
-    }
-  };
-
   return (
     <div 
       className="min-h-screen p-6 space-y-8 animate-fadeIn"
@@ -519,51 +509,6 @@ export function TaskView() {
           )}
         </div>
       </main>
-
-      <Dialog open={showEditTimelineDialog} onOpenChange={setShowEditTimelineDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Task Timeline</DialogTitle>
-            <DialogDescription>
-              Set the start and due time for this task
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Start Time</label>
-              <input
-                type="datetime-local"
-                value={timelineDate.start?.toISOString().slice(0, 16)}
-                onChange={(e) => setTimelineDate(prev => ({
-                  ...prev,
-                  start: new Date(e.target.value)
-                }))}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Due Time</label>
-              <input
-                type="datetime-local"
-                value={timelineDate.end?.toISOString().slice(0, 16)}
-                onChange={(e) => setTimelineDate(prev => ({
-                  ...prev,
-                  end: new Date(e.target.value)
-                }))}
-                className="w-full mt-1 px-3 py-2 border rounded-md"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowEditTimelineDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleTimelineDialogSave}>
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

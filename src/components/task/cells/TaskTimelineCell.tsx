@@ -22,9 +22,23 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
   isEditing,
   onTimelineUpdate,
 }) => {
+  const [tempStartDate, setTempStartDate] = React.useState<Date | undefined>(selectedStartDate);
+  const [tempEndDate, setTempEndDate] = React.useState<Date | undefined>(selectedEndDate);
+
+  React.useEffect(() => {
+    setTempStartDate(selectedStartDate);
+    setTempEndDate(selectedEndDate);
+  }, [selectedStartDate, selectedEndDate]);
+
   const formatDateTime = (date: Date | undefined) => {
     if (!date) return '';
     return format(date, 'M/d h:mm a');
+  };
+
+  const handleUpdate = () => {
+    if (tempStartDate && tempEndDate) {
+      onTimelineUpdate(tempStartDate, tempEndDate);
+    }
   };
 
   if (!isEditing) {
@@ -52,11 +66,11 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                 variant="outline"
                 className={cn(
                   "w-[140px] justify-start text-left font-normal",
-                  !selectedStartDate && "text-muted-foreground"
+                  !tempStartDate && "text-muted-foreground"
                 )}
               >
                 <Clock className="mr-2 h-4 w-4" />
-                {selectedStartDate ? formatDateTime(selectedStartDate) : (
+                {tempStartDate ? formatDateTime(tempStartDate) : (
                   <span>Start time</span>
                 )}
               </Button>
@@ -64,18 +78,18 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={selectedStartDate}
+                selected={tempStartDate}
                 onSelect={(date) => {
                   if (date) {
                     const newDate = new Date(date);
-                    if (selectedStartDate) {
-                      newDate.setHours(selectedStartDate.getHours());
-                      newDate.setMinutes(selectedStartDate.getMinutes());
+                    if (tempStartDate) {
+                      newDate.setHours(tempStartDate.getHours());
+                      newDate.setMinutes(tempStartDate.getMinutes());
                     } else {
                       newDate.setHours(new Date().getHours());
                       newDate.setMinutes(new Date().getMinutes());
                     }
-                    onTimelineUpdate(newDate, selectedEndDate);
+                    setTempStartDate(newDate);
                   }
                 }}
                 initialFocus
@@ -83,14 +97,14 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
               <div className="border-t p-3">
                 <Input
                   type="time"
-                  value={selectedStartDate ? format(selectedStartDate, "HH:mm") : ""}
+                  value={tempStartDate ? format(tempStartDate, "HH:mm") : ""}
                   onChange={(e) => {
-                    if (selectedStartDate && e.target.value) {
+                    if (tempStartDate && e.target.value) {
                       const [hours, minutes] = e.target.value.split(':');
-                      const newDate = new Date(selectedStartDate);
+                      const newDate = new Date(tempStartDate);
                       newDate.setHours(parseInt(hours));
                       newDate.setMinutes(parseInt(minutes));
-                      onTimelineUpdate(newDate, selectedEndDate);
+                      setTempStartDate(newDate);
                     }
                   }}
                 />
@@ -104,11 +118,11 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                 variant="outline"
                 className={cn(
                   "w-[140px] justify-start text-left font-normal",
-                  !selectedEndDate && "text-muted-foreground"
+                  !tempEndDate && "text-muted-foreground"
                 )}
               >
                 <Clock className="mr-2 h-4 w-4" />
-                {selectedEndDate ? formatDateTime(selectedEndDate) : (
+                {tempEndDate ? formatDateTime(tempEndDate) : (
                   <span>Due time</span>
                 )}
               </Button>
@@ -116,18 +130,18 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={selectedEndDate}
+                selected={tempEndDate}
                 onSelect={(date) => {
                   if (date) {
                     const newDate = new Date(date);
-                    if (selectedEndDate) {
-                      newDate.setHours(selectedEndDate.getHours());
-                      newDate.setMinutes(selectedEndDate.getMinutes());
+                    if (tempEndDate) {
+                      newDate.setHours(tempEndDate.getHours());
+                      newDate.setMinutes(tempEndDate.getMinutes());
                     } else {
                       newDate.setHours(new Date().getHours());
                       newDate.setMinutes(new Date().getMinutes());
                     }
-                    onTimelineUpdate(selectedStartDate, newDate);
+                    setTempEndDate(newDate);
                   }
                 }}
                 initialFocus
@@ -135,14 +149,14 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
               <div className="border-t p-3">
                 <Input
                   type="time"
-                  value={selectedEndDate ? format(selectedEndDate, "HH:mm") : ""}
+                  value={tempEndDate ? format(tempEndDate, "HH:mm") : ""}
                   onChange={(e) => {
-                    if (selectedEndDate && e.target.value) {
+                    if (tempEndDate && e.target.value) {
                       const [hours, minutes] = e.target.value.split(':');
-                      const newDate = new Date(selectedEndDate);
+                      const newDate = new Date(tempEndDate);
                       newDate.setHours(parseInt(hours));
                       newDate.setMinutes(parseInt(minutes));
-                      onTimelineUpdate(selectedStartDate, newDate);
+                      setTempEndDate(newDate);
                     }
                   }}
                 />
@@ -150,6 +164,15 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
             </PopoverContent>
           </Popover>
         </div>
+        {(tempStartDate !== selectedStartDate || tempEndDate !== selectedEndDate) && (
+          <Button 
+            size="sm" 
+            onClick={handleUpdate}
+            className="self-end"
+          >
+            Save Changes
+          </Button>
+        )}
       </div>
     </TableCell>
   );

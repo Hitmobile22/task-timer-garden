@@ -33,6 +33,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [isVisible, setIsVisible] = useState(true);
   const [soundSettings, setSoundSettings] = useState<SoundSettings>({
     tick: '/sounds/Tick/Tick1.wav',
     task: '/sounds/Task/Task1.wav',
@@ -45,7 +46,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   });
   const queryClient = useQueryClient();
 
-  // Load available sounds
   useEffect(() => {
     const loadSounds = async () => {
       try {
@@ -81,11 +81,11 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   }, []);
 
   const playSound = useCallback((type: SoundType) => {
-    if (!isMuted) {
+    if (!isMuted && isVisible) {
       const audio = new Audio(soundSettings[type]);
       audio.play().catch(error => console.error('Error playing sound:', error));
     }
-  }, [isMuted, soundSettings]);
+  }, [isMuted, isVisible, soundSettings]);
 
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
@@ -135,36 +135,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   };
 
   useEffect(() => {
-    const nextTask = getNextTask();
-    if (nextTask && !currentTask) {
-      const now = new Date();
-      const startTime = new Date(nextTask.date_started);
-      const breakTimeLeft = Math.floor((startTime.getTime() - now.getTime()) / 1000);
-      
-      if (breakTimeLeft <= 10 * 60 && breakTimeLeft > 0) {
-        setTimeLeft(breakTimeLeft);
-        setIsBreak(true);
-        if (!isRunning) {
-          setIsRunning(true);
-          toast.info(`Break until next task: ${nextTask["Task Name"]}`);
-        }
-      }
-    } else if (currentTask?.date_started && currentTask?.date_due) {
-      const now = new Date();
-      const startDate = new Date(currentTask.date_started);
-      const dueDate = new Date(currentTask.date_due);
-      
-      if (now >= startDate && now <= dueDate) {
-        const remainingTime = Math.floor((dueDate.getTime() - now.getTime()) / 1000);
-        setTimeLeft(remainingTime);
-        setIsBreak(false);
-        if (!isRunning) {
-          setIsRunning(true);
-          toast.info(`Starting task: ${currentTask["Task Name"]}`);
-        }
-      }
-    }
-  }, [currentTask, activeTasks]);
+    setIsVisible(shouldShowTimer());
+  }, [currentTask, getNextTask]);
 
   const updateTaskProgress = useMutation({
     mutationFn: async (taskId: number) => {

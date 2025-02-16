@@ -11,10 +11,21 @@ export const GoogleCalendarIntegration = () => {
   const handleGoogleAuth = async () => {
     try {
       setIsConnecting(true);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please sign in to connect Google Calendar');
+        setIsConnecting(false);
+        return;
+      }
+
       console.log('Initiating Google Calendar authentication...');
       
       const { data, error } = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'auth' }
+        body: { 
+          action: 'auth',
+          userId: user.id
+        }
       });
 
       if (error) {
@@ -29,7 +40,6 @@ export const GoogleCalendarIntegration = () => {
 
       console.log('Opening auth window with URL:', data.url);
       
-      // Open the Google OAuth window
       const authWindow = window.open(
         data.url,
         'Google Calendar Auth',

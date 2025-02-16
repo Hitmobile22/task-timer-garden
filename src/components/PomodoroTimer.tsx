@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
@@ -18,7 +19,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   autoStart = false,
   activeTaskId 
 }) => {
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const queryClient = useQueryClient();
@@ -48,10 +49,33 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     return activeTasks.find(task => {
       const startTime = new Date(task.date_started);
       const timeDiff = startTime.getTime() - now.getTime();
-      // Check if task starts within the next 10 minutes
       return timeDiff > 0 && timeDiff <= 10 * 60 * 1000;
     });
   };
+
+  const calculateTimeLeft = (task: any) => {
+    if (!task || !task.date_due) return 25 * 60; // Default to 25 minutes if no due date
+    
+    const now = new Date();
+    const dueTime = new Date(task.date_due);
+    const diffInSeconds = Math.floor((dueTime.getTime() - now.getTime()) / 1000);
+    
+    // If less than 0 seconds left or more than 25 minutes, default to 25 minutes
+    if (diffInSeconds <= 0 || diffInSeconds > 25 * 60) {
+      return 25 * 60;
+    }
+    
+    return diffInSeconds;
+  };
+
+  useEffect(() => {
+    if (currentTask && !isBreak) {
+      const remaining = calculateTimeLeft(currentTask);
+      setTimeLeft(remaining);
+    } else if (isBreak) {
+      setTimeLeft(5 * 60); // 5 minutes for break
+    }
+  }, [currentTask, isBreak]);
 
   const updateTaskProgress = useMutation({
     mutationFn: async (taskId: number) => {
@@ -90,15 +114,15 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (isRunning) {
+    if (isRunning && timeLeft !== null) {
       interval = setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 1) {
+          if (!prev || prev <= 1) {
             if (isBreak) {
               setIsBreak(false);
               playSound('task');
               toast.success("Break finished! Starting next task.");
-              return 25 * 60;
+              return calculateTimeLeft(currentTask);
             } else if (currentTask) {
               updateTaskProgress.mutate(currentTask.id);
               setIsBreak(true);
@@ -115,10 +139,14 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, currentTask, isBreak, playSound]);
+  }, [isRunning, currentTask, isBreak, timeLeft, playSound]);
 
   const handleReset = () => {
-    setTimeLeft(25 * 60);
+    if (currentTask && !isBreak) {
+      setTimeLeft(calculateTimeLeft(currentTask));
+    } else {
+      setTimeLeft(isBreak ? 5 * 60 : 25 * 60);
+    }
     setIsBreak(false);
     setIsRunning(false);
     toast.info("Timer reset");
@@ -130,8 +158,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const progress = isBreak
-    ? ((timeLeft) / (10 * 60)) * 100
+  // Only calculate progress if timeLeft is not null
+  const progress = timeLeft === null ? 0 : isBreak
+    ? ((5 * 60 - timeLeft) / (5 * 60)) * 100
     : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
 
   const getTimerColor = () => {
@@ -139,7 +168,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       return 'linear-gradient(184.1deg, rgba(249,255,182,1) 44.7%, rgba(226,255,172,1) 67.2%)';
     }
     
-    const progress = ((25 * 60 - timeLeft) / (25 * 60)) * 100;
+    const progress = timeLeft === null ? 0 : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
     const colors = {
       start: {
         hue: 150,
@@ -187,7 +216,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         }}
       >
         <span className="text-5xl font-mono font-bold text-primary text-center block">
-          {formatTime(timeLeft)}
+          {timeLeft !== null ? formatTime(timeLeft) : '25:00'}
         </span>
       </div>
 

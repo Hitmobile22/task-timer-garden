@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
-import { format, addDays, setHours, setMinutes } from 'date-fns';
+import { format, addDays, setHours, setMinutes, isBefore, isAfter } from 'date-fns';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -255,17 +255,25 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
 
+      const isLateNight = currentTime.getHours() >= 21;
+      const tomorrow5AM = new Date(currentTime);
+      tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
+      tomorrow5AM.setHours(5, 0, 0, 0);
+
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
         const isFirst = i === 0;
         const taskStartTime = isFirst && shouldResetTimer ? currentTime : new Date(nextStartTime);
         const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000); // 25 minutes later
 
+        if (isLateNight && isAfter(taskEndTime, tomorrow5AM)) {
+          break;
+        }
+
         const updates: any = {
           date_due: taskEndTime.toISOString()
         };
 
-        // Only update start time if it's the first task and should reset timer
         if (isFirst && shouldResetTimer) {
           updates.date_started = currentTime.toISOString();
           updates.Progress = 'In progress';
@@ -283,7 +291,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
         if (error) throw error;
 
-        // Add 30 minutes (25 min task + 5 min break) for the next task
         nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
       }
     },
@@ -309,7 +316,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
 
-    // If any task is moved to the first position, it should start now
     const shouldResetTimer = newIndex === 0;
 
     await updateTaskOrder.mutate({ 
@@ -426,10 +432,10 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       if (!selectedTask) return;
 
       const currentTime = new Date();
-      const today = new Date(currentTime);
-      today.setHours(23, 59, 59, 999); // End of today
+      const tomorrow5AM = new Date(currentTime);
+      tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
+      tomorrow5AM.setHours(5, 0, 0, 0);
       
-      // First, handle the selected task
       const { error: startError } = await supabase
         .from('Tasks')
         .update({
@@ -441,17 +447,16 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
       if (startError) throw startError;
 
-      // Get all other active tasks for today and sort them by start time
       const otherTasks = allTasks
-        .filter(t => t.id !== taskId && t.date_started && new Date(t.date_started) < today)
+        .filter(t => t.id !== taskId)
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
 
-      // Reschedule other tasks to avoid overlaps
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60000); // Start 30 minutes after current task
 
       for (const task of otherTasks) {
-        // Don't schedule past end of day
-        if (nextStartTime > today) break;
+        if (currentTime.getHours() >= 21 && isAfter(nextStartTime, tomorrow5AM)) {
+          break;
+        }
         
         const taskStartTime = new Date(nextStartTime);
         const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60000);
@@ -460,7 +465,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           .from('Tasks')
           .update({
             date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString()
+            date_due: taskEndTime.toISOString(),
+            Progress: 'Not started'
           })
           .eq('id', task.id);
 

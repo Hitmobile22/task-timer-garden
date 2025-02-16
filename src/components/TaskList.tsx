@@ -270,25 +270,21 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const isBeforeFiveAM = currentTime.getHours() < 5;
 
       if (isBeforeFiveAM) {
-        yesterday9PM.setDate(yesterday9PM.getDate() + 1); // Move to today's 9 PM
-        today5AM.setDate(today5AM.getDate() + 1); // Move to tomorrow's 5 AM
+        yesterday9PM.setDate(yesterday9PM.getDate() + 1);
+        today5AM.setDate(today5AM.getDate() + 1);
       }
-
-      const inProgressTask = tasks.find(t => 
-        t.Progress === 'In progress' && t.id !== movedTaskId
-      );
 
       const updates = [];
       
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
         const isFirst = i === 0;
+
+        // Skip completed tasks
+        if (task.Progress === 'Completed') continue;
+
         let taskStartTime: Date;
         let taskEndTime: Date;
-
-        if (task.id === inProgressTask?.id) {
-          continue;
-        }
 
         if (isFirst && shouldResetTimer) {
           taskStartTime = currentTime;
@@ -296,6 +292,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           taskStartTime = new Date(nextStartTime);
         }
 
+        // Add 25 minutes for task duration
         taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
 
         if (isLateNight) {
@@ -313,17 +310,20 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           date_due: taskEndTime.toISOString(),
         };
 
+        // Update progress status
         if (isFirst && shouldResetTimer) {
           updateData.Progress = 'In progress';
-        } else if (task.Progress === 'In progress' && task.id !== inProgressTask?.id) {
+        } else if (task.Progress === 'In progress' && (!isFirst || !shouldResetTimer)) {
           updateData.Progress = 'Not started';
         }
 
         updates.push(updateData);
 
+        // Add 5-minute break for next task
         nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
       }
 
+      // Apply all updates
       for (const update of updates) {
         const { error } = await supabase
           .from('Tasks')

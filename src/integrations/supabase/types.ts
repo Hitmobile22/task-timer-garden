@@ -9,6 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      google_calendar_settings: {
+        Row: {
+          calendar_id: string | null
+          created_at: string | null
+          id: string
+          last_sync_time: string | null
+          refresh_token: string | null
+          sync_enabled: boolean | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          calendar_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_sync_time?: string | null
+          refresh_token?: string | null
+          sync_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          calendar_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_sync_time?: string | null
+          refresh_token?: string | null
+          sync_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       subtasks: {
         Row: {
           created_at: string
@@ -35,6 +68,41 @@ export type Database = {
           {
             foreignKeyName: "subtasks_Parent Task ID_fkey"
             columns: ["Parent Task ID"]
+            isOneToOne: false
+            referencedRelation: "Tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      synced_calendar_events: {
+        Row: {
+          created_at: string | null
+          google_event_id: string
+          id: string
+          last_sync_time: string | null
+          task_id: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          google_event_id: string
+          id?: string
+          last_sync_time?: string | null
+          task_id?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          google_event_id?: string
+          id?: string
+          last_sync_time?: string | null
+          task_id?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "synced_calendar_events_task_id_fkey"
+            columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "Tasks"
             referencedColumns: ["id"]

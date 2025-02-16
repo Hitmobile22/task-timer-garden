@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, addDays, setHours, setMinutes } from 'date-fns';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -202,6 +202,10 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
   const { data: dbTasks } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
+      const today = new Date();
+      const tomorrow5AM = addDays(today, 1);
+      tomorrow5AM.setHours(5, 0, 0, 0);
+      
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
@@ -209,12 +213,22 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       
       if (error) throw error;
       
-      const tomorrow = new Date();
-      tomorrow.setHours(24, 0, 0, 0);
-      
       return data.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
-        return taskDate && taskDate < tomorrow;
+        if (!taskDate) return false;
+
+        // If it's before 5 AM, include tasks from yesterday 9 PM onwards
+        if (today.getHours() < 5) {
+          const yesterday9PM = new Date(today);
+          yesterday9PM.setDate(yesterday9PM.getDate() - 1);
+          yesterday9PM.setHours(21, 0, 0, 0);
+          return taskDate >= yesterday9PM && taskDate <= tomorrow5AM;
+        }
+
+        // Otherwise, include tasks from today until tomorrow 5 AM
+        const today9PM = new Date(today);
+        today9PM.setHours(21, 0, 0, 0);
+        return taskDate <= tomorrow5AM;
       });
     },
   });

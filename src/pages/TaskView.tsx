@@ -11,6 +11,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Task, Subtask, SortField, SortOrder } from '@/types/task.types';
 import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
+import { GoogleCalendarIntegration } from '@/components/task/GoogleCalendarIntegration';
 import { generateRandomColor } from '@/utils/taskUtils';
 import { Input } from "@/components/ui/input";
 import {
@@ -354,19 +355,22 @@ export function TaskView() {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
-          <TaskFilters
-            searchQuery={searchQuery}
-            progressFilter={progressFilter}
-            sortBy={sortBy}
-            showNewTaskListDialog={showNewTaskListDialog}
-            newTaskListName={newTaskListName}
-            onSearchChange={setSearchQuery}
-            onProgressFilterChange={setProgressFilter}
-            onSortByChange={setSortBy}
-            onNewTaskListDialogChange={setShowNewTaskListDialog}
-            onNewTaskListNameChange={setNewTaskListName}
-            onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
-          />
+          <div className="flex justify-between items-center mb-6">
+            <TaskFilters
+              searchQuery={searchQuery}
+              progressFilter={progressFilter}
+              sortBy={sortBy}
+              showNewTaskListDialog={showNewTaskListDialog}
+              newTaskListName={newTaskListName}
+              onSearchChange={setSearchQuery}
+              onProgressFilterChange={setProgressFilter}
+              onSortByChange={setSortBy}
+              onNewTaskListDialogChange={setShowNewTaskListDialog}
+              onNewTaskListNameChange={setNewTaskListName}
+              onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
+            />
+            <GoogleCalendarIntegration />
+          </div>
 
           {sortBy === 'list' ? (
             <DndContext collisionDetection={closestCenter}>
@@ -392,10 +396,12 @@ export function TaskView() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => updateListNameMutation.mutate({
-                              listId: list.id,
-                              name: editingListName
-                            })}
+                            onClick={() => {
+                              updateListNameMutation.mutate({
+                                listId: list.id,
+                                name: editingListName
+                              });
+                            }}
                           >
                             <Check className="h-4 w-4" />
                           </Button>

@@ -26,6 +26,7 @@ async function getGoogleAuthURL() {
 }
 
 async function handleCallback(code: string) {
+  console.log('Handling callback with code:', code);
   const redirectUri = `${SUPABASE_URL}/functions/v1/google-calendar/callback`
   const tokenUrl = 'https://oauth2.googleapis.com/token'
   
@@ -44,10 +45,16 @@ async function handleCallback(code: string) {
   })
 
   if (!response.ok) {
-    throw new Error('Failed to get access token')
+    const errorText = await response.text();
+    console.error('Token exchange failed:', errorText);
+    throw new Error(`Failed to get access token: ${errorText}`);
   }
 
   const data = await response.json()
+  console.log('Received token data:', { 
+    refresh_token: data.refresh_token ? 'present' : 'missing',
+    access_token: data.access_token ? 'present' : 'missing'
+  });
   return data
 }
 
@@ -60,13 +67,16 @@ serve(async (req) => {
   try {
     // Parse the request URL
     const url = new URL(req.url)
+    console.log('Received request for path:', url.pathname);
     
     // Check if this is a POST request with action=auth
     if (req.method === 'POST') {
       const body = await req.json()
+      console.log('Received POST request with body:', body);
       
       if (body.action === 'auth') {
         const authUrl = await getGoogleAuthURL()
+        console.log('Generated auth URL:', authUrl);
         return new Response(
           JSON.stringify({ url: authUrl }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -84,17 +94,21 @@ serve(async (req) => {
       const tokenData = await handleCallback(code)
       
       // Store the refresh token in the database
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('google_calendar_settings')
         .insert({
           refresh_token: tokenData.refresh_token,
           sync_enabled: true,
           last_sync_time: new Date().toISOString(),
         })
+        .select()
 
       if (error) {
+        console.error('Database insert error:', error);
         throw error
       }
+
+      console.log('Successfully stored refresh token, data:', data);
 
       return new Response(
         `<html><body><script>window.close()</script></body></html>`,

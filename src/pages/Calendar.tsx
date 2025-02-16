@@ -216,27 +216,25 @@ export default function CalendarView() {
         background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
       }}
     >
-      <div className="container mx-auto max-w-4xl">
-        <div className="fixed top-0 left-0 h-screen w-[60px] sm:w-[80px] flex flex-col items-center py-8 border-r bg-card/50 backdrop-blur-sm">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/')}
-            className="mb-8"
-          >
-            <ArrowLeft className="h-5 w-5 text-white" />
-          </Button>
-          <MenuBar />
-        </div>
+      <div className="fixed top-0 left-0 h-screen w-[60px] sm:w-[80px] flex flex-col items-center py-8 border-r bg-card/50 backdrop-blur-sm">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/')}
+          className="mb-8"
+        >
+          <ArrowLeft className="h-5 w-5 text-white" />
+        </Button>
+        <MenuBar />
       </div>
       
-      <main className="container mx-auto max-w-4xl space-y-8 pl-[60px] sm:pl-[80px]">
-        <header className="text-center space-y-2">
+      <main className="pl-[80px] sm:pl-[100px] pr-6">
+        <header className="text-center space-y-2 mb-8">
           <h1 className="text-4xl font-bold tracking-tight text-white">Calendar</h1>
           <p className="text-white/80">View your tasks in calendar format</p>
         </header>
 
-        <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
+        <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg max-w-[1400px] mx-auto">
           <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
             <div className="flex flex-col space-y-6">
               <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-center justify-between'}`}>

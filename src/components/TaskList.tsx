@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -270,6 +269,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         t.Progress === 'In progress' && t.id !== movedTaskId
       );
 
+      const updates = [];
+      
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
         const isFirst = i === 0;
@@ -298,26 +299,35 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         }
 
-        const updates: any = {
+        const updateData: any = {
+          id: task.id,
           date_started: taskStartTime.toISOString(),
           date_due: taskEndTime.toISOString(),
         };
 
         // Update progress status based on position and whether it was moved
         if (isFirst && shouldResetTimer) {
-          updates.Progress = 'In progress';
+          updateData.Progress = 'In progress';
         } else if (task.Progress === 'In progress' && task.id !== inProgressTask?.id) {
-          updates.Progress = 'Not started';
+          updateData.Progress = 'Not started';
         }
 
+        updates.push(updateData);
+        nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
+      }
+
+      // Batch update all tasks
+      for (const update of updates) {
         const { error } = await supabase
           .from('Tasks')
-          .update(updates)
-          .eq('id', task.id);
+          .update({
+            date_started: update.date_started,
+            date_due: update.date_due,
+            Progress: update.Progress
+          })
+          .eq('id', update.id);
 
         if (error) throw error;
-
-        nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
       }
     },
     onSuccess: () => {

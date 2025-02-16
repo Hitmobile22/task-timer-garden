@@ -58,17 +58,24 @@ serve(async (req) => {
   }
 
   try {
+    // Parse the request URL
     const url = new URL(req.url)
-    const path = url.pathname.split('/').pop()
-
-    if (path === 'auth') {
-      const authUrl = await getGoogleAuthURL()
-      return new Response(JSON.stringify({ url: authUrl }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    
+    // Check if this is a POST request with action=auth
+    if (req.method === 'POST') {
+      const body = await req.json()
+      
+      if (body.action === 'auth') {
+        const authUrl = await getGoogleAuthURL()
+        return new Response(
+          JSON.stringify({ url: authUrl }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
-
-    if (path === 'callback') {
+    
+    // Handle the callback path
+    if (url.pathname.endsWith('/callback')) {
       const code = url.searchParams.get('code')
       if (!code) {
         throw new Error('No code provided')
@@ -97,16 +104,21 @@ serve(async (req) => {
       )
     }
 
-    return new Response(JSON.stringify({ error: 'Invalid endpoint' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({ error: 'Invalid endpoint' }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    )
   } catch (error) {
     console.error('Error:', error.message)
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    )
   }
 })
-

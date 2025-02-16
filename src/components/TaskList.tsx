@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -264,6 +265,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         tomorrow5AM.setDate(currentTime.getDate());
       }
 
+      // Find the in-progress task that wasn't moved
       const inProgressTask = tasks.find(t => 
         t.Progress === 'In progress' && t.id !== movedTaskId
       );
@@ -274,10 +276,12 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         let taskStartTime: Date;
         let taskEndTime: Date;
 
+        // Skip updating timing for in-progress tasks that weren't moved
         if (task.id === inProgressTask?.id) {
-          continue; // Skip updating this task to preserve its timing
+          continue;
         }
 
+        // Calculate task timing
         if (isFirst && shouldResetTimer) {
           taskStartTime = currentTime;
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
@@ -286,6 +290,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         }
 
+        // Handle overnight scheduling
         if (isLateNight && isAfter(taskEndTime, tomorrow5AM)) {
           const nextDay = addDays(startOfDay(currentTime), 1);
           nextDay.setHours(9, 0, 0, 0);
@@ -298,6 +303,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           date_due: taskEndTime.toISOString(),
         };
 
+        // Update progress status based on position and whether it was moved
         if (isFirst && shouldResetTimer) {
           updates.Progress = 'In progress';
         } else if (task.Progress === 'In progress' && task.id !== inProgressTask?.id) {
@@ -336,6 +342,9 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
 
+    // Reset timer if:
+    // 1. Task is moved to first position (newIndex === 0)
+    // 2. In-progress task is moved away from first position
     const shouldResetTimer = newIndex === 0 || (oldIndex === 0 && movedTask.Progress === 'In progress');
 
     await updateTaskOrder.mutate({ 

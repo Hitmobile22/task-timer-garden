@@ -63,6 +63,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     setSelectedEndDate(endDate);
   };
 
+  const handleProgressUpdate = (progress: Task['Progress']) => {
+    setTempProgress(progress);
+  };
+
   const isEditing = editingTaskId === task.id;
 
   const handleSave = () => {
@@ -95,7 +99,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}
           isEditing={isEditing}
-          onUpdateProgress={setTempProgress}
+          onUpdateProgress={handleProgressUpdate}
         />
         <TaskTimelineCell
           startDate={selectedStartDate}

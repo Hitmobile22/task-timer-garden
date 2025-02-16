@@ -7,7 +7,7 @@ import { Task } from '@/types/task.types';
 interface TaskProgressCellProps {
   task: Task;
   isEditing: boolean;
-  onUpdateProgress: (taskId: number, progress: Task['Progress']) => void;
+  onUpdateProgress: (progress: Task['Progress']) => void;  // Modified to only take progress
 }
 
 export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
@@ -28,7 +28,7 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
           value={tempProgress}
           onValueChange={(value: Task['Progress']) => {
             setTempProgress(value);
-            // Don't call onUpdateProgress here, wait for the checkmark
+            onUpdateProgress(value);
           }}
         >
           <SelectTrigger className="w-[180px]">

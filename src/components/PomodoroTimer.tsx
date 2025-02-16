@@ -1,17 +1,28 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Play, Pause, RotateCcw } from 'lucide-react';
+import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface PomodoroTimerProps {
   tasks: string[];
   autoStart?: boolean;
   activeTaskId?: number;
 }
+
+type SoundType = 'tick' | 'task' | 'break';
+type SoundSettings = Record<SoundType, string>;
 
 export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ 
   tasks: initialTasks, 
@@ -21,7 +32,60 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [soundSettings, setSoundSettings] = useState<SoundSettings>({
+    tick: '/sounds/Tick/Tick1.wav',
+    task: '/sounds/Task/Task1.wav',
+    break: '/sounds/Break/Break1.wav'
+  });
+  const [availableSounds, setAvailableSounds] = useState<Record<SoundType, string[]>>({
+    tick: [],
+    task: [],
+    break: []
+  });
   const queryClient = useQueryClient();
+
+  // Load available sounds
+  useEffect(() => {
+    const loadSounds = async () => {
+      try {
+        const fetchSoundsFromFolder = async (folder: string) => {
+          const response = await fetch(`/sounds/${folder}`);
+          const text = await response.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, 'text/html');
+          const files = Array.from(doc.querySelectorAll('a'))
+            .map(a => a.href)
+            .filter(href => href.endsWith('.wav'))
+            .map(href => `/sounds/${folder}/${href.split('/').pop()}`);
+          return files;
+        };
+
+        const [tickSounds, taskSounds, breakSounds] = await Promise.all([
+          fetchSoundsFromFolder('Tick'),
+          fetchSoundsFromFolder('Task'),
+          fetchSoundsFromFolder('Break')
+        ]);
+
+        setAvailableSounds({
+          tick: tickSounds,
+          task: taskSounds,
+          break: breakSounds
+        });
+      } catch (error) {
+        console.error('Error loading sounds:', error);
+      }
+    };
+
+    loadSounds();
+  }, []);
+
+  const playSound = useCallback((type: SoundType) => {
+    if (!isMuted) {
+      const audio = new Audio(soundSettings[type]);
+      audio.play().catch(error => console.error('Error playing sound:', error));
+    }
+  }, [isMuted, soundSettings]);
 
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
@@ -135,14 +199,18 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
           if (prev <= 1) {
             if (isBreak) {
               setIsBreak(false);
+              playSound('task');
               toast.success("Break finished! Starting next task.");
               return 25 * 60;
             } else if (currentTask) {
               updateTaskProgress.mutate(currentTask.id);
               setIsBreak(true);
+              playSound('break');
               toast.success("Work session complete! Time for a break.");
               return 5 * 60;
             }
+          } else {
+            playSound('tick');
           }
           return prev - 1;
         });
@@ -150,7 +218,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, currentTask, isBreak]);
+  }, [isRunning, currentTask, isBreak, playSound]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -237,6 +305,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
             setIsRunning(!isRunning);
             if (!isRunning) {
               toast.info(isBreak ? "Break started" : "Work session started");
+              playSound(isBreak ? 'break' : 'task');
             }
           }}
           className="hover-lift"
@@ -251,6 +320,65 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         >
           <RotateCcw className="h-4 w-4" />
         </Button>
+        <Button
+          onClick={() => setIsMuted(!isMuted)}
+          variant="outline"
+          className="hover-lift"
+        >
+          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              className="hover-lift"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56">
+            <DropdownMenuLabel>Sound Settings</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="px-2 py-1.5 text-sm font-semibold">Tick Sound</DropdownMenuLabel>
+              {availableSounds.tick.map((sound, index) => (
+                <DropdownMenuItem
+                  key={sound}
+                  onClick={() => setSoundSettings(prev => ({ ...prev, tick: sound }))}
+                >
+                  Tick Sound {index + 1}
+                  {soundSettings.tick === sound && " ✓"}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="px-2 py-1.5 text-sm font-semibold">Task Sound</DropdownMenuLabel>
+              {availableSounds.task.map((sound, index) => (
+                <DropdownMenuItem
+                  key={sound}
+                  onClick={() => setSoundSettings(prev => ({ ...prev, task: sound }))}
+                >
+                  Task Sound {index + 1}
+                  {soundSettings.task === sound && " ✓"}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="px-2 py-1.5 text-sm font-semibold">Break Sound</DropdownMenuLabel>
+              {availableSounds.break.map((sound, index) => (
+                <DropdownMenuItem
+                  key={sound}
+                  onClick={() => setSoundSettings(prev => ({ ...prev, break: sound }))}
+                >
+                  Break Sound {index + 1}
+                  {soundSettings.break === sound && " ✓"}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

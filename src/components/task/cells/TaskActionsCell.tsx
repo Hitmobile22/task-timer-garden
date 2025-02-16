@@ -28,6 +28,11 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   onDeleteTask,
 }) => {
   const currentList = taskLists?.find(list => list.id === task.task_list_id);
+  const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
+
+  React.useEffect(() => {
+    setTempListId(task.task_list_id);
+  }, [task.task_list_id, isEditing]);
   
   return (
     <TableCell>
@@ -35,8 +40,8 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
         {isEditing ? (
           <>
             <Select
-              value={task.task_list_id?.toString() || ''}
-              onValueChange={(value) => onMoveTask(task.id, parseInt(value))}
+              value={tempListId?.toString() || ''}
+              onValueChange={(value) => setTempListId(parseInt(value))}
             >
               <SelectTrigger className="w-[150px]">
                 <div className="flex items-center gap-2">

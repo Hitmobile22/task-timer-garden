@@ -130,7 +130,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
               toast.success("Work session complete! Time for a break.");
               return 5 * 60;
             }
-          } else {
+          } else if (!isBreak) { // Only play tick during work sessions
             playSound('tick');
           }
           return prev - 1;

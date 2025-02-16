@@ -15,12 +15,21 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
   isEditing,
   onUpdateProgress,
 }) => {
+  const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
+
+  React.useEffect(() => {
+    setTempProgress(task.Progress);
+  }, [task.Progress, isEditing]);
+
   return (
     <TableCell>
       {isEditing ? (
         <Select
-          value={task.Progress}
-          onValueChange={(value: Task['Progress']) => onUpdateProgress(task.id, value)}
+          value={tempProgress}
+          onValueChange={(value: Task['Progress']) => {
+            setTempProgress(value);
+            // Don't call onUpdateProgress here, wait for the checkmark
+          }}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select progress" />

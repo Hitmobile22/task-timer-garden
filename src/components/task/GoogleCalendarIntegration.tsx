@@ -10,23 +10,29 @@ export const GoogleCalendarIntegration = () => {
 
   const handleGoogleAuth = async () => {
     try {
+      console.log('Button clicked, starting authentication process...');
       setIsConnecting(true);
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      console.log('Auth check result:', { user: authData?.user, error: authError });
+      
+      if (!authData?.user) {
+        console.error('No authenticated user found');
         toast.error('Please sign in to connect Google Calendar');
         setIsConnecting(false);
         return;
       }
 
-      console.log('Starting Google Calendar auth with user:', user.id);
+      console.log('Starting Google Calendar auth with user:', authData.user.id);
       
+      console.log('Invoking google-calendar function...');
       const { data, error } = await supabase.functions.invoke('google-calendar', {
         body: { 
           action: 'auth',
-          userId: user.id
+          userId: authData.user.id
         }
       });
+      console.log('Function response:', { data, error });
 
       if (error) {
         console.error('Supabase function error:', error);
@@ -47,8 +53,10 @@ export const GoogleCalendarIntegration = () => {
       );
 
       if (authWindow) {
+        console.log('Auth window opened successfully');
         const timer = setInterval(async () => {
           if (authWindow.closed) {
+            console.log('Auth window was closed');
             clearInterval(timer);
             setIsConnecting(false);
             
@@ -79,6 +87,7 @@ export const GoogleCalendarIntegration = () => {
           }
         }, 500);
       } else {
+        console.error('Failed to open auth window');
         setIsConnecting(false);
         throw new Error('Failed to open authentication window');
       }
@@ -88,6 +97,15 @@ export const GoogleCalendarIntegration = () => {
       setIsConnecting(false);
     }
   };
+
+  React.useEffect(() => {
+    // Check if user is authenticated on component mount
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('Initial auth check:', { isAuthenticated: !!user });
+    };
+    checkAuth();
+  }, []);
 
   return (
     <div className="flex items-center gap-2">

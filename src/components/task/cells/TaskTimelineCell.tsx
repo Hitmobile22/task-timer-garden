@@ -26,6 +26,12 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
   const [tempEndDate, setTempEndDate] = React.useState<Date | undefined>(selectedEndDate);
 
   React.useEffect(() => {
+    if (tempStartDate !== selectedStartDate || tempEndDate !== selectedEndDate) {
+      onTimelineUpdate(tempStartDate, tempEndDate);
+    }
+  }, [tempStartDate, tempEndDate]);
+
+  React.useEffect(() => {
     setTempStartDate(selectedStartDate);
     setTempEndDate(selectedEndDate);
   }, [selectedStartDate, selectedEndDate]);
@@ -33,12 +39,6 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
   const formatDateTime = (date: Date | undefined) => {
     if (!date) return '';
     return format(date, 'M/d h:mm a');
-  };
-
-  const handleUpdate = () => {
-    if (tempStartDate && tempEndDate) {
-      onTimelineUpdate(tempStartDate, tempEndDate);
-    }
   };
 
   if (!isEditing) {
@@ -164,15 +164,6 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
             </PopoverContent>
           </Popover>
         </div>
-        {(tempStartDate !== selectedStartDate || tempEndDate !== selectedEndDate) && (
-          <Button 
-            size="sm" 
-            onClick={handleUpdate}
-            className="self-end"
-          >
-            Save Changes
-          </Button>
-        )}
       </div>
     </TableCell>
   );

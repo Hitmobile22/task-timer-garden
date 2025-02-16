@@ -53,11 +53,23 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     if (startDate && endDate) {
       setSelectedStartDate(startDate);
       setSelectedEndDate(endDate);
-      onTimelineEdit(task.id, startDate, endDate);
+      // Don't call onTimelineEdit here, wait for the checkmark button
     }
   };
 
+  React.useEffect(() => {
+    setSelectedStartDate(task.date_started ? new Date(task.date_started) : undefined);
+    setSelectedEndDate(task.date_due ? new Date(task.date_due) : undefined);
+  }, [task.date_started, task.date_due]);
+
   const isEditing = editingTaskId === task.id;
+
+  const handleSave = () => {
+    if (selectedStartDate && selectedEndDate) {
+      onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
+    }
+    onEditSave(task.id);
+  };
 
   return (
     <React.Fragment>
@@ -91,7 +103,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onMoveTask={onMoveTask}
           onEditStart={onEditStart}
           onEditCancel={onEditCancel}
-          onEditSave={onEditSave}
+          onEditSave={handleSave}
           onDeleteTask={onDeleteTask}
         />
       </TableRow>

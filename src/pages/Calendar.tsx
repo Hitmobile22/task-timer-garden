@@ -210,28 +210,28 @@ export default function CalendarView() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900 dark:to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-[#0EA5E9] to-[#1E40AF] dark:from-gray-900 dark:via-blue-900 dark:to-gray-900">
       <div className="flex min-h-screen">
-        <div className="w-[60px] sm:w-[80px] flex flex-col items-center py-8 border-r bg-card">
+        <div className="fixed top-0 left-0 h-screen w-[60px] sm:w-[80px] flex flex-col items-center py-8 border-r bg-card/50 backdrop-blur-sm">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate('/')}
             className="mb-8"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-5 w-5 text-white" />
           </Button>
           <MenuBar />
         </div>
 
-        <div className="flex-1 p-8">
-          <div className="max-w-6xl mx-auto space-y-8">
+        <div className="flex-1 pl-[60px] sm:pl-[80px]">
+          <div className="max-w-6xl mx-auto p-8 space-y-8">
             <header className="text-center space-y-2">
-              <h1 className="text-4xl font-bold tracking-tight">Calendar</h1>
-              <p className="text-muted-foreground">View your tasks in calendar format</p>
+              <h1 className="text-4xl font-bold tracking-tight text-white">Calendar</h1>
+              <p className="text-white/80">View your tasks in calendar format</p>
             </header>
 
-            <Card className="backdrop-blur-sm bg-white/50 dark:bg-gray-950/50">
+            <Card className="backdrop-blur-sm bg-white/10 border-white/20">
               <CardContent className="p-6">
                 <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
                   <div className="flex flex-col space-y-6">
@@ -241,7 +241,7 @@ export default function CalendarView() {
                         <TabsTrigger value="week">Week</TabsTrigger>
                         <TabsTrigger value="month">Month</TabsTrigger>
                       </TabsList>
-                      <Card className="border">
+                      <Card className="border-white/20">
                         <CalendarComponent
                           mode="single"
                           selected={date}

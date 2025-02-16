@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -51,7 +50,6 @@ export default function CalendarView() {
       const taskDue = new Date(task.date_due);
       const taskDate = new Date(date);
       
-      // Reset hours to compare dates only
       taskDate.setHours(0, 0, 0, 0);
       const startDate = new Date(taskStart);
       startDate.setHours(0, 0, 0, 0);
@@ -217,60 +215,63 @@ export default function CalendarView() {
   };
 
   return (
-    <div className="min-h-screen bg-background animate-fadeIn">
-      <div className="container mx-auto p-6">
-        <div className="flex justify-between items-center mb-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900 dark:to-gray-900">
+      <div className="flex min-h-screen">
+        <div className="w-[60px] sm:w-[80px] flex flex-col items-center py-8 border-r bg-card">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate('/')}
+            className="mb-8"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <MenuBar />
         </div>
 
-        <div className="space-y-8">
-          <header className="text-center space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">Calendar</h1>
-            <p className="text-muted-foreground">View your tasks in calendar format</p>
-          </header>
+        <div className="flex-1 p-8">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <header className="text-center space-y-2">
+              <h1 className="text-4xl font-bold tracking-tight">Calendar</h1>
+              <p className="text-muted-foreground">View your tasks in calendar format</p>
+            </header>
 
-          <Card>
-            <CardContent className="p-6">
-              <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
-                <div className="flex flex-col space-y-6">
-                  <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-center justify-between'}`}>
-                    <TabsList className="grid w-full sm:w-auto grid-cols-3">
-                      <TabsTrigger value="day">Today</TabsTrigger>
-                      <TabsTrigger value="week">Week</TabsTrigger>
-                      <TabsTrigger value="month">Month</TabsTrigger>
-                    </TabsList>
-                    <Card className="border">
-                      <CalendarComponent
-                        mode="single"
-                        selected={date}
-                        onSelect={(date) => date && setDate(date)}
-                        className="rounded-md"
-                      />
-                    </Card>
+            <Card className="backdrop-blur-sm bg-white/50 dark:bg-gray-950/50">
+              <CardContent className="p-6">
+                <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
+                  <div className="flex flex-col space-y-6">
+                    <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-center justify-between'}`}>
+                      <TabsList className="grid w-full sm:w-auto grid-cols-3">
+                        <TabsTrigger value="day">Today</TabsTrigger>
+                        <TabsTrigger value="week">Week</TabsTrigger>
+                        <TabsTrigger value="month">Month</TabsTrigger>
+                      </TabsList>
+                      <Card className="border">
+                        <CalendarComponent
+                          mode="single"
+                          selected={date}
+                          onSelect={(date) => date && setDate(date)}
+                          className="rounded-md"
+                        />
+                      </Card>
+                    </div>
+
+                    <TabsContent value="day" className="m-0">
+                      <DayView />
+                    </TabsContent>
+
+                    <TabsContent value="week" className="m-0">
+                      <WeekView />
+                    </TabsContent>
+
+                    <TabsContent value="month" className="m-0">
+                      <MonthView />
+                    </TabsContent>
                   </div>
-
-                  <TabsContent value="day" className="m-0">
-                    <DayView />
-                  </TabsContent>
-
-                  <TabsContent value="week" className="m-0">
-                    <WeekView />
-                  </TabsContent>
-
-                  <TabsContent value="month" className="m-0">
-                    <MonthView />
-                  </TabsContent>
-                </div>
-              </Tabs>
-            </CardContent>
-          </Card>
+                </Tabs>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

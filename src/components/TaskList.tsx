@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
-import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay } from 'date-fns';
+import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay, subDays } from 'date-fns';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -255,16 +255,25 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
 
-      const isLateNight = currentTime.getHours() >= 21 || currentTime.getHours() < 5;
+      const today5AM = new Date(currentTime);
+      today5AM.setHours(5, 0, 0, 0);
+      
+      const yesterday9PM = new Date(currentTime);
+      yesterday9PM.setDate(yesterday9PM.getDate() - 1);
+      yesterday9PM.setHours(21, 0, 0, 0);
+      
       const tomorrow5AM = new Date(currentTime);
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
 
-      if (currentTime.getHours() < 5) {
-        tomorrow5AM.setDate(currentTime.getDate());
+      const isLateNight = currentTime.getHours() >= 21 || currentTime.getHours() < 5;
+      const isBeforeFiveAM = currentTime.getHours() < 5;
+
+      if (isBeforeFiveAM) {
+        yesterday9PM.setDate(yesterday9PM.getDate() + 1); // Move to today's 9 PM
+        today5AM.setDate(today5AM.getDate() + 1); // Move to tomorrow's 5 AM
       }
 
-      // Find the in-progress task that wasn't moved
       const inProgressTask = tasks.find(t => 
         t.Progress === 'In progress' && t.id !== movedTaskId
       );
@@ -277,26 +286,25 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         let taskStartTime: Date;
         let taskEndTime: Date;
 
-        // Skip updating timing for in-progress tasks that weren't moved
         if (task.id === inProgressTask?.id) {
           continue;
         }
 
-        // Calculate task timing
         if (isFirst && shouldResetTimer) {
           taskStartTime = currentTime;
-          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         } else {
           taskStartTime = new Date(nextStartTime);
-          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         }
 
-        // Handle overnight scheduling
-        if (isLateNight && isAfter(taskEndTime, tomorrow5AM)) {
-          const nextDay = addDays(startOfDay(currentTime), 1);
-          nextDay.setHours(9, 0, 0, 0);
-          taskStartTime = nextDay;
-          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+
+        if (isLateNight) {
+          if (isAfter(taskEndTime, tomorrow5AM)) {
+            const nextDay = addDays(startOfDay(currentTime), 1);
+            nextDay.setHours(9, 0, 0, 0);
+            taskStartTime = nextDay;
+            taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+          }
         }
 
         const updateData: any = {
@@ -305,7 +313,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           date_due: taskEndTime.toISOString(),
         };
 
-        // Update progress status based on position and whether it was moved
         if (isFirst && shouldResetTimer) {
           updateData.Progress = 'In progress';
         } else if (task.Progress === 'In progress' && task.id !== inProgressTask?.id) {
@@ -313,10 +320,10 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         }
 
         updates.push(updateData);
-        nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
+
+        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
       }
 
-      // Batch update all tasks
       for (const update of updates) {
         const { error } = await supabase
           .from('Tasks')
@@ -333,11 +340,11 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-      toast.success('Task order updated');
+      toast.success('Task schedule updated');
     },
     onError: (error) => {
-      console.error('Error updating task order:', error);
-      toast.error('Failed to update task order');
+      console.error('Error updating task schedule:', error);
+      toast.error('Failed to update task schedule');
     }
   });
 
@@ -352,9 +359,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
 
-    // Reset timer if:
-    // 1. Task is moved to first position (newIndex === 0)
-    // 2. In-progress task is moved away from first position
     const shouldResetTimer = newIndex === 0 || (oldIndex === 0 && movedTask.Progress === 'In progress');
 
     await updateTaskOrder.mutate({ 

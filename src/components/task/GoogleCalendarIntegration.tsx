@@ -11,12 +11,24 @@ export const GoogleCalendarIntegration = () => {
   const handleGoogleAuth = async () => {
     try {
       setIsConnecting(true);
+      console.log('Initiating Google Calendar authentication...');
+      
       const { data, error } = await supabase.functions.invoke('google-calendar', {
         body: { action: 'auth' }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
 
+      if (!data?.url) {
+        console.error('No auth URL received:', data);
+        throw new Error('Failed to get authentication URL');
+      }
+
+      console.log('Opening auth window with URL:', data.url);
+      
       // Open the Google OAuth window
       const authWindow = window.open(
         data.url,
@@ -29,13 +41,28 @@ export const GoogleCalendarIntegration = () => {
           if (authWindow.closed) {
             clearInterval(timer);
             setIsConnecting(false);
-            toast.success('Successfully connected to Google Calendar');
+            // Check if we actually completed the auth flow
+            supabase
+              .from('google_calendar_settings')
+              .select('refresh_token')
+              .limit(1)
+              .single()
+              .then(({ data, error }) => {
+                if (error || !data) {
+                  console.error('Failed to verify auth completion:', error);
+                  toast.error('Google Calendar connection failed. Please try again.');
+                } else {
+                  toast.success('Successfully connected to Google Calendar');
+                }
+              });
           }
         }, 500);
+      } else {
+        throw new Error('Failed to open authentication window');
       }
     } catch (error) {
       console.error('Google Calendar auth error:', error);
-      toast.error('Failed to connect to Google Calendar');
+      toast.error('Failed to connect to Google Calendar: ' + (error instanceof Error ? error.message : 'Unknown error'));
       setIsConnecting(false);
     }
   };

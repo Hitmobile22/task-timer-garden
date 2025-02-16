@@ -19,12 +19,14 @@ interface SoundSettingsProps {
   soundSettings: SoundSettings;
   setSoundSettings: (settings: SoundSettings) => void;
   availableSounds: Record<SoundType, string[]>;
+  isMuted: boolean;
 }
 
 export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
   soundSettings,
   setSoundSettings,
   availableSounds,
+  isMuted,
 }) => {
   const getDisplayName = (soundPath: string) => {
     const fileName = soundPath.split('/').pop() || '';
@@ -36,7 +38,7 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
-          className="hover-lift"
+          className={`hover-lift ${isMuted ? 'opacity-50' : ''}`}
         >
           <Settings className="h-4 w-4" />
         </Button>
@@ -49,13 +51,11 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
           {availableSounds.tick.map((sound) => (
             <DropdownMenuItem
               key={sound}
-              onClick={() => {
-                setSoundSettings({ ...soundSettings, tick: sound });
-              }}
-              className="cursor-pointer flex items-center justify-between px-2 py-1.5 hover:bg-accent"
+              onClick={() => setSoundSettings({ ...soundSettings, tick: sound })}
+              className={`px-2 py-1.5 ${isMuted ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}`}
             >
-              <span>{getDisplayName(sound)}</span>
-              {soundSettings.tick === sound && <span>✓</span>}
+              {getDisplayName(sound)}
+              {soundSettings.tick === sound && <span className="ml-2">✓</span>}
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
@@ -65,13 +65,11 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
           {availableSounds.task.map((sound) => (
             <DropdownMenuItem
               key={sound}
-              onClick={() => {
-                setSoundSettings({ ...soundSettings, task: sound });
-              }}
-              className="cursor-pointer flex items-center justify-between px-2 py-1.5 hover:bg-accent"
+              onClick={() => setSoundSettings({ ...soundSettings, task: sound })}
+              className={`px-2 py-1.5 ${isMuted ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}`}
             >
-              <span>{getDisplayName(sound)}</span>
-              {soundSettings.task === sound && <span>✓</span>}
+              {getDisplayName(sound)}
+              {soundSettings.task === sound && <span className="ml-2">✓</span>}
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
@@ -81,13 +79,11 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
           {availableSounds.break.map((sound) => (
             <DropdownMenuItem
               key={sound}
-              onClick={() => {
-                setSoundSettings({ ...soundSettings, break: sound });
-              }}
-              className="cursor-pointer flex items-center justify-between px-2 py-1.5 hover:bg-accent"
+              onClick={() => setSoundSettings({ ...soundSettings, break: sound })}
+              className={`px-2 py-1.5 ${isMuted ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}`}
             >
-              <span>{getDisplayName(sound)}</span>
-              {soundSettings.break === sound && <span>✓</span>}
+              {getDisplayName(sound)}
+              {soundSettings.break === sound && <span className="ml-2">✓</span>}
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>

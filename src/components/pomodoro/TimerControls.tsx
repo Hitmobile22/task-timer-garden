@@ -63,6 +63,7 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
         soundSettings={soundSettings}
         setSoundSettings={setSoundSettings}
         availableSounds={availableSounds}
+        isMuted={isMuted}
       />
     </div>
   );

@@ -12,9 +12,7 @@ export const GoogleCalendarIntegration = () => {
     try {
       setIsConnecting(true);
       const { data, error } = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'auth' },
-        // Add the correct path to match our Edge Function's endpoint
-        path: '/auth'
+        body: { action: 'auth' }
       });
 
       if (error) throw error;

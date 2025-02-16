@@ -37,27 +37,32 @@ export const GoogleCalendarIntegration = () => {
       );
 
       if (authWindow) {
-        const timer = setInterval(() => {
+        const timer = setInterval(async () => {
           if (authWindow.closed) {
             clearInterval(timer);
             setIsConnecting(false);
+            
             // Check if we actually completed the auth flow
-            supabase
+            const { data: settings, error: fetchError } = await supabase
               .from('google_calendar_settings')
-              .select('refresh_token')
-              .limit(1)
-              .single()
-              .then(({ data, error }) => {
-                if (error || !data) {
-                  console.error('Failed to verify auth completion:', error);
-                  toast.error('Google Calendar connection failed. Please try again.');
-                } else {
-                  toast.success('Successfully connected to Google Calendar');
-                }
-              });
+              .select('refresh_token, sync_enabled')
+              .maybeSingle();
+
+            if (fetchError) {
+              console.error('Failed to verify auth completion:', fetchError);
+              toast.error('Failed to verify Google Calendar connection');
+              return;
+            }
+
+            if (settings?.refresh_token && settings.sync_enabled) {
+              toast.success('Successfully connected to Google Calendar!');
+            } else {
+              toast.error('Google Calendar connection was not completed. Please try again.');
+            }
           }
         }, 500);
       } else {
+        setIsConnecting(false);
         throw new Error('Failed to open authentication window');
       }
     } catch (error) {

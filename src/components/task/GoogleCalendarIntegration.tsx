@@ -19,7 +19,7 @@ export const GoogleCalendarIntegration = () => {
         return;
       }
 
-      console.log('Initiating Google Calendar authentication...');
+      console.log('Starting Google Calendar auth with user:', user.id);
       
       const { data, error } = await supabase.functions.invoke('google-calendar', {
         body: { 
@@ -52,11 +52,18 @@ export const GoogleCalendarIntegration = () => {
             clearInterval(timer);
             setIsConnecting(false);
             
+            console.log('Auth window closed, checking settings...');
+            
+            // Add a small delay to allow the database to update
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
             // Check if we actually completed the auth flow
             const { data: settings, error: fetchError } = await supabase
               .from('google_calendar_settings')
               .select('refresh_token, sync_enabled')
-              .maybeSingle();
+              .single();
+
+            console.log('Settings check result:', { settings, fetchError });
 
             if (fetchError) {
               console.error('Failed to verify auth completion:', fetchError);

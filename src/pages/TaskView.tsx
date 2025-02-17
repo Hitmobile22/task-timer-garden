@@ -55,14 +55,15 @@ export function TaskView() {
       const projectTasks = projectsResult.data.map(project => ({
         id: project.id,
         "Task Name": project["Project Name"],
-        Progress: project.progress,
+        Progress: project.progress || "Not started",
         date_started: project.date_started,
         date_due: project.date_due,
         task_list_id: project.task_list_id,
         archived: false,
-        order: 0,
+        order: project.sort_order || 0,
         task_lists_order: 0,
         is_backlog: false,
+        project_id: null,
         is_project: true
       })) as Task[];
       
@@ -73,7 +74,7 @@ export function TaskView() {
         bulk_selection_id: undefined
       })) as Task[];
       
-      return [...normalizedTasks, ...projectTasks];
+      return [...projectTasks, ...normalizedTasks];
     },
   });
 
@@ -249,6 +250,33 @@ export function TaskView() {
     },
   });
 
+  const archiveTaskMutation = useMutation({
+    mutationFn: async (taskId: number) => {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ archived: true })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Task archived');
+    },
+    onError: (error) => {
+      toast.error('Failed to archive task');
+      console.error('Archive error:', error);
+    },
+  });
+
+  const handleCreateProject = async (name: string) => {
+    const { error } = await supabase
+      .from('Projects')
+      .insert([{ name }]);
+    
+    if (error) throw error;
+  };
+
   const handleEditStart = (task: Task | Subtask) => {
     setEditingTaskId(task.id);
     setEditingTaskName(task["Task Name"]);
@@ -378,158 +406,51 @@ export function TaskView() {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
-          <div className="flex justify-between items-center mb-6">
-            <TaskFilters
-              searchQuery={searchQuery}
-              progressFilter={progressFilter}
-              sortBy={sortBy}
-              showNewTaskListDialog={showNewTaskListDialog}
-              newTaskListName={newTaskListName}
-              onSearchChange={setSearchQuery}
-              onProgressFilterChange={setProgressFilter}
-              onSortByChange={setSortBy}
-              onNewTaskListDialogChange={setShowNewTaskListDialog}
-              onNewTaskListNameChange={setNewTaskListName}
-              onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
-            />
-            <GoogleCalendarIntegration />
-          </div>
+          <TaskFilters
+            searchQuery={searchQuery}
+            progressFilter={progressFilter}
+            sortBy={sortBy}
+            showNewTaskListDialog={showNewTaskListDialog}
+            newTaskListName={newTaskListName}
+            onSearchChange={setSearchQuery}
+            onProgressFilterChange={setProgressFilter}
+            onSortByChange={setSortBy}
+            onNewTaskListDialogChange={setShowNewTaskListDialog}
+            onNewTaskListNameChange={setNewTaskListName}
+            onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
+            onCreateProject={handleCreateProject}
+          />
+          
+          <GoogleCalendarIntegration />
 
-          {sortBy === 'list' ? (
-            <DndContext collisionDetection={closestCenter}>
-              {Array.from(filteredAndGroupedTasks.values()).map(({ list, tasks: listTasks }) => {
-                if (listTasks.length === 0) return null;
-                
-                return (
-                  <div key={list.id} className="mb-8">
-                    <div 
-                      className="mb-4 p-2 rounded flex items-center justify-between"
-                      style={{
-                        background: list.color || DEFAULT_LIST_COLOR,
-                        color: 'white'
-                      }}
-                    >
-                      {editingListId === list.id ? (
-                        <div className="flex items-center gap-2 flex-1">
-                          <Input
-                            value={editingListName}
-                            onChange={(e) => setEditingListName(e.target.value)}
-                            className="max-w-sm bg-white/90 text-gray-900 font-medium"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              updateListNameMutation.mutate({
-                                listId: list.id,
-                                name: editingListName
-                              });
-                            }}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setEditingListId(null);
-                              setEditingListName("");
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <>
-                          <h3 className="text-lg font-semibold text-white">{list.name}</h3>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-white hover:bg-white/20"
-                              onClick={() => {
-                                setEditingListId(list.id);
-                                setEditingListName(list.name);
-                              }}
-                            >
-                              <PencilIcon className="h-4 w-4" />
-                            </Button>
-                            {list.name !== 'Day to Day' && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-white hover:bg-white/20"
-                                onClick={() => deleteTaskListMutation.mutate(list.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <SortableContext items={listTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                      <TaskListComponent
-                        tasks={listTasks}
-                        subtasks={subtasks}
-                        expandedTasks={expandedTasks}
-                        editingTaskId={editingTaskId}
-                        editingTaskName={editingTaskName}
-                        taskLists={taskLists}
-                        onToggleExpand={toggleTaskExpansion}
-                        onEditStart={handleEditStart}
-                        onEditCancel={handleEditCancel}
-                        onEditSave={handleEditSave}
-                        onEditNameChange={setEditingTaskName}
-                        onUpdateProgress={(taskId, progress, isSubtask) => 
-                          updateProgressMutation.mutate({ taskId, progress, isSubtask })
-                        }
-                        onMoveTask={(taskId, listId) => 
-                          updateTaskListMutation.mutate({ listId, name: taskId.toString() })
-                        }
-                        onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
-                        onTimelineEdit={(taskId, start, end) => {
-                          updateTaskTimelineMutation.mutate({ 
-                            taskId, 
-                            start: new Date(start), 
-                            end: new Date(end) 
-                          });
-                        }}
-                      />
-                    </SortableContext>
-                  </div>
-                );
-              })}
-            </DndContext>
-          ) : (
-            <TaskListComponent
-              tasks={getSortedAndFilteredTasks(tasks)}
-              subtasks={subtasks}
-              expandedTasks={expandedTasks}
-              editingTaskId={editingTaskId}
-              editingTaskName={editingTaskName}
-              taskLists={taskLists}
-              onToggleExpand={toggleTaskExpansion}
-              onEditStart={handleEditStart}
-              onEditCancel={handleEditCancel}
-              onEditSave={handleEditSave}
-              onEditNameChange={setEditingTaskName}
-              onUpdateProgress={(taskId, progress, isSubtask) => 
-                updateProgressMutation.mutate({ taskId, progress, isSubtask })
-              }
-              onMoveTask={(taskId, listId) => 
-                updateTaskListMutation.mutate({ listId, name: taskId.toString() })
-              }
-              onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
-              onTimelineEdit={(taskId, start, end) => {
-                updateTaskTimelineMutation.mutate({ 
-                  taskId, 
-                  start: new Date(start), 
-                  end: new Date(end) 
-                });
-              }}
-            />
-          )}
+          <TaskListComponent
+            tasks={getSortedAndFilteredTasks(tasks)}
+            subtasks={subtasks}
+            expandedTasks={expandedTasks}
+            editingTaskId={editingTaskId}
+            editingTaskName={editingTaskName}
+            taskLists={taskLists}
+            onToggleExpand={toggleTaskExpansion}
+            onEditStart={handleEditStart}
+            onEditCancel={handleEditCancel}
+            onEditSave={handleEditSave}
+            onEditNameChange={setEditingTaskName}
+            onUpdateProgress={(taskId, progress, isSubtask) => 
+              updateProgressMutation.mutate({ taskId, progress, isSubtask })
+            }
+            onMoveTask={(taskId, listId) => 
+              updateTaskListMutation.mutate({ listId, name: taskId.toString() })
+            }
+            onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
+            onArchiveTask={(taskId) => archiveTaskMutation.mutate(taskId)}
+            onTimelineEdit={(taskId, start, end) => {
+              updateTaskTimelineMutation.mutate({ 
+                taskId, 
+                start: new Date(start), 
+                end: new Date(end) 
+              });
+            }}
+          />
         </div>
       </main>
     </div>

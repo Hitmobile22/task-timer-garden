@@ -94,9 +94,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   return (
     <TableRow>
       {/* Empty cell for checkbox/drag handle */}
-      <TableCell className="w-[40px]"></TableCell>
+      <TableCell className="w-[40px]">
+        <div className="h-4 w-4" />
+      </TableCell>
       {/* Task Name */}
-      <TableCell className="max-w-[300px]">
+      <TableCell className="w-[40%]">
         <TaskNameCell
           task={task}
           subtasks={subtasks}
@@ -109,9 +111,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         />
       </TableCell>
       {/* List */}
-      <TableCell className="w-[150px]">{getListName()}</TableCell>
+      <TableCell className="w-[15%]">{getListName()}</TableCell>
       {/* Progress */}
-      <TableCell className="w-[150px]">
+      <TableCell className="w-[15%]">
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}
           isEditing={isEditing}
@@ -119,7 +121,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         />
       </TableCell>
       {/* Timeline */}
-      <TableCell className="w-[200px]">
+      <TableCell className="w-[15%]">
         <TaskTimelineCell
           startDate={selectedStartDate}
           endDate={selectedEndDate}
@@ -128,7 +130,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         />
       </TableCell>
       {/* Actions */}
-      <TableCell className="w-[150px] text-right">
+      <TableCell className="w-[15%] text-right">
         <TaskActionsCell
           task={{...task, task_list_id: tempListId}}
           isEditing={isEditing}

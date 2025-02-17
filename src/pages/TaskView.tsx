@@ -53,9 +53,9 @@ export function TaskView() {
       
       return data.map(task => ({
         ...task,
-        task_lists_order: task.task_lists_order || 0,
-        is_backlog: task.is_backlog || false,
-        bulk_selection_id: task.bulk_selection_id || undefined
+        task_lists_order: 0,
+        is_backlog: false,
+        bulk_selection_id: undefined
       })) as Task[];
     },
   });

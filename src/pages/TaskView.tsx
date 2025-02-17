@@ -144,7 +144,7 @@ export function TaskView() {
     
     if (progressFilter.length > 0) {
       filteredTasks = filteredTasks.filter(task => 
-        progressFilter.includes(task.progress)
+        progressFilter.includes(task.Progress)
       );
     }
     

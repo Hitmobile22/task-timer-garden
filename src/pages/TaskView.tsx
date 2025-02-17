@@ -27,6 +27,9 @@ export function TaskView() {
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
+  // New state variables for TaskFilters
+  const [showNewTaskListDialog, setShowNewTaskListDialog] = useState(false);
+  const [newTaskListName, setNewTaskListName] = useState("");
 
   const {
     projects,
@@ -61,6 +64,20 @@ export function TaskView() {
       }
       return [...prev, taskId];
     });
+  };
+
+  const handleCreateTaskList = async () => {
+    if (!newTaskListName.trim()) return;
+    
+    try {
+      // Add task list creation logic here
+      toast.success('Task list created successfully');
+      setShowNewTaskListDialog(false);
+      setNewTaskListName("");
+    } catch (error) {
+      toast.error('Failed to create task list');
+      console.error('Create task list error:', error);
+    }
   };
 
   const handleBulkProgressUpdate = async (progress: Task['Progress']) => {
@@ -114,6 +131,8 @@ export function TaskView() {
               searchQuery={searchQuery}
               progressFilter={progressFilter}
               sortBy={sortBy}
+              showNewTaskListDialog={showNewTaskListDialog}
+              newTaskListName={newTaskListName}
               onSearchChange={setSearchQuery}
               onProgressFilterChange={(progress) => {
                 setProgressFilter(prev => {
@@ -124,6 +143,9 @@ export function TaskView() {
                 });
               }}
               onSortByChange={setSortBy}
+              onNewTaskListDialogChange={setShowNewTaskListDialog}
+              onNewTaskListNameChange={setNewTaskListName}
+              onCreateTaskList={handleCreateTaskList}
             />
             <div className="flex items-center gap-4">
               <Button

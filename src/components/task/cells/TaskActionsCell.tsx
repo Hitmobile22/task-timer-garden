@@ -33,6 +33,13 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   React.useEffect(() => {
     setTempListId(task.task_list_id);
   }, [task.task_list_id, isEditing]);
+
+  const handleSave = () => {
+    if (tempListId !== null) {
+      onMoveTask(task.id, tempListId);
+      onEditSave(task.id);
+    }
+  };
   
   return (
     <TableCell>
@@ -70,7 +77,7 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => onEditSave(task.id)}
+              onClick={handleSave}
             >
               <Check className="h-4 w-4" />
             </Button>

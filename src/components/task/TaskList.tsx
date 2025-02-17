@@ -20,7 +20,9 @@ interface TaskListProps {
   onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
+  onArchiveTask?: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  showArchived?: boolean;
 }
 
 export const TaskListComponent: React.FC<TaskListProps> = ({
@@ -38,8 +40,12 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onUpdateProgress,
   onMoveTask,
   onDeleteTask,
+  onArchiveTask,
   onTimelineEdit,
+  showArchived = false,
 }) => {
+  const filteredTasks = tasks.filter(task => showArchived ? task.archived : !task.archived);
+
   return (
     <Table>
       <TableHeader>
@@ -47,11 +53,11 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
           <TableHead>Task Name</TableHead>
           <TableHead>Progress</TableHead>
           <TableHead>Timeline</TableHead>
-          <TableHead className="w-[200px]">Actions</TableHead>
+          <TableHead className="w-[250px]">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {tasks.map((task) => (
+        {filteredTasks.map((task) => (
           <React.Fragment key={task.id}>
             <TaskItem
               task={task}
@@ -68,6 +74,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               onUpdateProgress={onUpdateProgress}
               onMoveTask={onMoveTask}
               onDeleteTask={onDeleteTask}
+              onArchiveTask={onArchiveTask}
               onTimelineEdit={onTimelineEdit}
             />
             {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (

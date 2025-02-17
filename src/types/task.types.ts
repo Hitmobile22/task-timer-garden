@@ -6,6 +6,18 @@ export type Task = {
   date_started?: string;
   date_due?: string;
   task_list_id: number | null;
+  project_id?: number | null;
+  archived: boolean;
+};
+
+export type Project = {
+  id: number;
+  "Project Name": string;
+  Progress: Task['Progress'];
+  date_started?: string;
+  date_due?: string;
+  task_list_id: number | null;
+  sort_order: number;
 };
 
 export type Subtask = {
@@ -17,3 +29,4 @@ export type Subtask = {
 
 export type SortField = "Task Name" | "Progress" | "date_started" | "date_due";
 export type SortOrder = "asc" | "desc";
+

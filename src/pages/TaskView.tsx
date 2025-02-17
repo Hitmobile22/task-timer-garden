@@ -55,14 +55,25 @@ export function TaskView() {
       const projectTasks = projectsResult.data.map(project => ({
         id: project.id,
         "Task Name": project["Project Name"],
-        Progress: project.Progress,
+        Progress: project.progress,
         date_started: project.date_started,
         date_due: project.date_due,
         task_list_id: project.task_list_id,
+        archived: false,
+        order: 0,
+        task_lists_order: 0,
+        is_backlog: false,
         is_project: true
-      }));
+      })) as Task[];
       
-      return [...tasksResult.data, ...projectTasks] as Task[];
+      const normalizedTasks = tasksResult.data.map(task => ({
+        ...task,
+        task_lists_order: 0,
+        is_backlog: false,
+        bulk_selection_id: undefined
+      })) as Task[];
+      
+      return [...normalizedTasks, ...projectTasks];
     },
   });
 

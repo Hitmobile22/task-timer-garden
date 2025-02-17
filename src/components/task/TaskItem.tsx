@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { TableRow } from "@/components/ui/table";
+import { TableRow, TableCell } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
 import { TaskNameCell } from './cells/TaskNameCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';

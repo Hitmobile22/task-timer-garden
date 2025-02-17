@@ -255,16 +255,24 @@ export function TaskView() {
 
   const archiveTaskMutation = useMutation({
     mutationFn: async (taskId: number) => {
+      const { data: task, error: fetchError } = await supabase
+        .from('Tasks')
+        .select('archived')
+        .eq('id', taskId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+
       const { error } = await supabase
         .from('Tasks')
-        .update({ archived: true })
+        .update({ archived: !task?.archived })
         .eq('id', taskId);
       
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Task archived');
+      toast.success('Task archive status updated');
     },
   });
 
@@ -370,6 +378,8 @@ export function TaskView() {
     
     let filteredTasks = [...tasks];
     
+    filteredTasks = filteredTasks.filter(task => showArchived ? task.archived : !task.archived);
+    
     if (searchQuery) {
       const searchLower = searchQuery.toLowerCase();
       filteredTasks = filteredTasks.filter(task => 
@@ -387,7 +397,7 @@ export function TaskView() {
       return filteredTasks.sort((a, b) => {
         const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
         const bDate = b.date_started ? new Date(b.date_started) : new Date(0);
-        return aDate.getTime() - bDate.getTime();
+        return bDate.getTime() - aDate.getTime();
       });
     }
     
@@ -396,7 +406,7 @@ export function TaskView() {
       const bListId = b.task_list_id || 0;
       return aListId - bListId;
     });
-  }, [progressFilter, searchQuery, sortBy]);
+  }, [progressFilter, searchQuery, sortBy, showArchived]);
 
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
@@ -475,6 +485,15 @@ export function TaskView() {
     
     queryClient.invalidateQueries({ queryKey: ['subtasks'] });
     toast.success('Subtask added');
+  };
+
+  const handleArchiveTask = async (taskId: number) => {
+    try {
+      await archiveTaskMutation.mutateAsync(taskId);
+    } catch (error) {
+      console.error('Error toggling archive status:', error);
+      toast.error('Failed to update archive status');
+    }
   };
 
   return (
@@ -581,7 +600,7 @@ export function TaskView() {
                           updateTaskListMutation.mutate({ listId, name: taskId.toString() })
                         }
                         onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
-                        onArchiveTask={(taskId) => archiveTaskMutation.mutate(taskId)}
+                        onArchiveTask={handleArchiveTask}
                         onAddSubtask={handleAddSubtask}
                         onTimelineEdit={(taskId, start, end) => {
                           updateTaskTimelineMutation.mutate({ 

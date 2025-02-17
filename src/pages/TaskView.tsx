@@ -166,20 +166,30 @@ export function TaskView() {
 
   const updateTaskListMutation = useMutation({
     mutationFn: async ({ taskId, listId }: { taskId: number; listId: number }) => {
-      const { error } = await supabase
+      console.log('TaskView: updateTaskListMutation called with:', { taskId, listId });
+      
+      const { data, error } = await supabase
         .from('Tasks')
         .update({ task_list_id: listId })
-        .eq('id', taskId);
+        .eq('id', taskId)
+        .select();
       
-      if (error) throw error;
+      if (error) {
+        console.error('TaskView: Update failed:', error);
+        throw error;
+      }
+      
+      console.log('TaskView: Update successful:', data);
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('TaskView: Mutation succeeded:', data);
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task moved to new list');
     },
     onError: (error) => {
+      console.error('TaskView: Mutation failed:', error);
       toast.error('Failed to move task');
-      console.error('Update error:', error);
     },
   });
 
@@ -338,6 +348,7 @@ export function TaskView() {
   }, [tasks, taskLists, getSortedAndFilteredTasks]);
 
   const handleMoveTask = (taskId: number, listId: number) => {
+    console.log('TaskView: handleMoveTask called with:', { taskId, listId });
     updateTaskListMutation.mutate({ taskId, listId });
   };
 

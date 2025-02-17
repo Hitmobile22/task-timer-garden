@@ -31,11 +31,22 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
 
   React.useEffect(() => {
+    console.log('TaskActionsCell: task_list_id changed:', task.task_list_id);
     setTempListId(task.task_list_id);
   }, [task.task_list_id, isEditing]);
 
   const handleSave = () => {
+    console.log('TaskActionsCell: handleSave called', {
+      taskId: task.id,
+      tempListId,
+      currentListId: task.task_list_id
+    });
+    
     if (tempListId !== null) {
+      console.log('TaskActionsCell: Calling onMoveTask with:', {
+        taskId: task.id,
+        listId: tempListId
+      });
       onMoveTask(task.id, tempListId);
       onEditSave(task.id);
     }
@@ -48,7 +59,10 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
           <>
             <Select
               value={tempListId?.toString() || ''}
-              onValueChange={(value) => setTempListId(parseInt(value))}
+              onValueChange={(value) => {
+                console.log('TaskActionsCell: Select value changed to:', value);
+                setTempListId(parseInt(value));
+              }}
             >
               <SelectTrigger className="w-[150px]">
                 <div className="flex items-center gap-2">

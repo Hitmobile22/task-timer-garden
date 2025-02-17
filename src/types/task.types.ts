@@ -33,4 +33,3 @@ export type Subtask = {
 
 export type SortField = "Task Name" | "Progress" | "date_started" | "date_due";
 export type SortOrder = "asc" | "desc";
-

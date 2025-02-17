@@ -6,13 +6,16 @@ import { TaskItem } from './TaskItem';
 import { SubtaskItem } from './SubtaskItem';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Filter } from "lucide-react";
+import { Filter, GripVertical } from "lucide-react";
 
 interface TaskListProps {
   tasks: Task[];
@@ -32,7 +35,40 @@ interface TaskListProps {
   onArchiveTask?: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
   showArchived?: boolean;
+  onDragEnd?: (event: DragEndEvent) => void;
 }
+
+const SortableTaskRow = ({ children, id }: { children: React.ReactNode; id: number }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell className="w-[40px]">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="cursor-grab"
+          {...attributes} 
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </Button>
+      </TableCell>
+      {children}
+    </TableRow>
+  );
+};
 
 export const TaskListComponent: React.FC<TaskListProps> = ({
   tasks,
@@ -52,6 +88,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onArchiveTask,
   onTimelineEdit,
   showArchived = false,
+  onDragEnd,
 }) => {
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [statusFilters, setStatusFilters] = useState<Task['Progress'][]>(["Not started", "In progress"]);
@@ -111,7 +148,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   const isAllSelected = filteredTasks.length > 0 && selectedTasks.length === filteredTasks.length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <DropdownMenu>
@@ -133,13 +170,13 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            variant="outline"
+            onClick={() => setShowBulkEdit(!showBulkEdit)}
+          >
+            {showBulkEdit ? 'Hide' : 'Show'} Bulk Editor
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => setShowBulkEdit(!showBulkEdit)}
-        >
-          {showBulkEdit ? 'Hide' : 'Show'} Bulk Editor
-        </Button>
       </div>
 
       {showBulkEdit && selectedTasks.length > 0 && (
@@ -161,19 +198,21 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
         </div>
       )}
 
-      <div className="rounded-md border">
+      <div className="rounded-md border w-full">
         <Table>
           <TableHeader>
             <TableRow>
-              {showBulkEdit && (
-                <TableHead className="w-[50px]">
+              <TableHead className="w-[40px]">
+                {showBulkEdit ? (
                   <Checkbox
                     checked={isAllSelected}
                     onCheckedChange={handleSelectAll}
                     aria-label="Select all tasks"
                   />
-                </TableHead>
-              )}
+                ) : (
+                  <span></span>
+                )}
+              </TableHead>
               <TableHead className="w-[40%]">Task Name</TableHead>
               <TableHead className="w-[20%]">Progress</TableHead>
               <TableHead className="w-[20%]">Timeline</TableHead>
@@ -181,53 +220,57 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTasks.map((task) => (
-              <React.Fragment key={task.id}>
-                <TableRow>
-                  {showBulkEdit && (
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedTasks.includes(task.id)}
-                        onCheckedChange={(checked) => handleSelectTask(task.id, !!checked)}
-                        aria-label={`Select task ${task["Task Name"]}`}
+            <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+              <SortableContext items={filteredTasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
+                {filteredTasks.map((task) => (
+                  <React.Fragment key={task.id}>
+                    <SortableTaskRow id={task.id}>
+                      {showBulkEdit && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedTasks.includes(task.id)}
+                            onCheckedChange={(checked) => handleSelectTask(task.id, !!checked)}
+                            aria-label={`Select task ${task["Task Name"]}`}
+                          />
+                        </TableCell>
+                      )}
+                      <TaskItem
+                        task={task}
+                        subtasks={subtasks}
+                        expandedTasks={expandedTasks}
+                        editingTaskId={editingTaskId}
+                        editingTaskName={editingTaskName}
+                        taskLists={taskLists}
+                        onToggleExpand={onToggleExpand}
+                        onEditStart={onEditStart}
+                        onEditCancel={onEditCancel}
+                        onEditSave={onEditSave}
+                        onEditNameChange={onEditNameChange}
+                        onUpdateProgress={onUpdateProgress}
+                        onMoveTask={onMoveTask}
+                        onDeleteTask={onDeleteTask}
+                        onArchiveTask={onArchiveTask}
+                        onTimelineEdit={onTimelineEdit}
                       />
-                    </TableCell>
-                  )}
-                  <TaskItem
-                    task={task}
-                    subtasks={subtasks}
-                    expandedTasks={expandedTasks}
-                    editingTaskId={editingTaskId}
-                    editingTaskName={editingTaskName}
-                    taskLists={taskLists}
-                    onToggleExpand={onToggleExpand}
-                    onEditStart={onEditStart}
-                    onEditCancel={onEditCancel}
-                    onEditSave={onEditSave}
-                    onEditNameChange={onEditNameChange}
-                    onUpdateProgress={onUpdateProgress}
-                    onMoveTask={onMoveTask}
-                    onDeleteTask={onDeleteTask}
-                    onArchiveTask={onArchiveTask}
-                    onTimelineEdit={onTimelineEdit}
-                  />
-                </TableRow>
-                {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
-                  <SubtaskItem
-                    key={subtask.id}
-                    subtask={subtask}
-                    editingTaskId={editingTaskId}
-                    editingTaskName={editingTaskName}
-                    onEditStart={onEditStart}
-                    onEditCancel={onEditCancel}
-                    onEditSave={onEditSave}
-                    onEditNameChange={onEditNameChange}
-                    onUpdateProgress={onUpdateProgress}
-                    onDeleteTask={onDeleteTask}
-                  />
+                    </SortableTaskRow>
+                    {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
+                      <SubtaskItem
+                        key={subtask.id}
+                        subtask={subtask}
+                        editingTaskId={editingTaskId}
+                        editingTaskName={editingTaskName}
+                        onEditStart={onEditStart}
+                        onEditCancel={onEditCancel}
+                        onEditSave={onEditSave}
+                        onEditNameChange={onEditNameChange}
+                        onUpdateProgress={onUpdateProgress}
+                        onDeleteTask={onDeleteTask}
+                      />
+                    ))}
+                  </React.Fragment>
                 ))}
-              </React.Fragment>
-            ))}
+              </SortableContext>
+            </DndContext>
           </TableBody>
         </Table>
       </div>

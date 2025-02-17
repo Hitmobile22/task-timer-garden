@@ -42,6 +42,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onDeleteTask,
   onTimelineEdit,
 }) => {
+  console.log('TaskItem: Received onMoveTask function:', !!onMoveTask);
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
   );
@@ -49,14 +50,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     task.date_due ? new Date(task.date_due) : undefined
   );
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
-  const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
 
   React.useEffect(() => {
     setSelectedStartDate(task.date_started ? new Date(task.date_started) : undefined);
     setSelectedEndDate(task.date_due ? new Date(task.date_due) : undefined);
     setTempProgress(task.Progress);
-    setTempListId(task.task_list_id);
-  }, [task.date_started, task.date_due, task.Progress, task.task_list_id, editingTaskId]);
+  }, [task.date_started, task.date_due, task.Progress, editingTaskId]);
 
   const handleTimelineUpdate = (startDate?: Date, endDate?: Date) => {
     setSelectedStartDate(startDate);
@@ -75,9 +74,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
     if (tempProgress !== task.Progress) {
       onUpdateProgress(task.id, tempProgress);
-    }
-    if (tempListId !== task.task_list_id) {
-      onMoveTask(task.id, tempListId!);
     }
     onEditSave(task.id);
   };
@@ -108,10 +104,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onTimelineUpdate={handleTimelineUpdate}
         />
         <TaskActionsCell
-          task={{...task, task_list_id: tempListId}}
+          task={task}
           isEditing={isEditing}
           taskLists={taskLists}
-          onMoveTask={setTempListId}
+          onMoveTask={onMoveTask}
           onEditStart={onEditStart}
           onEditCancel={onEditCancel}
           onEditSave={handleSave}

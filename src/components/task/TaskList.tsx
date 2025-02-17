@@ -40,6 +40,8 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onDeleteTask,
   onTimelineEdit,
 }) => {
+  console.log('TaskListComponent: Received onMoveTask function:', !!onMoveTask);
+  
   return (
     <Table>
       <TableHeader>

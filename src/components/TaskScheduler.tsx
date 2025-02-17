@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -56,11 +57,14 @@ export const TaskScheduler = () => {
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .in('Progress', ['In progress', 'Not started'])  // Use .in() instead of .or()
+        .in('Progress', ['In progress', 'Not started'])
         .order('date_started', { ascending: true });
       
       if (error) throw error;
-      return data?.filter(task => task.Progress !== 'Backlog') || [];
+      // Use type guard to ensure we're working with the correct type
+      return (data || []).filter(task => {
+        return task.Progress && task.Progress !== 'Backlog';
+      });
     },
   });
 
@@ -100,8 +104,8 @@ export const TaskScheduler = () => {
       const notStartedTasks = activeTasks
           ?.filter(t => {
             const taskDate = t.date_started ? new Date(t.date_started) : null;
-            return (t.Progress === 'Not started' || t.Progress === 'In progress') &&
-                t.Progress !== 'Backlog' &&  // Exclude backlog tasks
+            const isValidProgress = t.Progress === 'Not started' || t.Progress === 'In progress';
+            return isValidProgress &&
                 taskDate &&
                 taskDate >= today &&
                 taskDate < tomorrow;
@@ -169,7 +173,7 @@ export const TaskScheduler = () => {
   const activeTaskListColor = activeTaskId && activeTasks && taskLists
     ? (() => {
         const activeTask = activeTasks.find(t => t.id === activeTaskId);
-        if (!activeTask || activeTask.task_list_id === 1) return null; // Return null for default list
+        if (!activeTask || activeTask.task_list_id === 1) return null;
         const taskList = taskLists.find(l => l.id === activeTask.task_list_id);
         return taskList?.color || null;
       })()

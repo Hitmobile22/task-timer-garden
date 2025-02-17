@@ -27,7 +27,6 @@ export function TaskView() {
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
-  // New state variables for TaskFilters
   const [showNewTaskListDialog, setShowNewTaskListDialog] = useState(false);
   const [newTaskListName, setNewTaskListName] = useState("");
 
@@ -52,10 +51,20 @@ export function TaskView() {
     [projects, searchQuery, progressFilter]
   );
 
-  const filteredTasks = React.useMemo(() => 
-    getSortedAndFilteredTasks(tasks, showArchived, searchQuery, progressFilter, sortBy),
-    [tasks, showArchived, searchQuery, progressFilter, sortBy]
-  );
+  const filteredTasks = React.useMemo(() => {
+    const filtered = getSortedAndFilteredTasks(tasks, showArchived, searchQuery, progressFilter, sortBy);
+    
+    if (sortBy === 'list') {
+      // Group tasks by task list
+      return taskLists?.map(list => ({
+        list,
+        tasks: filtered.filter(task => task.task_list_id === list.id)
+      })) || [];
+    }
+
+    // For date sorting, return all tasks together
+    return [{ tasks: filtered }];
+  }, [tasks, showArchived, searchQuery, progressFilter, sortBy, taskLists]);
 
   const handleToggleExpand = (taskId: number) => {
     setExpandedTasks(prev => {
@@ -70,13 +79,39 @@ export function TaskView() {
     if (!newTaskListName.trim()) return;
     
     try {
-      // Add task list creation logic here
+      const { data, error } = await supabase
+        .from('TaskLists')
+        .insert([{
+          name: newTaskListName,
+          color: DEFAULT_LIST_COLOR,
+          order: (taskLists?.length || 0)
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      
       toast.success('Task list created successfully');
       setShowNewTaskListDialog(false);
       setNewTaskListName("");
     } catch (error) {
       toast.error('Failed to create task list');
       console.error('Create task list error:', error);
+    }
+  };
+
+  const handleMoveTask = async (taskId: number, listId: number) => {
+    try {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ task_list_id: listId })
+        .eq('id', taskId);
+
+      if (error) throw error;
+      toast.success('Task moved successfully');
+    } catch (error) {
+      toast.error('Failed to move task');
+      console.error('Move task error:', error);
     }
   };
 
@@ -177,9 +212,65 @@ export function TaskView() {
 
           {isLoading ? (
             <div>Loading...</div>
+          ) : sortBy === 'list' ? (
+            <div className="space-y-8">
+              {filteredTasks.map(({ list, tasks }) => (
+                <div key={list?.id || 'unsorted'} className="space-y-4">
+                  {list && (
+                    <div 
+                      className="flex items-center gap-2 px-4 py-2 bg-white/50 rounded-lg shadow-sm"
+                      style={{ borderLeft: `4px solid ${list.color || DEFAULT_LIST_COLOR}` }}
+                    >
+                      <h3 className="text-lg font-semibold">{list.name}</h3>
+                      <span className="text-sm text-gray-500">({tasks.length})</span>
+                    </div>
+                  )}
+                  <TaskListComponent
+                    tasks={tasks}
+                    subtasks={subtasks}
+                    expandedTasks={expandedTasks}
+                    editingTaskId={editingTaskId}
+                    editingTaskName={editingTaskName}
+                    taskLists={taskLists || []}
+                    bulkMode={bulkMode}
+                    selectedTasks={selectedTasks}
+                    showArchived={showArchived}
+                    onToggleExpand={handleToggleExpand}
+                    onEditStart={(task) => {
+                      setEditingTaskId(task.id);
+                      setEditingTaskName(task["Task Name"]);
+                    }}
+                    onEditCancel={() => {
+                      setEditingTaskId(null);
+                      setEditingTaskName("");
+                    }}
+                    onEditSave={(taskId, isSubtask) => {
+                      if (editingTaskName.trim()) {
+                        updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                        setEditingTaskId(null);
+                        setEditingTaskName("");
+                      }
+                    }}
+                    onEditNameChange={setEditingTaskName}
+                    onUpdateProgress={(taskId, progress, isSubtask) => {
+                      updateProgressMutation.mutate({ taskId, progress, isSubtask });
+                    }}
+                    onMoveTask={handleMoveTask}
+                    onDeleteTask={deleteMutation.mutate}
+                    onArchiveTask={archiveTaskMutation.mutate}
+                    onAddSubtask={() => {}}
+                    onTimelineEdit={(taskId, start, end) => {
+                      updateTaskTimelineMutation.mutate({ taskId, start, end });
+                    }}
+                    onBulkSelect={handleBulkSelect}
+                    onBulkProgressUpdate={handleBulkProgressUpdate}
+                  />
+                </div>
+              ))}
+            </div>
           ) : (
             <TaskListComponent
-              tasks={filteredTasks}
+              tasks={filteredTasks[0]?.tasks || []}
               subtasks={subtasks}
               expandedTasks={expandedTasks}
               editingTaskId={editingTaskId}
@@ -208,7 +299,7 @@ export function TaskView() {
               onUpdateProgress={(taskId, progress, isSubtask) => {
                 updateProgressMutation.mutate({ taskId, progress, isSubtask });
               }}
-              onMoveTask={() => {}}
+              onMoveTask={handleMoveTask}
               onDeleteTask={deleteMutation.mutate}
               onArchiveTask={archiveTaskMutation.mutate}
               onAddSubtask={() => {}}

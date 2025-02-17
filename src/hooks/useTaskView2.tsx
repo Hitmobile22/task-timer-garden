@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -123,8 +122,8 @@ export const useTaskView2 = () => {
       if (!over || active.id === over.id) return;
 
       try {
-        const activeId = active.id.toString().replace(/^(task|project|list)-/, '');
-        const overId = over.id.toString().replace(/^(task|project|list)-/, '');
+        const activeId = parseInt(active.id.toString().replace(/^(task|project|list)-/, ''), 10);
+        const overId = parseInt(over.id.toString().replace(/^(task|project|list)-/, ''), 10);
         
         const type = active.id.toString().split('-')[0];
         const table = type === 'task' ? 'Tasks' : type === 'project' ? 'Projects' : 'TaskLists';
@@ -132,8 +131,8 @@ export const useTaskView2 = () => {
         const items = type === 'task' ? tasks : type === 'project' ? projects : taskLists;
         if (!items) return;
 
-        const activeItem = items.find(item => item.id.toString() === activeId);
-        const overItem = items.find(item => item.id.toString() === overId);
+        const activeItem = items.find(item => item.id === activeId);
+        const overItem = items.find(item => item.id === overId);
         if (!activeItem || !overItem) return;
 
         const newPosition = calculateNewPosition(activeItem.position, overItem.position, items);

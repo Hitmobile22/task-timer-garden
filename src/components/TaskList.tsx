@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
+import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';

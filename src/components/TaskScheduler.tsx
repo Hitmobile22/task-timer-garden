@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -28,6 +27,8 @@ interface Task {
   subtasks: SubTask[];
 }
 
+type TaskProgress = 'Not started' | 'In progress' | 'Completed' | 'Backlog';
+
 export const TaskScheduler = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showTimer, setShowTimer] = useState(false);
@@ -36,7 +37,6 @@ export const TaskScheduler = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Add query for task lists to get colors
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
     queryFn: async () => {
@@ -56,12 +56,11 @@ export const TaskScheduler = () => {
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .or('Progress.eq.In progress,Progress.eq.Not started')
-        .neq('Progress', 'Backlog')  // Exclude backlog tasks
+        .in('Progress', ['In progress', 'Not started'])  // Use .in() instead of .or()
         .order('date_started', { ascending: true });
       
       if (error) throw error;
-      return data;
+      return data?.filter(task => task.Progress !== 'Backlog') || [];
     },
   });
 
@@ -167,7 +166,6 @@ export const TaskScheduler = () => {
     }
   };
 
-  // Get the task list color for the current active task
   const activeTaskListColor = activeTaskId && activeTasks && taskLists
     ? (() => {
         const activeTask = activeTasks.find(t => t.id === activeTaskId);

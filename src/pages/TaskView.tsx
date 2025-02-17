@@ -46,19 +46,6 @@ export function TaskView() {
   const [showArchived, setShowArchived] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
 
-  const { data: tasks, isLoading: tasksLoading } = useQuery({
-    queryKey: ['tasks'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('Tasks')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as Task[];
-    },
-  });
-
   const { data: projects, isLoading: projectsLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
@@ -69,6 +56,19 @@ export function TaskView() {
       
       if (error) throw error;
       return data as Project[];
+    },
+  });
+
+  const { data: tasks, isLoading: tasksLoading } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('Tasks')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as Task[];
     },
   });
 

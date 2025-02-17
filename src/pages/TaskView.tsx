@@ -164,6 +164,27 @@ export function TaskView() {
     });
   }, [progressFilter, searchQuery, sortBy, showArchived]);
 
+  const filteredProjects = React.useMemo(() => {
+    if (!projects) return [];
+    
+    let filtered = [...projects];
+    
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      filtered = filtered.filter(project => 
+        project["Project Name"].toLowerCase().includes(searchLower)
+      );
+    }
+    
+    if (progressFilter.length > 0) {
+      filtered = filtered.filter(project => 
+        progressFilter.includes(project.Progress)
+      );
+    }
+    
+    return filtered.sort((a, b) => a.sort_order - b.sort_order);
+  }, [projects, searchQuery, progressFilter]);
+
   const organizedTasks = React.useMemo(() => {
     if (!tasks || !taskLists) return [];
     
@@ -171,7 +192,7 @@ export function TaskView() {
     const result = [];
 
     taskLists.forEach(list => {
-      const listProjects = projects?.filter(project => project.task_list_id === list.id) || [];
+      const listProjects = filteredProjects?.filter(project => project.task_list_id === list.id) || [];
       const projectComponents = listProjects.map(project => {
         const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
         return {
@@ -201,7 +222,7 @@ export function TaskView() {
     });
 
     return result;
-  }, [tasks, taskLists, projects, getSortedAndFilteredTasks]);
+  }, [tasks, taskLists, filteredProjects, getSortedAndFilteredTasks]);
 
   const isLoading = tasksLoading || subtasksLoading || projectsLoading;
 

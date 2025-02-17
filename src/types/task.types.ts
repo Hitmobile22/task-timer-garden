@@ -14,7 +14,7 @@ export type Task = {
 export type Project = {
   id: number;
   "Project Name": string;
-  progress: "Not started" | "In progress" | "Completed" | "Backlog";
+  Progress: "Not started" | "In progress" | "Completed" | "Backlog";
   date_started?: string;
   date_due?: string;
   task_list_id: number | null;

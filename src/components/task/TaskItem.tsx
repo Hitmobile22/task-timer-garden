@@ -7,6 +7,9 @@ import { TaskProgressCell } from './cells/TaskProgressCell';
 import { TaskTimelineCell } from './cells/TaskTimelineCell';
 import { TaskActionsCell } from './cells/TaskActionsCell';
 import { Checkbox } from "@/components/ui/checkbox";
+import { GripVertical } from "lucide-react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface TaskItemProps {
   task: Task;
@@ -53,6 +56,24 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onTimelineEdit,
   onBulkSelect,
 }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: `task-${task.id}`,
+    data: { type: 'task', id: task.id }
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
   );
@@ -94,7 +115,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   return (
-    <TableRow>
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell className="w-[40px] cursor-grab" {...attributes} {...listeners}>
+        <GripVertical className="h-4 w-4 text-gray-400" />
+      </TableCell>
       {bulkMode && (
         <TableCell className="w-[50px]">
           <Checkbox 

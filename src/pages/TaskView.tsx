@@ -9,10 +9,10 @@ import { TaskFilters } from '@/components/task/TaskFilters';
 import { GoogleCalendarIntegration } from '@/components/task/GoogleCalendarIntegration';
 import { ProjectDialog } from '@/components/task/ProjectDialog';
 import { PencilIcon, ListFilter, Folders } from "lucide-react";
-import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
+import { DEFAULT_LIST_COLOR, TASK_LIST_COLORS } from '@/constants/taskColors';
 import { useTaskQueries } from '@/hooks/useTaskQueries';
 import { useTaskMutations } from '@/hooks/useTaskMutations';
-import { getSortedAndFilteredTasks, getFilteredProjects } from '@/utils/taskViewUtils';
+import { getSortedAndFilteredTasks, getFilteredProjects, getTaskListColor } from '@/utils/taskViewUtils';
 import { supabase } from "@/integrations/supabase/client";
 
 export function TaskView() {
@@ -46,6 +46,48 @@ export function TaskView() {
     archiveTaskMutation
   } = useTaskMutations();
 
+  const handleAddSubtask = async (parentTaskId: number) => {
+    try {
+      const { data, error } = await supabase
+        .from('subtasks')
+        .insert({
+          "Task Name": "New Subtask",
+          "Parent Task ID": parentTaskId,
+          Progress: "Not started"
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setEditingTaskId(data.id);
+      setEditingTaskName("New Subtask");
+      toast.success('Subtask added');
+    } catch (error) {
+      console.error('Add subtask error:', error);
+      toast.error('Failed to add subtask');
+    }
+  };
+
+  const handleMoveTask = async (taskId: number, listId: number, projectId?: number) => {
+    try {
+      const updateData: any = { task_list_id: listId };
+      if (projectId !== undefined) {
+        updateData.project_id = projectId;
+      }
+
+      const { error } = await supabase
+        .from('Tasks')
+        .update(updateData)
+        .eq('id', taskId);
+
+      if (error) throw error;
+      toast.success('Task moved successfully');
+    } catch (error) {
+      toast.error('Failed to move task');
+      console.error('Move task error:', error);
+    }
+  };
+
   const filteredProjects = React.useMemo(() => 
     getFilteredProjects(projects, searchQuery, progressFilter),
     [projects, searchQuery, progressFilter]
@@ -55,16 +97,28 @@ export function TaskView() {
     const filtered = getSortedAndFilteredTasks(tasks, showArchived, searchQuery, progressFilter, sortBy);
     
     if (sortBy === 'list') {
-      // Group tasks by task list
+      // Group tasks by task list and then by project
       return taskLists?.map(list => ({
         list,
-        tasks: filtered.filter(task => task.task_list_id === list.id)
+        projects: getFilteredProjects(projects, searchQuery, progressFilter)
+          .filter(p => p.task_list_id === list.id)
+          .map(project => ({
+            project,
+            tasks: filtered.filter(task => 
+              task.task_list_id === list.id && 
+              task.project_id === project.id
+            )
+          })),
+        tasks: filtered.filter(task => 
+          task.task_list_id === list.id && 
+          !task.project_id
+        )
       })) || [];
     }
 
     // For date sorting, return all tasks together
     return [{ tasks: filtered }];
-  }, [tasks, showArchived, searchQuery, progressFilter, sortBy, taskLists]);
+  }, [tasks, projects, showArchived, searchQuery, progressFilter, sortBy, taskLists]);
 
   const handleToggleExpand = (taskId: number) => {
     setExpandedTasks(prev => {
@@ -97,21 +151,6 @@ export function TaskView() {
     } catch (error) {
       toast.error('Failed to create task list');
       console.error('Create task list error:', error);
-    }
-  };
-
-  const handleMoveTask = async (taskId: number, listId: number) => {
-    try {
-      const { error } = await supabase
-        .from('Tasks')
-        .update({ task_list_id: listId })
-        .eq('id', taskId);
-
-      if (error) throw error;
-      toast.success('Task moved successfully');
-    } catch (error) {
-      toast.error('Failed to move task');
-      console.error('Move task error:', error);
     }
   };
 
@@ -214,57 +253,115 @@ export function TaskView() {
             <div>Loading...</div>
           ) : sortBy === 'list' ? (
             <div className="space-y-8">
-              {filteredTasks.map(({ list, tasks }) => (
+              {filteredTasks.map(({ list, projects = [], tasks }) => (
                 <div key={list?.id || 'unsorted'} className="space-y-4">
                   {list && (
                     <div 
                       className="flex items-center gap-2 px-4 py-2 bg-white/50 rounded-lg shadow-sm"
-                      style={{ borderLeft: `4px solid ${list.color || DEFAULT_LIST_COLOR}` }}
+                      style={{ 
+                        borderLeft: `4px solid ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}` 
+                      }}
                     >
                       <h3 className="text-lg font-semibold">{list.name}</h3>
-                      <span className="text-sm text-gray-500">({tasks.length})</span>
+                      <span className="text-sm text-gray-500">
+                        ({tasks.length + projects.reduce((sum, p) => sum + p.tasks.length, 0)} tasks)
+                      </span>
                     </div>
                   )}
-                  <TaskListComponent
-                    tasks={tasks}
-                    subtasks={subtasks}
-                    expandedTasks={expandedTasks}
-                    editingTaskId={editingTaskId}
-                    editingTaskName={editingTaskName}
-                    taskLists={taskLists || []}
-                    bulkMode={bulkMode}
-                    selectedTasks={selectedTasks}
-                    showArchived={showArchived}
-                    onToggleExpand={handleToggleExpand}
-                    onEditStart={(task) => {
-                      setEditingTaskId(task.id);
-                      setEditingTaskName(task["Task Name"]);
-                    }}
-                    onEditCancel={() => {
-                      setEditingTaskId(null);
-                      setEditingTaskName("");
-                    }}
-                    onEditSave={(taskId, isSubtask) => {
-                      if (editingTaskName.trim()) {
-                        updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                  
+                  {projects.map(({ project, tasks: projectTasks }) => (
+                    <div key={project.id} className="ml-4 space-y-2">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-white/30 rounded-lg">
+                        <h4 className="text-md font-medium">{project["Project Name"]}</h4>
+                        <span className="text-sm text-gray-500">({projectTasks.length})</span>
+                      </div>
+                      <div className="ml-4">
+                        <TaskListComponent
+                          tasks={projectTasks}
+                          subtasks={subtasks}
+                          expandedTasks={expandedTasks}
+                          editingTaskId={editingTaskId}
+                          editingTaskName={editingTaskName}
+                          taskLists={taskLists || []}
+                          bulkMode={bulkMode}
+                          selectedTasks={selectedTasks}
+                          showArchived={showArchived}
+                          onToggleExpand={handleToggleExpand}
+                          onEditStart={(task) => {
+                            setEditingTaskId(task.id);
+                            setEditingTaskName(task["Task Name"]);
+                          }}
+                          onEditCancel={() => {
+                            setEditingTaskId(null);
+                            setEditingTaskName("");
+                          }}
+                          onEditSave={(taskId, isSubtask) => {
+                            if (editingTaskName.trim()) {
+                              updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                              setEditingTaskId(null);
+                              setEditingTaskName("");
+                            }
+                          }}
+                          onEditNameChange={setEditingTaskName}
+                          onUpdateProgress={(taskId, progress, isSubtask) => {
+                            updateProgressMutation.mutate({ taskId, progress, isSubtask });
+                          }}
+                          onMoveTask={handleMoveTask}
+                          onDeleteTask={deleteMutation.mutate}
+                          onArchiveTask={archiveTaskMutation.mutate}
+                          onAddSubtask={handleAddSubtask}
+                          onTimelineEdit={(taskId, start, end) => {
+                            updateTaskTimelineMutation.mutate({ taskId, start, end });
+                          }}
+                          onBulkSelect={handleBulkSelect}
+                          onBulkProgressUpdate={handleBulkProgressUpdate}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div className="ml-4">
+                    <TaskListComponent
+                      tasks={tasks}
+                      subtasks={subtasks}
+                      expandedTasks={expandedTasks}
+                      editingTaskId={editingTaskId}
+                      editingTaskName={editingTaskName}
+                      taskLists={taskLists || []}
+                      bulkMode={bulkMode}
+                      selectedTasks={selectedTasks}
+                      showArchived={showArchived}
+                      onToggleExpand={handleToggleExpand}
+                      onEditStart={(task) => {
+                        setEditingTaskId(task.id);
+                        setEditingTaskName(task["Task Name"]);
+                      }}
+                      onEditCancel={() => {
                         setEditingTaskId(null);
                         setEditingTaskName("");
-                      }
-                    }}
-                    onEditNameChange={setEditingTaskName}
-                    onUpdateProgress={(taskId, progress, isSubtask) => {
-                      updateProgressMutation.mutate({ taskId, progress, isSubtask });
-                    }}
-                    onMoveTask={handleMoveTask}
-                    onDeleteTask={deleteMutation.mutate}
-                    onArchiveTask={archiveTaskMutation.mutate}
-                    onAddSubtask={() => {}}
-                    onTimelineEdit={(taskId, start, end) => {
-                      updateTaskTimelineMutation.mutate({ taskId, start, end });
-                    }}
-                    onBulkSelect={handleBulkSelect}
-                    onBulkProgressUpdate={handleBulkProgressUpdate}
-                  />
+                      }}
+                      onEditSave={(taskId, isSubtask) => {
+                        if (editingTaskName.trim()) {
+                          updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                          setEditingTaskId(null);
+                          setEditingTaskName("");
+                        }
+                      }}
+                      onEditNameChange={setEditingTaskName}
+                      onUpdateProgress={(taskId, progress, isSubtask) => {
+                        updateProgressMutation.mutate({ taskId, progress, isSubtask });
+                      }}
+                      onMoveTask={handleMoveTask}
+                      onDeleteTask={deleteMutation.mutate}
+                      onArchiveTask={archiveTaskMutation.mutate}
+                      onAddSubtask={handleAddSubtask}
+                      onTimelineEdit={(taskId, start, end) => {
+                        updateTaskTimelineMutation.mutate({ taskId, start, end });
+                      }}
+                      onBulkSelect={handleBulkSelect}
+                      onBulkProgressUpdate={handleBulkProgressUpdate}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -302,7 +399,7 @@ export function TaskView() {
               onMoveTask={handleMoveTask}
               onDeleteTask={deleteMutation.mutate}
               onArchiveTask={archiveTaskMutation.mutate}
-              onAddSubtask={() => {}}
+              onAddSubtask={handleAddSubtask}
               onTimelineEdit={(taskId, start, end) => {
                 updateTaskTimelineMutation.mutate({ taskId, start, end });
               }}

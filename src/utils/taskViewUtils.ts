@@ -1,5 +1,6 @@
 
 import { Task, Project } from '@/types/task.types';
+import { TASK_LIST_COLORS } from '@/constants/taskColors';
 
 export const getSortedAndFilteredTasks = (
   tasks: Task[] | undefined,
@@ -10,13 +11,12 @@ export const getSortedAndFilteredTasks = (
 ) => {
   if (!tasks) return [];
   
-  console.log('Initial tasks:', tasks); // Debug log
+  console.log('Initial tasks:', tasks);
   
   let filteredTasks = [...tasks];
 
   // Filter archived tasks
   filteredTasks = filteredTasks.filter(task => showArchived ? true : !task.archived);
-  console.log('After archive filter:', filteredTasks); // Debug log
   
   // Filter by search query
   if (searchQuery) {
@@ -25,7 +25,6 @@ export const getSortedAndFilteredTasks = (
       task["Task Name"]?.toLowerCase().includes(searchLower)
     );
   }
-  console.log('After search filter:', filteredTasks); // Debug log
   
   // Filter by progress status
   if (progressFilter.length > 0) {
@@ -33,7 +32,6 @@ export const getSortedAndFilteredTasks = (
       progressFilter.includes(task.Progress)
     );
   }
-  console.log('After progress filter:', filteredTasks); // Debug log
   
   // Sort tasks
   if (sortBy === 'date') {
@@ -44,7 +42,7 @@ export const getSortedAndFilteredTasks = (
     });
   }
 
-  // Sort by list and project
+  // Sort by list, project, and order
   return filteredTasks.sort((a, b) => {
     // First sort by task list
     const aListId = a.task_list_id ?? -1;
@@ -52,12 +50,14 @@ export const getSortedAndFilteredTasks = (
     if (aListId !== bListId) {
       return aListId - bListId;
     }
+    
     // Then sort by project within the same list
     const aProjectId = a.project_id ?? -1;
     const bProjectId = b.project_id ?? -1;
     if (aProjectId !== bProjectId) {
       return aProjectId - bProjectId;
     }
+    
     // Finally sort by order within the same project
     return (a.order ?? 0) - (b.order ?? 0);
   });
@@ -69,8 +69,6 @@ export const getFilteredProjects = (
   progressFilter: Task['Progress'][]
 ) => {
   if (!projects) return [];
-  
-  console.log('Initial projects:', projects); // Debug log
   
   let filtered = [...projects];
   
@@ -89,17 +87,17 @@ export const getFilteredProjects = (
     );
   }
   
-  console.log('Filtered projects:', filtered); // Debug log
-  
-  // Sort projects by their sort order
+  // Sort projects by task list and then by project_order
   return filtered.sort((a, b) => {
-    // First sort by task list
     const aListId = a.task_list_id ?? -1;
     const bListId = b.task_list_id ?? -1;
     if (aListId !== bListId) {
       return aListId - bListId;
     }
-    // Then sort by sort_order within the same list
-    return a.sort_order - b.sort_order;
+    return (a.project_order ?? 0) - (b.project_order ?? 0);
   });
+};
+
+export const getTaskListColor = (listName: string) => {
+  return TASK_LIST_COLORS[listName as keyof typeof TASK_LIST_COLORS] || TASK_LIST_COLORS['Default'];
 };

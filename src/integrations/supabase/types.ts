@@ -50,6 +50,7 @@ export type Database = {
           id: number
           progress: Database["public"]["Enums"]["status"] | null
           "Project Name": string
+          project_order: number | null
           sort_order: number
           task_list_id: number | null
         }
@@ -60,6 +61,7 @@ export type Database = {
           id?: number
           progress?: Database["public"]["Enums"]["status"] | null
           "Project Name": string
+          project_order?: number | null
           sort_order?: number
           task_list_id?: number | null
         }
@@ -70,6 +72,7 @@ export type Database = {
           id?: number
           progress?: Database["public"]["Enums"]["status"] | null
           "Project Name"?: string
+          project_order?: number | null
           sort_order?: number
           task_list_id?: number | null
         }

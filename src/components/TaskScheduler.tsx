@@ -5,9 +5,11 @@ import { TaskList } from './TaskList';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
+import { Circle } from 'lucide-react';
 import { MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
+import { TASK_LIST_COLORS, DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +36,20 @@ export const TaskScheduler = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // Add query for task lists to get colors
+  const { data: taskLists } = useQuery({
+    queryKey: ['task-lists'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('TaskLists')
+        .select('*')
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
     queryFn: async () => {
@@ -41,6 +57,7 @@ export const TaskScheduler = () => {
         .from('Tasks')
         .select('*')
         .or('Progress.eq.In progress,Progress.eq.Not started')
+        .neq('Progress', 'Backlog')  // Exclude backlog tasks
         .order('date_started', { ascending: true });
       
       if (error) throw error;
@@ -80,11 +97,12 @@ export const TaskScheduler = () => {
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-// Get all not started tasks for today only
+
       const notStartedTasks = activeTasks
           ?.filter(t => {
             const taskDate = t.date_started ? new Date(t.date_started) : null;
             return (t.Progress === 'Not started' || t.Progress === 'In progress') &&
+                t.Progress !== 'Backlog' &&  // Exclude backlog tasks
                 taskDate &&
                 taskDate >= today &&
                 taskDate < tomorrow;
@@ -96,35 +114,36 @@ export const TaskScheduler = () => {
           }) || [];
 
       const selectedTask = activeTasks?.find(t => t.id === taskId);
+      const currentTask = activeTasks?.find(t => t.Progress === 'In progress');
 
       if (!selectedTask) return;
 
       const currentTime = new Date();
       
-      // Start the selected task immediately
-      const { error: updateError } = await supabase
-        .from('Tasks')
-        .update({
-          Progress: 'In progress',
-          date_started: currentTime.toISOString(),
-          date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString() // 25 minutes later
-        })
-        .eq('id', taskId);
+      // Only update times for non-current tasks
+      if (!currentTask || selectedTask.id === currentTask.id) {
+        const { error: updateError } = await supabase
+          .from('Tasks')
+          .update({
+            Progress: 'In progress',
+            date_started: currentTime.toISOString(),
+            date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
+          })
+          .eq('id', taskId);
 
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      }
 
-      // Schedule remaining tasks with breaks, but only for today
-      let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000); // Start 30 minutes after current task
+      // Schedule remaining tasks with breaks, but only for today and excluding the current task
+      let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       
       for (const task of notStartedTasks) {
-        if (task.id === taskId) continue;
+        if (task.id === taskId || (currentTask && task.id === currentTask.id)) continue;
         
-        // Stop scheduling if we reach tomorrow
         if (nextStartTime >= tomorrow) break;
 
-        // Calculate task times
         const taskStartTime = new Date(nextStartTime);
-        const taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000); // 25 minute duration
+        const taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         
         const { error } = await supabase
           .from('Tasks')
@@ -136,7 +155,6 @@ export const TaskScheduler = () => {
 
         if (error) throw error;
 
-        // Move to next slot (add 30 minutes for next task: 25 min work + 5 min break)
         nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
       }
 
@@ -148,6 +166,16 @@ export const TaskScheduler = () => {
       toast.error('Failed to start task');
     }
   };
+
+  // Get the task list color for the current active task
+  const activeTaskListColor = activeTaskId && activeTasks && taskLists
+    ? (() => {
+        const activeTask = activeTasks.find(t => t.id === activeTaskId);
+        if (!activeTask || activeTask.task_list_id === 1) return null; // Return null for default list
+        const taskList = taskLists.find(l => l.id === activeTask.task_list_id);
+        return taskList?.color || null;
+      })()
+    : null;
 
   return (
     <div 
@@ -182,7 +210,12 @@ export const TaskScheduler = () => {
           <div className="grid gap-8 md:grid-cols-[1fr,auto] items-start">
             <div className="space-y-6">
               {showTimer && (
-                <div className="w-full animate-slideIn">
+                <div 
+                  className="w-full animate-slideIn"
+                  style={{
+                    background: activeTaskListColor || undefined
+                  }}
+                >
                   <PomodoroTimer 
                     tasks={tasks.map(t => t.name)} 
                     autoStart={timerStarted}
@@ -194,7 +227,8 @@ export const TaskScheduler = () => {
               <TaskList 
                 tasks={tasks} 
                 onTaskStart={handleTaskStart} 
-                subtasks={activeTasks?.filter(t => t.Progress !== 'Completed')} 
+                subtasks={activeTasks?.filter(t => t.Progress !== 'Completed' && t.Progress !== 'Backlog')} 
+                taskLists={taskLists}
               />
             </div>
           </div>

@@ -24,6 +24,7 @@ interface TaskListProps {
   tasks: Task[];
   onTaskStart?: (taskId: number) => void;
   subtasks?: any[];
+  taskLists?: any[];
 }
 
 interface TaskItemProps {
@@ -178,7 +179,7 @@ const SortableTaskItem: React.FC<{ task: any; children: React.ReactElement }> = 
   );
 };
 
-export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart, subtasks }) => {
+export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart, subtasks, taskLists }) => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
@@ -601,6 +602,15 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                         : "bg-white hover:bg-gray-50"
                     )}>
                       <div className="flex gap-2">
+                        {task.task_list_id !== 1 && taskLists?.find(l => l.id === task.task_list_id) && (
+                          <Circle 
+                            className="h-3 w-3 flex-shrink-0" 
+                            style={{ 
+                              color: taskLists.find(l => l.id === task.task_list_id)?.color || undefined 
+                            }} 
+                            fill="currentColor"
+                          />
+                        )}
                         <Button
                           size="icon"
                           variant="ghost"

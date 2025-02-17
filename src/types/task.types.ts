@@ -8,6 +8,10 @@ export type Task = {
   task_list_id: number | null;
   project_id?: number | null;
   archived: boolean;
+  order: number;
+  task_lists_order: number;
+  is_backlog: boolean;
+  bulk_selection_id?: string;
 };
 
 export type Project = {

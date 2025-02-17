@@ -144,7 +144,7 @@ export function TaskView() {
     
     if (progressFilter.length > 0) {
       filteredTasks = filteredTasks.filter(task => 
-        progressFilter.includes(task.Progress)
+        progressFilter.includes(task.progress)
       );
     }
     
@@ -178,7 +178,7 @@ export function TaskView() {
     
     if (progressFilter.length > 0) {
       filtered = filtered.filter(project => 
-        progressFilter.includes(project.Progress)
+        progressFilter.includes(project.progress)
       );
     }
     
@@ -328,7 +328,7 @@ export function TaskView() {
       const { error } = await supabase
         .from('Tasks')
         .update({ task_list_id: listId })
-        .eq('id', parseInt(name)); // Convert the string ID to a number
+        .eq('id', parseInt(name));
       
       if (error) throw error;
     },

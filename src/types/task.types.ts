@@ -14,7 +14,7 @@ export type Task = {
 export type Project = {
   id: number;
   "Project Name": string;
-  Progress: "Not started" | "In progress" | "Completed" | "Backlog";
+  progress: "Not started" | "In progress" | "Completed" | "Backlog"; // Changed to match database column name
   date_started?: string;
   date_due?: string;
   task_list_id: number | null;

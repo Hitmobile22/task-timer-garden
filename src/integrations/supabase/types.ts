@@ -48,6 +48,7 @@ export type Database = {
           date_due: string | null
           date_started: string | null
           id: number
+          position: number | null
           progress: Database["public"]["Enums"]["status"] | null
           "Project Name": string
           project_order: number | null
@@ -59,6 +60,7 @@ export type Database = {
           date_due?: string | null
           date_started?: string | null
           id?: number
+          position?: number | null
           progress?: Database["public"]["Enums"]["status"] | null
           "Project Name": string
           project_order?: number | null
@@ -70,6 +72,7 @@ export type Database = {
           date_due?: string | null
           date_started?: string | null
           id?: number
+          position?: number | null
           progress?: Database["public"]["Enums"]["status"] | null
           "Project Name"?: string
           project_order?: number | null
@@ -160,6 +163,7 @@ export type Database = {
           id: number
           name: string
           order: number
+          position: number | null
         }
         Insert: {
           color?: string | null
@@ -167,6 +171,7 @@ export type Database = {
           id?: number
           name: string
           order?: number
+          position?: number | null
         }
         Update: {
           color?: string | null
@@ -174,6 +179,7 @@ export type Database = {
           id?: number
           name?: string
           order?: number
+          position?: number | null
         }
         Relationships: []
       }
@@ -187,6 +193,7 @@ export type Database = {
           delay_value: string | null
           id: number
           order: number
+          position: number | null
           Progress: Database["public"]["Enums"]["status"] | null
           project_id: number | null
           sort_order: number | null
@@ -202,6 +209,7 @@ export type Database = {
           delay_value?: string | null
           id?: number
           order?: number
+          position?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
           project_id?: number | null
           sort_order?: number | null
@@ -217,6 +225,7 @@ export type Database = {
           delay_value?: string | null
           id?: number
           order?: number
+          position?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
           project_id?: number | null
           sort_order?: number | null

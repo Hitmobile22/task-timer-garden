@@ -156,45 +156,37 @@ export function TaskView() {
     if (!over || active.id === over.id) return;
 
     const activeId = Number(active.id.toString().replace('task-', ''));
-    const overId = Number(over.id.toString().replace('task-', ''));
     
-    const activeTask = tasks?.find(t => t.id === activeId);
-    if (!activeTask) return;
+    let targetListId: number | null = null;
+    let targetProjectId: number | null = null;
 
-    try {
-      let targetListId = activeTask.task_list_id;
-      let targetProjectId = null;
-
-      if (over.id.toString().startsWith('project-')) {
-        const projectId = Number(over.id.toString().replace('project-', ''));
-        const project = projects?.find(p => p.id === projectId);
-        if (project) {
-          targetListId = project.task_list_id;
-          targetProjectId = project.id;
-        }
+    if (over.id.toString().startsWith('project-')) {
+      const projectId = Number(over.id.toString().replace('project-', ''));
+      const project = projects?.find(p => p.id === projectId);
+      if (project) {
+        targetListId = project.task_list_id;
+        targetProjectId = project.id;
       }
-      else if (over.id.toString().startsWith('list-')) {
-        targetListId = Number(over.id.toString().replace('list-', ''));
-        targetProjectId = null;
+    } else if (over.id.toString().startsWith('list-')) {
+      targetListId = Number(over.id.toString().replace('list-', ''));
+      targetProjectId = null;
+    } else {
+      const overTaskId = Number(over.id.toString().replace('task-', ''));
+      const overTask = tasks?.find(t => t.id === overTaskId);
+      if (overTask) {
+        targetListId = overTask.task_list_id;
+        targetProjectId = overTask.project_id;
       }
-      else {
-        const overTask = tasks?.find(t => t.id === overId);
-        if (overTask) {
-          targetListId = overTask.task_list_id;
-          targetProjectId = overTask.project_id;
-        }
+    }
+
+    if (targetListId !== null) {
+      try {
+        await handleMoveTask(activeId, targetListId, targetProjectId);
+        toast.success('Task moved successfully');
+      } catch (error) {
+        console.error('Move task error:', error);
+        toast.error('Failed to move task');
       }
-
-      await handleMoveTask(
-        activeTask.id,
-        targetListId ?? 1,
-        targetProjectId
-      );
-
-      toast.success('Task moved successfully');
-    } catch (error) {
-      console.error('Move task error:', error);
-      toast.error('Failed to move task');
     }
   };
 
@@ -363,7 +355,9 @@ export function TaskView() {
             ) : sortBy === 'list' ? (
               <div className="space-y-8">
                 {filteredTasks.map(({ list, projects = [], tasks }) => (
-                  <div key={list?.id || 'unsorted'} className="space-y-4">
+                  <div key={list?.id || 'unsorted'} 
+                       className="space-y-4 relative" 
+                       data-id={`list-${list?.id}`}>
                     {list && (
                       <div 
                         className="flex items-center justify-between px-4 py-2 rounded-lg shadow-sm"
@@ -371,7 +365,6 @@ export function TaskView() {
                           background: `linear-gradient(to right, ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}15, ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}30)`,
                           borderLeft: `4px solid ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}` 
                         }}
-                        data-id={`list-${list.id}`}
                       >
                         <div className="flex items-center gap-2">
                           <h3 className="text-lg font-semibold">{list.name}</h3>

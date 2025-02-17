@@ -79,63 +79,66 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
         </div>
       )}
       
-      <Table>
-        {showHeader && (
-          <TableHeader>
-            <TableRow>
-              {bulkMode && (
-                <TableHead className="w-[50px]">Select</TableHead>
-              )}
-              <TableHead>Task Name</TableHead>
-              <TableHead>Progress</TableHead>
-              <TableHead>Timeline</TableHead>
-              <TableHead className="w-[200px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-        )}
-        <TableBody>
-          {tasks?.filter(task => showArchived || !task.archived).map((task) => (
-            <React.Fragment key={task.id}>
-              <TaskItem
-                task={task}
-                subtasks={subtasks}
-                expandedTasks={expandedTasks}
-                editingTaskId={editingTaskId}
-                editingTaskName={editingTaskName}
-                taskLists={taskLists}
-                bulkMode={bulkMode}
-                isSelected={selectedTasks.includes(task.id)}
-                onToggleExpand={onToggleExpand}
-                onEditStart={onEditStart}
-                onEditCancel={onEditCancel}
-                onEditSave={onEditSave}
-                onEditNameChange={onEditNameChange}
-                onUpdateProgress={onUpdateProgress}
-                onMoveTask={onMoveTask}
-                onDeleteTask={onDeleteTask}
-                onArchiveTask={onArchiveTask}
-                onAddSubtask={onAddSubtask}
-                onTimelineEdit={onTimelineEdit}
-                onBulkSelect={onBulkSelect}
-              />
-              {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
-                <SubtaskItem
-                  key={subtask.id}
-                  subtask={subtask}
+      <div className="relative">
+        <Table>
+          {showHeader && (
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[40px]"></TableHead>
+                {bulkMode && (
+                  <TableHead className="w-[50px]">Select</TableHead>
+                )}
+                <TableHead>Task Name</TableHead>
+                <TableHead>Progress</TableHead>
+                <TableHead>Timeline</TableHead>
+                <TableHead className="w-[200px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+          )}
+          <TableBody>
+            {tasks?.filter(task => showArchived || !task.archived).map((task) => (
+              <React.Fragment key={task.id}>
+                <TaskItem
+                  task={task}
+                  subtasks={subtasks}
+                  expandedTasks={expandedTasks}
                   editingTaskId={editingTaskId}
                   editingTaskName={editingTaskName}
+                  taskLists={taskLists}
+                  bulkMode={bulkMode}
+                  isSelected={selectedTasks.includes(task.id)}
+                  onToggleExpand={onToggleExpand}
                   onEditStart={onEditStart}
                   onEditCancel={onEditCancel}
                   onEditSave={onEditSave}
                   onEditNameChange={onEditNameChange}
                   onUpdateProgress={onUpdateProgress}
+                  onMoveTask={onMoveTask}
                   onDeleteTask={onDeleteTask}
+                  onArchiveTask={onArchiveTask}
+                  onAddSubtask={onAddSubtask}
+                  onTimelineEdit={onTimelineEdit}
+                  onBulkSelect={onBulkSelect}
                 />
-              ))}
-            </React.Fragment>
-          ))}
-        </TableBody>
-      </Table>
+                {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
+                  <SubtaskItem
+                    key={subtask.id}
+                    subtask={subtask}
+                    editingTaskId={editingTaskId}
+                    editingTaskName={editingTaskName}
+                    onEditStart={onEditStart}
+                    onEditCancel={onEditCancel}
+                    onEditSave={onEditSave}
+                    onEditNameChange={onEditNameChange}
+                    onUpdateProgress={onUpdateProgress}
+                    onDeleteTask={onDeleteTask}
+                  />
+                ))}
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 };

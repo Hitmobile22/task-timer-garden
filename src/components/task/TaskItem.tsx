@@ -24,6 +24,7 @@ interface TaskItemProps {
   onDeleteTask: (taskId: number) => void;
   onArchiveTask?: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onAddSubtask?: (taskId: number) => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -43,6 +44,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onDeleteTask,
   onArchiveTask,
   onTimelineEdit,
+  onAddSubtask,
 }) => {
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
@@ -90,13 +92,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         <TaskNameCell
           task={task}
           subtasks={subtasks}
-          expandedTasks={expandedTasks}
-          editingTaskId={editingTaskId}
-          editingTaskName={editingTaskName}
-          onToggleExpand={onToggleExpand}
+          isExpanded={expandedTasks.includes(task.id)}
+          isEditing={isEditing}
+          editingName={editingTaskName}
+          onToggleExpand={() => onToggleExpand(task.id)}
           onEditNameChange={onEditNameChange}
-          onEditSave={onEditSave}
-          onEditCancel={onEditCancel}
+          onAddSubtask={() => onAddSubtask?.(task.id)}
         />
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}

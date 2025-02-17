@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MenuBar } from "@/components/MenuBar";
@@ -57,6 +58,37 @@ export function TaskView() {
     const filteredTasks = getSortedAndFilteredTasks(tasks, showArchived, searchQuery, progressFilter, sortBy);
     const result = [];
 
+    // If there are no task lists, create a default one
+    if (!taskLists.length) {
+      const defaultList = {
+        id: 'default',
+        name: 'Default List',
+        color: DEFAULT_LIST_COLOR
+      };
+
+      const listTasks = filteredTasks.filter(task => !task.task_list_id);
+      const listProjects = filteredProjects?.filter(project => !project.task_list_id) || [];
+
+      if (listTasks.length > 0 || listProjects.length > 0) {
+        result.push({
+          type: 'list',
+          id: 'list-default',
+          name: defaultList.name,
+          color: defaultList.color,
+          projects: listProjects.map(project => ({
+            type: 'project',
+            id: `project-${project.id}`,
+            name: project["Project Name"],
+            progress: project.progress,
+            tasks: filteredTasks.filter(task => task.project_id === project.id),
+            parentList: defaultList
+          })),
+          tasks: listTasks
+        });
+      }
+    }
+
+    // Add all other task lists
     taskLists.forEach(list => {
       const listProjects = filteredProjects?.filter(project => project.task_list_id === list.id) || [];
       const projectComponents = listProjects.map(project => {
@@ -90,26 +122,6 @@ export function TaskView() {
     return result;
   }, [tasks, taskLists, filteredProjects, showArchived, searchQuery, progressFilter, sortBy]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (!over) return;
-
-    const activeId = active.id;
-    const overId = over.id;
-
-    const [activeType, activeItemId] = activeId.toString().split('-');
-    const [overType, overItemId] = overId.toString().split('-');
-
-    if (activeType === 'task' && overType === 'list') {
-      // Handle task to list drop
-      toast.success('Task moved to new list');
-    } else if (activeType === 'task' && overType === 'project') {
-      // Handle task to project drop
-      toast.success('Task moved to project');
-    }
-  };
-
   const handleBulkProgressUpdate = async (progress: Task['Progress']) => {
     if (selectedTasks.length === 0) return;
     
@@ -134,6 +146,15 @@ export function TaskView() {
     // Implement task list creation logic here
     setShowNewTaskListDialog(false);
     setNewTaskListName("");
+  };
+
+  // Helper function for bulk selection
+  const handleBulkSelect = (taskId: number, selected: boolean) => {
+    setSelectedTasks(prev => 
+      selected 
+        ? [...prev, taskId]
+        : prev.filter(id => id !== taskId)
+    );
   };
 
   return (
@@ -267,13 +288,7 @@ export function TaskView() {
                                 onTimelineEdit={(taskId, start, end) => {
                                   updateTaskTimelineMutation.mutate({ taskId, start, end });
                                 }}
-                                onBulkSelect={(taskId, selected) => {
-                                  setSelectedTasks(prev => 
-                                    selected 
-                                      ? [...prev, taskId]
-                                      : prev.filter(id => id !== taskId)
-                                  );
-                                }}
+                                onBulkSelect={handleBulkSelect}
                                 onBulkProgressUpdate={handleBulkProgressUpdate}
                               />
                             ) : (
@@ -321,13 +336,7 @@ export function TaskView() {
                           onTimelineEdit={(taskId, start, end) => {
                             updateTaskTimelineMutation.mutate({ taskId, start, end });
                           }}
-                          onBulkSelect={(taskId, selected) => {
-                            setSelectedTasks(prev => 
-                              selected 
-                                ? [...prev, taskId]
-                                : prev.filter(id => id !== taskId)
-                            );
-                          }}
+                          onBulkSelect={handleBulkSelect}
                           onBulkProgressUpdate={handleBulkProgressUpdate}
                         />
                       </div>
@@ -345,33 +354,6 @@ export function TaskView() {
         onOpenChange={setShowProjectDialog}
         onCreateProject={() => {}}
       />
-
-      <div
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm p-4"
-        style={{ bottom: 0 }}
-      >
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">New Task List</h3>
-          <Button
-            variant="outline"
-            onClick={() => setShowNewTaskListDialog(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleCreateTaskList}
-          >
-            Create
-          </Button>
-        </div>
-        <input
-          type="text"
-          value={newTaskListName}
-          onChange={(e) => setNewTaskListName(e.target.value)}
-          className="mt-4 w-full p-2 border border-gray-300 rounded"
-        />
-      </div>
     </div>
   );
 }

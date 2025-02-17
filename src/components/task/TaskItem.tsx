@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { TableRow, TableCell } from "@/components/ui/table";
+import { TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
 import { TaskNameCell } from './cells/TaskNameCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
@@ -22,9 +22,7 @@ interface TaskItemProps {
   onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
-  onArchiveTask?: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
-  onAddSubtask?: (taskId: number) => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -42,9 +40,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onUpdateProgress,
   onMoveTask,
   onDeleteTask,
-  onArchiveTask,
   onTimelineEdit,
-  onAddSubtask,
 }) => {
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
@@ -86,51 +82,31 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     onEditSave(task.id);
   };
 
-  const getListName = () => {
-    const list = taskLists.find(l => l.id === task.task_list_id);
-    return list ? list.name : 'Uncategorized';
-  };
-
   return (
-    <TableRow>
-      {/* Empty cell for checkbox/drag handle */}
-      <TableCell className="w-[40px]">
-        <div className="h-4 w-4" />
-      </TableCell>
-      {/* Task Name */}
-      <TableCell className="w-[40%]">
+    <React.Fragment>
+      <TableRow>
         <TaskNameCell
           task={task}
           subtasks={subtasks}
-          isExpanded={expandedTasks.includes(task.id)}
-          isEditing={isEditing}
-          editingName={editingTaskName}
-          onToggleExpand={() => onToggleExpand(task.id)}
+          expandedTasks={expandedTasks}
+          editingTaskId={editingTaskId}
+          editingTaskName={editingTaskName}
+          onToggleExpand={onToggleExpand}
           onEditNameChange={onEditNameChange}
-          onAddSubtask={() => onAddSubtask?.(task.id)}
+          onEditSave={onEditSave}
+          onEditCancel={onEditCancel}
         />
-      </TableCell>
-      {/* List */}
-      <TableCell className="w-[15%]">{getListName()}</TableCell>
-      {/* Progress */}
-      <TableCell className="w-[15%]">
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}
           isEditing={isEditing}
           onUpdateProgress={handleProgressUpdate}
         />
-      </TableCell>
-      {/* Timeline */}
-      <TableCell className="w-[15%]">
         <TaskTimelineCell
           startDate={selectedStartDate}
           endDate={selectedEndDate}
           isEditing={isEditing}
           onTimelineUpdate={handleTimelineUpdate}
         />
-      </TableCell>
-      {/* Actions */}
-      <TableCell className="w-[15%] text-right">
         <TaskActionsCell
           task={{...task, task_list_id: tempListId}}
           isEditing={isEditing}
@@ -140,9 +116,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onEditCancel={onEditCancel}
           onEditSave={handleSave}
           onDeleteTask={onDeleteTask}
-          onArchiveTask={onArchiveTask}
         />
-      </TableCell>
-    </TableRow>
+      </TableRow>
+    </React.Fragment>
   );
 };

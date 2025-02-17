@@ -3,7 +3,7 @@ import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ListFilter, PencilIcon, Trash2, Check, X, Archive } from "lucide-react";
+import { ListFilter, PencilIcon, Trash2, Check, X } from "lucide-react";
 import { Task } from '@/types/task.types';
 
 interface TaskActionsCellProps {
@@ -15,7 +15,6 @@ interface TaskActionsCellProps {
   onEditCancel: () => void;
   onEditSave: (taskId: number) => void;
   onDeleteTask: (taskId: number) => void;
-  onArchiveTask?: (taskId: number) => void;
 }
 
 export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
@@ -27,7 +26,6 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   onEditCancel,
   onEditSave,
   onDeleteTask,
-  onArchiveTask,
 }) => {
   const currentList = taskLists?.find(list => list.id === task.task_list_id);
   const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
@@ -105,13 +103,6 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
               onClick={() => onEditStart(task)}
             >
               <PencilIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onArchiveTask?.(task.id)}
-            >
-              <Archive className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"

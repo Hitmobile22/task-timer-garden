@@ -8,7 +8,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
-import { Menu, Calendar, List, ClipboardList } from "lucide-react";
+import { Menu, Calendar, List, ClipboardList, Sparkles } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
 export const MenuBar = () => {
@@ -43,6 +43,17 @@ export const MenuBar = () => {
                       >
                         <ClipboardList className="h-5 w-5 text-blue-500" />
                         <span className="text-sm font-medium">Task View</span>
+                      </NavigationMenuLink>
+                    </li>
+                )}
+                {location.pathname !== "/tasks2" && (
+                    <li>
+                      <NavigationMenuLink
+                          className="flex items-center space-x-2 p-3 rounded-md text-gray-800 hover:bg-gray-200 transition-all duration-200"
+                          href="/tasks2"
+                      >
+                        <Sparkles className="h-5 w-5 text-yellow-500" />
+                        <span className="text-sm font-medium">Task View 2.0</span>
                       </NavigationMenuLink>
                     </li>
                 )}

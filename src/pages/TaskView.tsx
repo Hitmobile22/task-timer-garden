@@ -6,12 +6,13 @@ import { MenuBar } from "@/components/MenuBar";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
-import { DndContext, closestCenter } from '@dnd-kit/core';
+import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Task, Subtask, SortField, SortOrder } from '@/types/task.types';
+import { Task, Subtask, SortField, SortOrder, Project } from '@/types/task.types';
 import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
 import { GoogleCalendarIntegration } from '@/components/task/GoogleCalendarIntegration';
+import { ProjectDialog } from '@/components/task/ProjectDialog';
 import { generateRandomColor } from '@/utils/taskUtils';
 import { Input } from "@/components/ui/input";
 import {
@@ -21,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpDown, Filter, ListFilter, Plus, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock } from "lucide-react";
+import { ArrowUpDown, Filter, ListFilter, Plus, PencilIcon, Folders } from "lucide-react";
 import { format } from 'date-fns';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 
@@ -43,6 +44,7 @@ export function TaskView() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [showArchived, setShowArchived] = useState(false);
+  const [showProjectDialog, setShowProjectDialog] = useState(false);
 
   const handleProgressFilterChange = (status: Task['Progress']) => {
     setProgressFilter(prev => {
@@ -76,6 +78,19 @@ export function TaskView() {
       
       if (error) throw error;
       return data as Subtask[];
+    },
+  });
+
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('Projects')
+        .select('*')
+        .order('sort_order', { ascending: true });
+      
+      if (error) throw error;
+      return data as Project[];
     },
   });
 
@@ -253,6 +268,71 @@ export function TaskView() {
     },
   });
 
+  const createProjectMutation = useMutation({
+    mutationFn: async (project: { name: string; startDate?: Date; dueDate?: Date }) => {
+      const { error } = await supabase
+        .from('Projects')
+        .insert([{
+          "Project Name": project.name,
+          progress: "Not started",
+          date_started: project.startDate?.toISOString(),
+          date_due: project.dueDate?.toISOString(),
+          sort_order: (projects?.length || 0) + 1
+        }]);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      toast.success('Project created successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to create project');
+      console.error('Create project error:', error);
+    },
+  });
+
+  const updateTaskProjectMutation = useMutation({
+    mutationFn: async ({ taskId, projectId }: { taskId: number; projectId: number | null }) => {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ project_id: projectId })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Task moved successfully');
+    },
+  });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over) return;
+
+    const activeId = active.id;
+    const overId = over.id;
+
+    const [activeType, activeItemId] = activeId.toString().split('-');
+    const [overType, overItemId] = overId.toString().split('-');
+
+    if (activeType === 'task') {
+      if (overType === 'list') {
+        updateTaskListMutation.mutate({ 
+          listId: parseInt(overItemId), 
+          name: activeItemId 
+        });
+      } else if (overType === 'project') {
+        updateTaskProjectMutation.mutate({ 
+          taskId: parseInt(activeItemId), 
+          projectId: parseInt(overItemId) 
+        });
+      }
+    }
+  };
+
   const handleEditStart = (task: Task | Subtask) => {
     setEditingTaskId(task.id);
     setEditingTaskName(task["Task Name"]);
@@ -290,7 +370,6 @@ export function TaskView() {
     
     let filteredTasks = [...tasks];
     
-    // Apply search filter
     if (searchQuery) {
       const searchLower = searchQuery.toLowerCase();
       filteredTasks = filteredTasks.filter(task => 
@@ -298,14 +377,12 @@ export function TaskView() {
       );
     }
     
-    // Apply progress filter
     if (progressFilter.length > 0) {
       filteredTasks = filteredTasks.filter(task => 
         progressFilter.includes(task.Progress)
       );
     }
     
-    // Apply sorting
     if (sortBy === 'date') {
       return filteredTasks.sort((a, b) => {
         const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
@@ -314,7 +391,6 @@ export function TaskView() {
       });
     }
     
-    // Sort by list
     return filteredTasks.sort((a, b) => {
       const aListId = a.task_list_id || 0;
       const bListId = b.task_list_id || 0;
@@ -341,30 +417,32 @@ export function TaskView() {
     const filteredTasks = getSortedAndFilteredTasks(tasks);
     const grouped = new Map();
     
+    projects?.forEach(project => {
+      const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
+      if (projectTasks.length > 0) {
+        grouped.set(`project-${project.id}`, {
+          type: 'project',
+          item: project,
+          tasks: projectTasks
+        });
+      }
+    });
+    
     taskLists.forEach(list => {
-      const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
+      const listTasks = filteredTasks.filter(
+        task => task.task_list_id === list.id && !task.project_id
+      );
       if (listTasks.length > 0) {
-        grouped.set(list.id, {
-          list,
+        grouped.set(`list-${list.id}`, {
+          type: 'list',
+          item: list,
           tasks: listTasks
         });
       }
     });
     
-    // Add uncategorized tasks
-    const uncategorizedTasks = filteredTasks.filter(task => !task.task_list_id);
-    if (uncategorizedTasks.length > 0) {
-      const defaultList = taskLists.find(list => list.name === 'Default');
-      if (defaultList) {
-        grouped.set(defaultList.id, {
-          list: defaultList,
-          tasks: uncategorizedTasks
-        });
-      }
-    }
-    
     return grouped;
-  }, [tasks, taskLists, getSortedAndFilteredTasks]);
+  }, [tasks, taskLists, projects, getSortedAndFilteredTasks]);
 
   const handleBulkProgressUpdate = async (progress: Task['Progress']) => {
     try {
@@ -434,6 +512,14 @@ export function TaskView() {
             <div className="flex items-center gap-4">
               <Button
                 variant="outline"
+                onClick={() => setShowProjectDialog(true)}
+                className="flex items-center gap-2"
+              >
+                <Folders className="w-4 h-4" />
+                New Project
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setBulkMode(!bulkMode)}
                 className={bulkMode ? "bg-primary text-white" : ""}
               >
@@ -451,126 +537,82 @@ export function TaskView() {
             </div>
           </div>
 
-          <DndContext collisionDetection={closestCenter}>
-            {Array.from(filteredAndGroupedTasks.values()).map(({ list, tasks: listTasks }) => {
-              if (listTasks.length === 0) return null;
-              
-              return (
-                <div key={list.id} className="mb-8">
-                  <div 
-                    className="mb-4 p-2 rounded flex items-center justify-between"
-                    style={{
-                      background: list.color || DEFAULT_LIST_COLOR,
-                      color: 'white'
-                    }}
-                  >
-                    {editingListId === list.id ? (
-                      <div className="flex items-center gap-2 flex-1">
-                        <Input
-                          value={editingListName}
-                          onChange={(e) => setEditingListName(e.target.value)}
-                          className="max-w-sm bg-white/90 text-gray-900 font-medium"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            updateListNameMutation.mutate({
-                              listId: list.id,
-                              name: editingListName
-                            });
-                          }}
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditingListId(null);
-                            setEditingListName("");
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <h3 className="text-lg font-semibold text-white">{list.name}</h3>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-white hover:bg-white/20"
-                            onClick={() => {
-                              setEditingListId(list.id);
-                              setEditingListName(list.name);
-                            }}
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </Button>
-                          {list.name !== 'Day to Day' && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-white hover:bg-white/20"
-                              onClick={() => deleteTaskListMutation.mutate(list.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </>
-                    )}
+          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <div className="space-y-8">
+              {Array.from(filteredAndGroupedTasks.entries()).map(([key, { type, item, tasks }]) => {
+                const [itemType, itemId] = key.split('-');
+                
+                return (
+                  <div key={key} className="mb-8">
+                    <div 
+                      className="mb-4 p-2 rounded flex items-center justify-between"
+                      style={{
+                        background: item.color || DEFAULT_LIST_COLOR,
+                        color: 'white'
+                      }}
+                    >
+                      <h3 className="text-lg font-semibold text-white">
+                        {type === 'project' ? item["Project Name"] : item.name}
+                      </h3>
+                    </div>
+                    <SortableContext 
+                      items={tasks.map(t => `task-${t.id}`)} 
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <TaskListComponent
+                        tasks={tasks}
+                        subtasks={subtasks}
+                        expandedTasks={expandedTasks}
+                        editingTaskId={editingTaskId}
+                        editingTaskName={editingTaskName}
+                        taskLists={taskLists}
+                        bulkMode={bulkMode}
+                        selectedTasks={selectedTasks}
+                        showArchived={showArchived}
+                        onToggleExpand={toggleTaskExpansion}
+                        onEditStart={handleEditStart}
+                        onEditCancel={handleEditCancel}
+                        onEditSave={handleEditSave}
+                        onEditNameChange={setEditingTaskName}
+                        onUpdateProgress={(taskId, progress, isSubtask) => 
+                          updateProgressMutation.mutate({ taskId, progress, isSubtask })
+                        }
+                        onMoveTask={(taskId, listId) => 
+                          updateTaskListMutation.mutate({ listId, name: taskId.toString() })
+                        }
+                        onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
+                        onArchiveTask={(taskId) => archiveTaskMutation.mutate(taskId)}
+                        onAddSubtask={handleAddSubtask}
+                        onTimelineEdit={(taskId, start, end) => {
+                          updateTaskTimelineMutation.mutate({ 
+                            taskId, 
+                            start: new Date(start), 
+                            end: new Date(end) 
+                          });
+                        }}
+                        onBulkSelect={(taskId, selected) => {
+                          setSelectedTasks(prev => 
+                            selected 
+                              ? [...prev, taskId]
+                              : prev.filter(id => id !== taskId)
+                          );
+                        }}
+                        onBulkProgressUpdate={handleBulkProgressUpdate}
+                      />
+                    </SortableContext>
                   </div>
-                  <SortableContext items={listTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                    <TaskListComponent
-                      tasks={listTasks}
-                      subtasks={subtasks}
-                      expandedTasks={expandedTasks}
-                      editingTaskId={editingTaskId}
-                      editingTaskName={editingTaskName}
-                      taskLists={taskLists}
-                      bulkMode={bulkMode}
-                      selectedTasks={selectedTasks}
-                      showArchived={showArchived}
-                      onToggleExpand={toggleTaskExpansion}
-                      onEditStart={handleEditStart}
-                      onEditCancel={handleEditCancel}
-                      onEditSave={handleEditSave}
-                      onEditNameChange={setEditingTaskName}
-                      onUpdateProgress={(taskId, progress, isSubtask) => 
-                        updateProgressMutation.mutate({ taskId, progress, isSubtask })
-                      }
-                      onMoveTask={(taskId, listId) => 
-                        updateTaskListMutation.mutate({ listId, name: taskId.toString() })
-                      }
-                      onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
-                      onArchiveTask={(taskId) => archiveTaskMutation.mutate(taskId)}
-                      onAddSubtask={handleAddSubtask}
-                      onTimelineEdit={(taskId, start, end) => {
-                        updateTaskTimelineMutation.mutate({ 
-                          taskId, 
-                          start: new Date(start), 
-                          end: new Date(end) 
-                        });
-                      }}
-                      onBulkSelect={(taskId, selected) => {
-                        setSelectedTasks(prev => 
-                          selected 
-                            ? [...prev, taskId]
-                            : prev.filter(id => id !== taskId)
-                        );
-                      }}
-                      onBulkProgressUpdate={handleBulkProgressUpdate}
-                    />
-                  </SortableContext>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </DndContext>
         </div>
       </main>
+
+      <ProjectDialog
+        open={showProjectDialog}
+        onOpenChange={setShowProjectDialog}
+        onCreateProject={createProjectMutation.mutate}
+      />
     </div>
   );
 }

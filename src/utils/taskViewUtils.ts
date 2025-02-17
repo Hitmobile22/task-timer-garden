@@ -10,10 +10,13 @@ export const getSortedAndFilteredTasks = (
 ) => {
   if (!tasks) return [];
   
+  console.log('Initial tasks:', tasks); // Debug log
+  
   let filteredTasks = [...tasks];
 
   // Filter archived tasks
-  filteredTasks = filteredTasks.filter(task => showArchived ? task.archived : !task.archived);
+  filteredTasks = filteredTasks.filter(task => showArchived ? true : !task.archived);
+  console.log('After archive filter:', filteredTasks); // Debug log
   
   // Filter by search query
   if (searchQuery) {
@@ -22,6 +25,7 @@ export const getSortedAndFilteredTasks = (
       task["Task Name"]?.toLowerCase().includes(searchLower)
     );
   }
+  console.log('After search filter:', filteredTasks); // Debug log
   
   // Filter by progress status
   if (progressFilter.length > 0) {
@@ -29,6 +33,7 @@ export const getSortedAndFilteredTasks = (
       progressFilter.includes(task.Progress)
     );
   }
+  console.log('After progress filter:', filteredTasks); // Debug log
   
   // Sort tasks
   if (sortBy === 'date') {
@@ -42,17 +47,15 @@ export const getSortedAndFilteredTasks = (
   // Sort by list and project
   return filteredTasks.sort((a, b) => {
     // First sort by task list
-    if (a.task_list_id !== b.task_list_id) {
-      // Handle null task_list_id (default list) by treating it as -1
-      const aListId = a.task_list_id ?? -1;
-      const bListId = b.task_list_id ?? -1;
+    const aListId = a.task_list_id ?? -1;
+    const bListId = b.task_list_id ?? -1;
+    if (aListId !== bListId) {
       return aListId - bListId;
     }
     // Then sort by project within the same list
-    if (a.project_id !== b.project_id) {
-      // Handle null project_id by treating it as -1
-      const aProjectId = a.project_id ?? -1;
-      const bProjectId = b.project_id ?? -1;
+    const aProjectId = a.project_id ?? -1;
+    const bProjectId = b.project_id ?? -1;
+    if (aProjectId !== bProjectId) {
       return aProjectId - bProjectId;
     }
     // Finally sort by order within the same project
@@ -66,6 +69,8 @@ export const getFilteredProjects = (
   progressFilter: Task['Progress'][]
 ) => {
   if (!projects) return [];
+  
+  console.log('Initial projects:', projects); // Debug log
   
   let filtered = [...projects];
   
@@ -84,13 +89,14 @@ export const getFilteredProjects = (
     );
   }
   
+  console.log('Filtered projects:', filtered); // Debug log
+  
   // Sort projects by their sort order
   return filtered.sort((a, b) => {
     // First sort by task list
-    if (a.task_list_id !== b.task_list_id) {
-      // Handle null task_list_id (default list) by treating it as -1
-      const aListId = a.task_list_id ?? -1;
-      const bListId = b.task_list_id ?? -1;
+    const aListId = a.task_list_id ?? -1;
+    const bListId = b.task_list_id ?? -1;
+    if (aListId !== bListId) {
       return aListId - bListId;
     }
     // Then sort by sort_order within the same list

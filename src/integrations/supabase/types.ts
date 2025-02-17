@@ -186,6 +186,7 @@ export type Database = {
           order: number
           Progress: Database["public"]["Enums"]["status"] | null
           project_id: number | null
+          sort_order: number | null
           "Task Name": string | null
           task_list_id: number | null
         }
@@ -200,6 +201,7 @@ export type Database = {
           order?: number
           Progress?: Database["public"]["Enums"]["status"] | null
           project_id?: number | null
+          sort_order?: number | null
           "Task Name"?: string | null
           task_list_id?: number | null
         }
@@ -214,6 +216,7 @@ export type Database = {
           order?: number
           Progress?: Database["public"]["Enums"]["status"] | null
           project_id?: number | null
+          sort_order?: number | null
           "Task Name"?: string | null
           task_list_id?: number | null
         }

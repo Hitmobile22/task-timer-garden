@@ -55,8 +55,8 @@ export const getSortedAndFilteredTasks = (
       const bProjectId = b.project_id ?? -1;
       return aProjectId - bProjectId;
     }
-    // Finally sort by task order within the same project
-    return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    // Finally sort by order within the same project
+    return (a.order ?? 0) - (b.order ?? 0);
   });
 };
 

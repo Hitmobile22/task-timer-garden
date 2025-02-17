@@ -102,6 +102,118 @@ export function TaskView() {
     },
   });
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over) return;
+
+    const activeId = active.id;
+    const overId = over.id;
+
+    const [activeType, activeItemId] = activeId.toString().split('-');
+    const [overType, overItemId] = overId.toString().split('-');
+
+    if (activeType === 'task') {
+      if (overType === 'list') {
+        updateTaskListMutation.mutate({ 
+          listId: parseInt(overItemId), 
+          name: activeItemId 
+        });
+      } else if (overType === 'project') {
+        updateTaskProjectMutation.mutate({ 
+          taskId: parseInt(activeItemId), 
+          projectId: parseInt(overItemId) 
+        });
+      }
+    }
+  };
+
+  const getSortedAndFilteredTasks = React.useCallback((tasks: Task[] | undefined) => {
+    if (!tasks) return [];
+    
+    let filteredTasks = [...tasks];
+
+    filteredTasks = filteredTasks.filter(task => showArchived ? task.archived : !task.archived);
+    
+    if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
+      filteredTasks = filteredTasks.filter(task => 
+        task["Task Name"]?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    if (progressFilter.length > 0) {
+      filteredTasks = filteredTasks.filter(task => 
+        progressFilter.includes(task.Progress)
+      );
+    }
+    
+    if (sortBy === 'date') {
+      return filteredTasks.sort((a, b) => {
+        const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
+        const bDate = b.date_started ? new Date(b.date_started) : new Date(0);
+        return bDate.getTime() - aDate.getTime();
+      });
+    }
+
+    return filteredTasks.sort((a, b) => {
+      if (a.project_id !== b.project_id) {
+        return (a.project_id || 0) - (b.project_id || 0);
+      }
+      return (a.task_list_id || 0) - (b.task_list_id || 0);
+    });
+  }, [progressFilter, searchQuery, sortBy, showArchived]);
+
+  const organizedTasks = React.useMemo(() => {
+    if (!tasks || !taskLists) return [];
+    
+    const filteredTasks = getSortedAndFilteredTasks(tasks);
+    const result = [];
+
+    projects?.forEach(project => {
+      const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
+      if (projectTasks.length > 0) {
+        result.push({
+          type: 'project',
+          id: `project-${project.id}`,
+          name: project["Project Name"],
+          tasks: projectTasks
+        });
+      }
+    });
+
+    taskLists.forEach(list => {
+      const listTasks = filteredTasks.filter(
+        task => task.task_list_id === list.id && !task.project_id
+      );
+      if (listTasks.length > 0) {
+        result.push({
+          type: 'list',
+          id: `list-${list.id}`,
+          name: list.name,
+          color: list.color,
+          tasks: listTasks
+        });
+      }
+    });
+
+    const unorganizedTasks = filteredTasks.filter(
+      task => !task.project_id && !task.task_list_id
+    );
+    if (unorganizedTasks.length > 0) {
+      result.push({
+        type: 'unorganized',
+        id: 'unorganized',
+        name: 'Other Tasks',
+        tasks: unorganizedTasks
+      });
+    }
+
+    return result;
+  }, [tasks, taskLists, projects, getSortedAndFilteredTasks]);
+
+  const isLoading = tasksLoading || subtasksLoading || projectsLoading;
+
   const deleteMutation = useMutation({
     mutationFn: async (taskId: number) => {
       const { error } = await supabase
@@ -323,32 +435,6 @@ export function TaskView() {
     },
   });
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (!over) return;
-
-    const activeId = active.id;
-    const overId = over.id;
-
-    const [activeType, activeItemId] = activeId.toString().split('-');
-    const [overType, overItemId] = overId.toString().split('-');
-
-    if (activeType === 'task') {
-      if (overType === 'list') {
-        updateTaskListMutation.mutate({ 
-          listId: parseInt(overItemId), 
-          name: activeItemId 
-        });
-      } else if (overType === 'project') {
-        updateTaskProjectMutation.mutate({ 
-          taskId: parseInt(activeItemId), 
-          projectId: parseInt(overItemId) 
-        });
-      }
-    }
-  };
-
   const handleEditStart = (task: Task | Subtask) => {
     setEditingTaskId(task.id);
     setEditingTaskName(task["Task Name"]);
@@ -386,89 +472,6 @@ export function TaskView() {
       }
       return [...prev, progress];
     });
-  };
-
-  const getSortedAndFilteredTasks = React.useCallback((tasks: Task[] | undefined) => {
-    if (!tasks) return [];
-    
-    let filteredTasks = [...tasks];
-    
-    filteredTasks = filteredTasks.filter(task => showArchived ? task.archived : !task.archived);
-    
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
-      filteredTasks = filteredTasks.filter(task => 
-        task["Task Name"]?.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    if (progressFilter.length > 0) {
-      filteredTasks = filteredTasks.filter(task => 
-        progressFilter.includes(task.Progress)
-      );
-    }
-    
-    if (sortBy === 'date') {
-      return filteredTasks.sort((a, b) => {
-        const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
-        const bDate = b.date_started ? new Date(b.date_started) : new Date(0);
-        return bDate.getTime() - aDate.getTime();
-      });
-    }
-    
-    return filteredTasks.sort((a, b) => {
-      const aListId = a.task_list_id || 0;
-      const bListId = b.task_list_id || 0;
-      return aListId - bListId;
-    });
-  }, [progressFilter, searchQuery, sortBy, showArchived]);
-
-  const filteredAndGroupedTasks = React.useMemo(() => {
-    if (!tasks || !taskLists) return new Map();
-    
-    const filteredTasks = getSortedAndFilteredTasks(tasks);
-    const grouped = new Map();
-    
-    projects?.forEach(project => {
-      const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
-      if (projectTasks.length > 0) {
-        grouped.set(`project-${project.id}`, {
-          type: 'project',
-          item: project,
-          tasks: projectTasks
-        });
-      }
-    });
-    
-    taskLists.forEach(list => {
-      const listTasks = filteredTasks.filter(
-        task => task.task_list_id === list.id && !task.project_id
-      );
-      if (listTasks.length > 0) {
-        grouped.set(`list-${list.id}`, {
-          type: 'list',
-          item: list,
-          tasks: listTasks
-        });
-      }
-    });
-    
-    return grouped;
-  }, [tasks, taskLists, projects, getSortedAndFilteredTasks]);
-
-  const handleBulkProgressUpdate = async (progress: Task['Progress']) => {
-    try {
-      await Promise.all(
-        selectedTasks.map(taskId =>
-          updateProgressMutation.mutate({ taskId, progress })
-        )
-      );
-      setSelectedTasks([]);
-      setBulkMode(false);
-      toast.success('Tasks updated successfully');
-    } catch (error) {
-      toast.error('Failed to update tasks');
-    }
   };
 
   const handleAddSubtask = async (parentTaskId: number) => {
@@ -559,46 +562,64 @@ export function TaskView() {
           </div>
 
           <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <TaskListComponent
-              tasks={tasks || []}
-              subtasks={subtasks}
-              expandedTasks={expandedTasks}
-              editingTaskId={editingTaskId}
-              editingTaskName={editingTaskName}
-              taskLists={taskLists || []}
-              bulkMode={bulkMode}
-              selectedTasks={selectedTasks}
-              showArchived={showArchived}
-              onToggleExpand={toggleTaskExpansion}
-              onEditStart={handleEditStart}
-              onEditCancel={handleEditCancel}
-              onEditSave={handleEditSave}
-              onEditNameChange={setEditingTaskName}
-              onUpdateProgress={(taskId, progress, isSubtask) => 
-                updateProgressMutation.mutate({ taskId, progress, isSubtask })
-              }
-              onMoveTask={(taskId, listId) => 
-                updateTaskListMutation.mutate({ listId, name: taskId.toString() })
-              }
-              onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
-              onArchiveTask={handleArchiveTask}
-              onAddSubtask={handleAddSubtask}
-              onTimelineEdit={(taskId, start, end) => {
-                updateTaskTimelineMutation.mutate({ 
-                  taskId, 
-                  start: new Date(start), 
-                  end: new Date(end) 
-                });
-              }}
-              onBulkSelect={(taskId, selected) => {
-                setSelectedTasks(prev => 
-                  selected 
-                    ? [...prev, taskId]
-                    : prev.filter(id => id !== taskId)
-                );
-              }}
-              onBulkProgressUpdate={handleBulkProgressUpdate}
-            />
+            <div className="space-y-6">
+              {organizedTasks.map(group => (
+                <div 
+                  key={group.id}
+                  className="p-4 rounded-lg bg-white/50"
+                >
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    {group.type === 'list' && group.color && (
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: group.color }}
+                      />
+                    )}
+                    {group.name}
+                  </h3>
+                  <TaskListComponent
+                    tasks={group.tasks}
+                    subtasks={subtasks}
+                    expandedTasks={expandedTasks}
+                    editingTaskId={editingTaskId}
+                    editingTaskName={editingTaskName}
+                    taskLists={taskLists || []}
+                    bulkMode={bulkMode}
+                    selectedTasks={selectedTasks}
+                    showArchived={showArchived}
+                    onToggleExpand={toggleTaskExpansion}
+                    onEditStart={handleEditStart}
+                    onEditCancel={handleEditCancel}
+                    onEditSave={handleEditSave}
+                    onEditNameChange={setEditingTaskName}
+                    onUpdateProgress={(taskId, progress, isSubtask) => 
+                      updateProgressMutation.mutate({ taskId, progress, isSubtask })
+                    }
+                    onMoveTask={(taskId, listId) => 
+                      updateTaskListMutation.mutate({ listId, name: taskId.toString() })
+                    }
+                    onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
+                    onArchiveTask={handleArchiveTask}
+                    onAddSubtask={handleAddSubtask}
+                    onTimelineEdit={(taskId, start, end) => {
+                      updateTaskTimelineMutation.mutate({ 
+                        taskId, 
+                        start: new Date(start), 
+                        end: new Date(end) 
+                      });
+                    }}
+                    onBulkSelect={(taskId, selected) => {
+                      setSelectedTasks(prev => 
+                        selected 
+                          ? [...prev, taskId]
+                          : prev.filter(id => id !== taskId)
+                      );
+                    }}
+                    onBulkProgressUpdate={handleBulkProgressUpdate}
+                  />
+                </div>
+              ))}
+            </div>
           </DndContext>
         </div>
       </main>

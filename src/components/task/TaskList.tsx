@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
 import { TaskItem } from './TaskItem';
@@ -90,7 +90,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {tasks.filter(task => showArchived || !task.archived).map((task) => (
+          {tasks?.filter(task => showArchived || !task.archived).map((task) => (
             <React.Fragment key={task.id}>
               <TaskItem
                 task={task}

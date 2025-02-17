@@ -1,8 +1,8 @@
 
-import { TaskScheduler } from '@/components/TaskScheduler';
+import { TaskView } from '@/pages/TaskView';
 
 const Index = () => {
-  return <TaskScheduler />;
+  return <TaskView />;
 };
 
 export default Index;

@@ -46,51 +46,46 @@ export function TaskView() {
   const [showArchived, setShowArchived] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
 
-  const handleProgressFilterChange = (status: Task['Progress']) => {
-    setProgressFilter(prev => {
-      if (prev.includes(status)) {
-        return prev.filter(s => s !== status);
-      }
-      return [...prev, status];
-    });
-  };
-
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .order('date_started', { ascending: false });
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data as Task[];
     },
   });
 
-  const { data: subtasks, isLoading: subtasksLoading } = useQuery({
+  const { data: subtasks } = useQuery({
     queryKey: ['subtasks'],
     queryFn: async () => {
+      if (!tasks || tasks.length === 0) return [];
+      
+      const taskIds = tasks.map(task => task.id);
       const { data, error } = await supabase
         .from('subtasks')
         .select('*')
-        .order('created_at', { ascending: true });
+        .in('Parent Task ID', taskIds);
       
       if (error) throw error;
       return data as Subtask[];
     },
+    enabled: !!tasks?.length,
   });
 
-  const { data: projects } = useQuery({
-    queryKey: ['projects'],
+  const { data: taskLists } = useQuery({
+    queryKey: ['task-lists'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('Projects')
+        .from('TaskLists')
         .select('*')
-        .order('sort_order', { ascending: true });
+        .order('order', { ascending: true });
       
       if (error) throw error;
-      return data as Project[];
+      return data;
     },
   });
 
@@ -408,19 +403,6 @@ export function TaskView() {
     });
   }, [progressFilter, searchQuery, sortBy, showArchived]);
 
-  const { data: taskLists } = useQuery({
-    queryKey: ['task-lists'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('TaskLists')
-        .select('*')
-        .order('order', { ascending: true });
-      
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const filteredAndGroupedTasks = React.useMemo(() => {
     if (!tasks || !taskLists) return new Map();
     
@@ -556,74 +538,46 @@ export function TaskView() {
             </div>
           </div>
 
-          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <div className="space-y-8">
-              {Array.from(filteredAndGroupedTasks.entries()).map(([key, { type, item, tasks }]) => {
-                const [itemType, itemId] = key.split('-');
-                
-                return (
-                  <div key={key} className="mb-8">
-                    <div 
-                      className="mb-4 p-2 rounded flex items-center justify-between"
-                      style={{
-                        background: item.color || DEFAULT_LIST_COLOR,
-                        color: 'white'
-                      }}
-                    >
-                      <h3 className="text-lg font-semibold text-white">
-                        {type === 'project' ? item["Project Name"] : item.name}
-                      </h3>
-                    </div>
-                    <SortableContext 
-                      items={tasks.map(t => `task-${t.id}`)} 
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <TaskListComponent
-                        tasks={tasks}
-                        subtasks={subtasks}
-                        expandedTasks={expandedTasks}
-                        editingTaskId={editingTaskId}
-                        editingTaskName={editingTaskName}
-                        taskLists={taskLists}
-                        bulkMode={bulkMode}
-                        selectedTasks={selectedTasks}
-                        showArchived={showArchived}
-                        onToggleExpand={toggleTaskExpansion}
-                        onEditStart={handleEditStart}
-                        onEditCancel={handleEditCancel}
-                        onEditSave={handleEditSave}
-                        onEditNameChange={setEditingTaskName}
-                        onUpdateProgress={(taskId, progress, isSubtask) => 
-                          updateProgressMutation.mutate({ taskId, progress, isSubtask })
-                        }
-                        onMoveTask={(taskId, listId) => 
-                          updateTaskListMutation.mutate({ listId, name: taskId.toString() })
-                        }
-                        onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
-                        onArchiveTask={handleArchiveTask}
-                        onAddSubtask={handleAddSubtask}
-                        onTimelineEdit={(taskId, start, end) => {
-                          updateTaskTimelineMutation.mutate({ 
-                            taskId, 
-                            start: new Date(start), 
-                            end: new Date(end) 
-                          });
-                        }}
-                        onBulkSelect={(taskId, selected) => {
-                          setSelectedTasks(prev => 
-                            selected 
-                              ? [...prev, taskId]
-                              : prev.filter(id => id !== taskId)
-                          );
-                        }}
-                        onBulkProgressUpdate={handleBulkProgressUpdate}
-                      />
-                    </SortableContext>
-                  </div>
-                );
-              })}
-            </div>
-          </DndContext>
+          <TaskListComponent
+            tasks={tasks || []}
+            subtasks={subtasks}
+            expandedTasks={expandedTasks}
+            editingTaskId={editingTaskId}
+            editingTaskName={editingTaskName}
+            taskLists={taskLists || []}
+            bulkMode={bulkMode}
+            selectedTasks={selectedTasks}
+            showArchived={showArchived}
+            onToggleExpand={toggleTaskExpansion}
+            onEditStart={handleEditStart}
+            onEditCancel={handleEditCancel}
+            onEditSave={handleEditSave}
+            onEditNameChange={setEditingTaskName}
+            onUpdateProgress={(taskId, progress, isSubtask) => 
+              updateProgressMutation.mutate({ taskId, progress, isSubtask })
+            }
+            onMoveTask={(taskId, listId) => 
+              updateTaskListMutation.mutate({ listId, name: taskId.toString() })
+            }
+            onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
+            onArchiveTask={handleArchiveTask}
+            onAddSubtask={handleAddSubtask}
+            onTimelineEdit={(taskId, start, end) => {
+              updateTaskTimelineMutation.mutate({ 
+                taskId, 
+                start: new Date(start), 
+                end: new Date(end) 
+              });
+            }}
+            onBulkSelect={(taskId, selected) => {
+              setSelectedTasks(prev => 
+                selected 
+                  ? [...prev, taskId]
+                  : prev.filter(id => id !== taskId)
+              );
+            }}
+            onBulkProgressUpdate={handleBulkProgressUpdate}
+          />
         </div>
       </main>
 

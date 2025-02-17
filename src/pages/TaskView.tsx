@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowUpDown, Filter, ListFilter, Plus, PencilIcon, Folders } from "lucide-react";
 import { format } from 'date-fns';
-import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
+import { DEFAULT_LIST_COLOR, TASK_LIST_COLORS } from '@/constants/taskColors';
 
 export function TaskView() {
   const queryClient = useQueryClient();
@@ -170,44 +170,35 @@ export function TaskView() {
     const filteredTasks = getSortedAndFilteredTasks(tasks);
     const result = [];
 
-    projects?.forEach(project => {
-      const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
-      if (projectTasks.length > 0) {
-        result.push({
+    taskLists.forEach(list => {
+      const listProjects = projects?.filter(project => project.task_list_id === list.id) || [];
+      const projectComponents = listProjects.map(project => {
+        const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
+        return {
           type: 'project',
           id: `project-${project.id}`,
           name: project["Project Name"],
-          tasks: projectTasks
-        });
-      }
-    });
+          progress: project.progress,
+          tasks: projectTasks,
+          parentList: list
+        };
+      });
 
-    taskLists.forEach(list => {
       const listTasks = filteredTasks.filter(
         task => task.task_list_id === list.id && !task.project_id
       );
-      if (listTasks.length > 0) {
+
+      if (projectComponents.length > 0 || listTasks.length > 0) {
         result.push({
           type: 'list',
           id: `list-${list.id}`,
           name: list.name,
-          color: list.color,
+          color: list.color || DEFAULT_LIST_COLOR,
+          projects: projectComponents,
           tasks: listTasks
         });
       }
     });
-
-    const unorganizedTasks = filteredTasks.filter(
-      task => !task.project_id && !task.task_list_id
-    );
-    if (unorganizedTasks.length > 0) {
-      result.push({
-        type: 'unorganized',
-        id: 'unorganized',
-        name: 'Other Tasks',
-        tasks: unorganizedTasks
-      });
-    }
 
     return result;
   }, [tasks, taskLists, projects, getSortedAndFilteredTasks]);
@@ -583,60 +574,110 @@ export function TaskView() {
 
           <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <div className="space-y-6">
-              {organizedTasks.map(group => (
+              {organizedTasks.map(list => (
                 <div 
-                  key={group.id}
-                  className="p-4 rounded-lg bg-white/50"
+                  key={list.id}
+                  className="space-y-4"
                 >
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    {group.type === 'list' && group.color && (
-                      <div 
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: group.color }}
-                      />
+                  <div 
+                    className="p-4 rounded-lg"
+                    style={{
+                      background: list.color || DEFAULT_LIST_COLOR,
+                    }}
+                  >
+                    <h2 className="text-xl font-bold text-white mb-4">{list.name}</h2>
+                    
+                    {list.projects.length > 0 && (
+                      <div className="space-y-4 mb-4">
+                        {list.projects.map(project => (
+                          <div 
+                            key={project.id}
+                            className="p-4 rounded-lg bg-white/90 backdrop-blur-sm"
+                          >
+                            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                              <span>{project.name}</span>
+                              <span className="text-sm font-normal text-gray-500">
+                                ({project.progress})
+                              </span>
+                            </h3>
+                            {project.tasks.length > 0 ? (
+                              <TaskListComponent
+                                tasks={project.tasks}
+                                subtasks={subtasks}
+                                expandedTasks={expandedTasks}
+                                editingTaskId={editingTaskId}
+                                editingTaskName={editingTaskName}
+                                taskLists={taskLists || []}
+                                bulkMode={bulkMode}
+                                selectedTasks={selectedTasks}
+                                showArchived={showArchived}
+                                onToggleExpand={toggleTaskExpansion}
+                                onEditStart={handleEditStart}
+                                onEditCancel={handleEditCancel}
+                                onEditSave={handleEditSave}
+                                onEditNameChange={setEditingTaskName}
+                                onUpdateProgress={updateProgressMutation.mutate}
+                                onMoveTask={updateTaskListMutation.mutate}
+                                onDeleteTask={deleteMutation.mutate}
+                                onArchiveTask={handleArchiveTask}
+                                onAddSubtask={handleAddSubtask}
+                                onTimelineEdit={(taskId, start, end) => {
+                                  updateTaskTimelineMutation.mutate({ taskId, start, end });
+                                }}
+                                onBulkSelect={(taskId, selected) => {
+                                  setSelectedTasks(prev => 
+                                    selected 
+                                      ? [...prev, taskId]
+                                      : prev.filter(id => id !== taskId)
+                                  );
+                                }}
+                                onBulkProgressUpdate={handleBulkProgressUpdate}
+                              />
+                            ) : (
+                              <p className="text-gray-500 italic">No tasks in this project yet</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
-                    {group.name}
-                  </h3>
-                  <TaskListComponent
-                    tasks={group.tasks}
-                    subtasks={subtasks}
-                    expandedTasks={expandedTasks}
-                    editingTaskId={editingTaskId}
-                    editingTaskName={editingTaskName}
-                    taskLists={taskLists || []}
-                    bulkMode={bulkMode}
-                    selectedTasks={selectedTasks}
-                    showArchived={showArchived}
-                    onToggleExpand={toggleTaskExpansion}
-                    onEditStart={handleEditStart}
-                    onEditCancel={handleEditCancel}
-                    onEditSave={handleEditSave}
-                    onEditNameChange={setEditingTaskName}
-                    onUpdateProgress={(taskId, progress, isSubtask) => 
-                      updateProgressMutation.mutate({ taskId, progress, isSubtask })
-                    }
-                    onMoveTask={(taskId, listId) => 
-                      updateTaskListMutation.mutate({ listId, name: taskId.toString() })
-                    }
-                    onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
-                    onArchiveTask={handleArchiveTask}
-                    onAddSubtask={handleAddSubtask}
-                    onTimelineEdit={(taskId, start, end) => {
-                      updateTaskTimelineMutation.mutate({ 
-                        taskId, 
-                        start: new Date(start), 
-                        end: new Date(end) 
-                      });
-                    }}
-                    onBulkSelect={(taskId, selected) => {
-                      setSelectedTasks(prev => 
-                        selected 
-                          ? [...prev, taskId]
-                          : prev.filter(id => id !== taskId)
-                      );
-                    }}
-                    onBulkProgressUpdate={handleBulkProgressUpdate}
-                  />
+
+                    {list.tasks.length > 0 && (
+                      <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4">
+                        <TaskListComponent
+                          tasks={list.tasks}
+                          subtasks={subtasks}
+                          expandedTasks={expandedTasks}
+                          editingTaskId={editingTaskId}
+                          editingTaskName={editingTaskName}
+                          taskLists={taskLists || []}
+                          bulkMode={bulkMode}
+                          selectedTasks={selectedTasks}
+                          showArchived={showArchived}
+                          onToggleExpand={toggleTaskExpansion}
+                          onEditStart={handleEditStart}
+                          onEditCancel={handleEditCancel}
+                          onEditSave={handleEditSave}
+                          onEditNameChange={setEditingTaskName}
+                          onUpdateProgress={updateProgressMutation.mutate}
+                          onMoveTask={updateTaskListMutation.mutate}
+                          onDeleteTask={deleteMutation.mutate}
+                          onArchiveTask={handleArchiveTask}
+                          onAddSubtask={handleAddSubtask}
+                          onTimelineEdit={(taskId, start, end) => {
+                            updateTaskTimelineMutation.mutate({ taskId, start, end });
+                          }}
+                          onBulkSelect={(taskId, selected) => {
+                            setSelectedTasks(prev => 
+                              selected 
+                                ? [...prev, taskId]
+                                : prev.filter(id => id !== taskId)
+                            );
+                          }}
+                          onBulkProgressUpdate={handleBulkProgressUpdate}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

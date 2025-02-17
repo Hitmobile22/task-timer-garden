@@ -25,6 +25,8 @@ interface TaskItemProps {
   onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
+  onArchiveTask: (taskId: number) => void;
+  onAddSubtask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
   onBulkSelect?: (taskId: number, selected: boolean) => void;
 }
@@ -46,6 +48,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onUpdateProgress,
   onMoveTask,
   onDeleteTask,
+  onArchiveTask,
+  onAddSubtask,
   onTimelineEdit,
   onBulkSelect,
 }) => {
@@ -130,6 +134,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         onEditCancel={onEditCancel}
         onEditSave={handleSave}
         onDeleteTask={onDeleteTask}
+        onArchiveTask={onArchiveTask}
+        onAddSubtask={onAddSubtask}
       />
     </TableRow>
   );

@@ -501,6 +501,26 @@ export function TaskView() {
     }
   };
 
+  const handleBulkProgressUpdate = async (progress: Task['Progress']) => {
+    if (selectedTasks.length === 0) return;
+    
+    try {
+      for (const taskId of selectedTasks) {
+        await updateProgressMutation.mutateAsync({ 
+          taskId,
+          progress,
+          isSubtask: false
+        });
+      }
+      
+      setSelectedTasks([]);
+      toast.success('Tasks updated successfully');
+    } catch (error) {
+      toast.error('Failed to update tasks');
+      console.error('Bulk update error:', error);
+    }
+  };
+
   return (
     <div 
       className="min-h-screen p-6 space-y-8 animate-fadeIn"

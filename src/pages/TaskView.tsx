@@ -44,6 +44,15 @@ export function TaskView() {
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [showArchived, setShowArchived] = useState(false);
 
+  const handleProgressFilterChange = (status: Task['Progress']) => {
+    setProgressFilter(prev => {
+      if (prev.includes(status)) {
+        return prev.filter(s => s !== status);
+      }
+      return [...prev, status];
+    });
+  };
+
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
@@ -416,13 +425,7 @@ export function TaskView() {
               showNewTaskListDialog={showNewTaskListDialog}
               newTaskListName={newTaskListName}
               onSearchChange={setSearchQuery}
-              onProgressFilterChange={(progress) => {
-                if (progressFilter.includes(progress)) {
-                  setProgressFilter(progressFilter.filter(p => p !== progress));
-                } else {
-                  setProgressFilter([...progressFilter, progress]);
-                }
-              }}
+              onProgressFilterChange={handleProgressFilterChange}
               onSortByChange={setSortBy}
               onNewTaskListDialogChange={setShowNewTaskListDialog}
               onNewTaskListNameChange={setNewTaskListName}

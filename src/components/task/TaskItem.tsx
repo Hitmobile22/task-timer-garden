@@ -1,11 +1,12 @@
 
 import React from 'react';
-import { TableRow } from "@/components/ui/table";
+import { TableRow, TableCell } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
 import { TaskNameCell } from './cells/TaskNameCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
 import { TaskTimelineCell } from './cells/TaskTimelineCell';
 import { TaskActionsCell } from './cells/TaskActionsCell';
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TaskItemProps {
   task: Task;
@@ -14,6 +15,8 @@ interface TaskItemProps {
   editingTaskId: number | null;
   editingTaskName: string;
   taskLists: any[];
+  bulkMode?: boolean;
+  isSelected?: boolean;
   onToggleExpand: (taskId: number) => void;
   onEditStart: (task: Task | Subtask) => void;
   onEditCancel: () => void;
@@ -23,6 +26,7 @@ interface TaskItemProps {
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onBulkSelect?: (taskId: number, selected: boolean) => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -32,6 +36,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   editingTaskId,
   editingTaskName,
   taskLists,
+  bulkMode,
+  isSelected,
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -41,6 +47,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onMoveTask,
   onDeleteTask,
   onTimelineEdit,
+  onBulkSelect,
 }) => {
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
@@ -83,41 +90,47 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   return (
-    <React.Fragment>
-      <TableRow>
-        <TaskNameCell
-          task={task}
-          subtasks={subtasks}
-          expandedTasks={expandedTasks}
-          editingTaskId={editingTaskId}
-          editingTaskName={editingTaskName}
-          onToggleExpand={onToggleExpand}
-          onEditNameChange={onEditNameChange}
-          onEditSave={onEditSave}
-          onEditCancel={onEditCancel}
-        />
-        <TaskProgressCell
-          task={{...task, Progress: tempProgress}}
-          isEditing={isEditing}
-          onUpdateProgress={handleProgressUpdate}
-        />
-        <TaskTimelineCell
-          startDate={selectedStartDate}
-          endDate={selectedEndDate}
-          isEditing={isEditing}
-          onTimelineUpdate={handleTimelineUpdate}
-        />
-        <TaskActionsCell
-          task={{...task, task_list_id: tempListId}}
-          isEditing={isEditing}
-          taskLists={taskLists}
-          onMoveTask={setTempListId}
-          onEditStart={onEditStart}
-          onEditCancel={onEditCancel}
-          onEditSave={handleSave}
-          onDeleteTask={onDeleteTask}
-        />
-      </TableRow>
-    </React.Fragment>
+    <TableRow>
+      {bulkMode && (
+        <TableCell className="w-[50px]">
+          <Checkbox 
+            checked={isSelected} 
+            onCheckedChange={(checked) => onBulkSelect?.(task.id, checked as boolean)}
+          />
+        </TableCell>
+      )}
+      <TaskNameCell
+        task={task}
+        subtasks={subtasks}
+        expandedTasks={expandedTasks}
+        editingTaskId={editingTaskId}
+        editingTaskName={editingTaskName}
+        onToggleExpand={onToggleExpand}
+        onEditNameChange={onEditNameChange}
+        onEditSave={onEditSave}
+        onEditCancel={onEditCancel}
+      />
+      <TaskProgressCell
+        task={{...task, Progress: tempProgress}}
+        isEditing={isEditing}
+        onUpdateProgress={handleProgressUpdate}
+      />
+      <TaskTimelineCell
+        startDate={selectedStartDate}
+        endDate={selectedEndDate}
+        isEditing={isEditing}
+        onTimelineUpdate={handleTimelineUpdate}
+      />
+      <TaskActionsCell
+        task={{...task, task_list_id: tempListId}}
+        isEditing={isEditing}
+        taskLists={taskLists}
+        onMoveTask={setTempListId}
+        onEditStart={onEditStart}
+        onEditCancel={onEditCancel}
+        onEditSave={handleSave}
+        onDeleteTask={onDeleteTask}
+      />
+    </TableRow>
   );
 };

@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Filter, ArrowUpDown, Plus } from "lucide-react";
 import { Task } from '@/types/task.types';
+import { Filter, ArrowUpDown, Plus } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -15,12 +16,12 @@ import {
 
 interface TaskFiltersProps {
   searchQuery: string;
-  progressFilter: Task['Progress'] | "all";
+  progressFilter: Task['Progress'][];
   sortBy: 'date' | 'list';
   showNewTaskListDialog: boolean;
   newTaskListName: string;
   onSearchChange: (value: string) => void;
-  onProgressFilterChange: (value: Task['Progress'] | "all") => void;
+  onProgressFilterChange: (value: Task['Progress']) => void;
   onSortByChange: (value: 'date' | 'list') => void;
   onNewTaskListDialogChange: (open: boolean) => void;
   onNewTaskListNameChange: (value: string) => void;
@@ -40,6 +41,8 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   onNewTaskListNameChange,
   onCreateTaskList,
 }) => {
+  const statuses: Task['Progress'][] = ["Not started", "In progress", "Completed", "Backlog"];
+
   return (
     <div className="mb-6 space-y-4">
       <div className="flex flex-wrap gap-4 items-center justify-between">
@@ -52,6 +55,20 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
           />
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            {statuses.map((status) => (
+              <div key={status} className="flex items-center gap-2">
+                <Checkbox
+                  id={status}
+                  checked={progressFilter.includes(status)}
+                  onCheckedChange={() => onProgressFilterChange(status)}
+                />
+                <label htmlFor={status} className="text-sm font-medium">
+                  {status}
+                </label>
+              </div>
+            ))}
+          </div>
           <Dialog open={showNewTaskListDialog} onOpenChange={onNewTaskListDialogChange}>
             <DialogTrigger asChild>
               <Button variant="outline" size="icon">
@@ -80,40 +97,6 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
               </div>
             </DialogContent>
           </Dialog>
-
-          <Select
-            value={progressFilter}
-            onValueChange={(value: Task['Progress'] | "all") => onProgressFilterChange(value)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                <SelectValue placeholder="Filter by status" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Not started">Not Started</SelectItem>
-              <SelectItem value="In progress">In Progress</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
-              <SelectItem value="Backlog">Backlog</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={sortBy}
-            onValueChange={(value: 'date' | 'list') => onSortByChange(value)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <div className="flex items-center gap-2">
-                <ArrowUpDown className="h-4 w-4" />
-                <SelectValue placeholder="Sort by" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Sort by Date</SelectItem>
-              <SelectItem value="list">Sort by List</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
     </div>

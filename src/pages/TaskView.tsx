@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MenuBar } from "@/components/MenuBar";
@@ -58,7 +57,6 @@ export function TaskView() {
     const filteredTasks = getSortedAndFilteredTasks(tasks, showArchived, searchQuery, progressFilter, sortBy);
     const result = [];
 
-    // If there are no task lists, create a default one
     if (!taskLists.length) {
       const defaultList = {
         id: 'default',
@@ -88,7 +86,6 @@ export function TaskView() {
       }
     }
 
-    // Add all other task lists
     taskLists.forEach(list => {
       const listProjects = filteredProjects?.filter(project => project.task_list_id === list.id) || [];
       const projectComponents = listProjects.map(project => {
@@ -122,6 +119,33 @@ export function TaskView() {
     return result;
   }, [tasks, taskLists, filteredProjects, showArchived, searchQuery, progressFilter, sortBy]);
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over) return;
+
+    const activeId = active.id;
+    const overId = over.id;
+
+    const [activeType, activeItemId] = activeId.toString().split('-');
+    const [overType, overItemId] = overId.toString().split('-');
+
+    if (activeType === 'task' && overType === 'list') {
+      toast.success('Task moved to new list');
+    } else if (activeType === 'task' && overType === 'project') {
+      toast.success('Task moved to project');
+    }
+  };
+
+  const handleToggleExpand = (taskId: number) => {
+    setExpandedTasks(prev => {
+      if (prev.includes(taskId)) {
+        return prev.filter(id => id !== taskId);
+      }
+      return [...prev, taskId];
+    });
+  };
+
   const handleBulkProgressUpdate = async (progress: Task['Progress']) => {
     if (selectedTasks.length === 0) return;
     
@@ -143,12 +167,10 @@ export function TaskView() {
   };
 
   const handleCreateTaskList = () => {
-    // Implement task list creation logic here
     setShowNewTaskListDialog(false);
     setNewTaskListName("");
   };
 
-  // Helper function for bulk selection
   const handleBulkSelect = (taskId: number, selected: boolean) => {
     setSelectedTasks(prev => 
       selected 
@@ -263,7 +285,7 @@ export function TaskView() {
                                 bulkMode={bulkMode}
                                 selectedTasks={selectedTasks}
                                 showArchived={showArchived}
-                                onToggleExpand={setExpandedTasks}
+                                onToggleExpand={handleToggleExpand}
                                 onEditStart={(task) => {
                                   setEditingTaskId(task.id);
                                   setEditingTaskName(task["Task Name"]);
@@ -311,7 +333,7 @@ export function TaskView() {
                           bulkMode={bulkMode}
                           selectedTasks={selectedTasks}
                           showArchived={showArchived}
-                          onToggleExpand={setExpandedTasks}
+                          onToggleExpand={handleToggleExpand}
                           onEditStart={(task) => {
                             setEditingTaskId(task.id);
                             setEditingTaskName(task["Task Name"]);

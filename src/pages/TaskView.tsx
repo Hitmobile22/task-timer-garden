@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MenuBar } from "@/components/MenuBar";
@@ -28,6 +27,8 @@ export function TaskView() {
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
+  const [showNewTaskListDialog, setShowNewTaskListDialog] = useState(false);
+  const [newTaskListName, setNewTaskListName] = useState("");
 
   const {
     projects,
@@ -129,6 +130,12 @@ export function TaskView() {
     }
   };
 
+  const handleCreateTaskList = () => {
+    // Implement task list creation logic here
+    setShowNewTaskListDialog(false);
+    setNewTaskListName("");
+  };
+
   return (
     <div 
       className="min-h-screen p-6 space-y-8 animate-fadeIn"
@@ -152,6 +159,8 @@ export function TaskView() {
               searchQuery={searchQuery}
               progressFilter={progressFilter}
               sortBy={sortBy}
+              showNewTaskListDialog={showNewTaskListDialog}
+              newTaskListName={newTaskListName}
               onSearchChange={setSearchQuery}
               onProgressFilterChange={(progress) => {
                 setProgressFilter(prev => {
@@ -162,6 +171,9 @@ export function TaskView() {
                 });
               }}
               onSortByChange={setSortBy}
+              onNewTaskListDialogChange={setShowNewTaskListDialog}
+              onNewTaskListNameChange={setNewTaskListName}
+              onCreateTaskList={handleCreateTaskList}
             />
             <div className="flex items-center gap-4">
               <Button
@@ -333,6 +345,33 @@ export function TaskView() {
         onOpenChange={setShowProjectDialog}
         onCreateProject={() => {}}
       />
+
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm p-4"
+        style={{ bottom: 0 }}
+      >
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold">New Task List</h3>
+          <Button
+            variant="outline"
+            onClick={() => setShowNewTaskListDialog(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleCreateTaskList}
+          >
+            Create
+          </Button>
+        </div>
+        <input
+          type="text"
+          value={newTaskListName}
+          onChange={(e) => setNewTaskListName(e.target.value)}
+          className="mt-4 w-full p-2 border border-gray-300 rounded"
+        />
+      </div>
     </div>
   );
 }

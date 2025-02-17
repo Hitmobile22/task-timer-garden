@@ -33,7 +33,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   progressFilter,
   sortBy,
   showNewTaskListDialog,
-  newTaskListName,
+  newTaskListName = '', // Provide default value to prevent trim() of undefined
   onSearchChange,
   onProgressFilterChange,
   onSortByChange,

@@ -19,6 +19,7 @@ interface TaskListProps {
   bulkMode: boolean;
   selectedTasks: number[];
   showArchived: boolean;
+  showHeader?: boolean;
   onToggleExpand: (taskId: number) => void;
   onEditStart: (task: Task | Subtask) => void;
   onEditCancel: () => void;
@@ -44,6 +45,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   bulkMode,
   selectedTasks,
   showArchived,
+  showHeader = true,
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -78,17 +80,19 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
       )}
       
       <Table>
-        <TableHeader>
-          <TableRow>
-            {bulkMode && (
-              <TableHead className="w-[50px]">Select</TableHead>
-            )}
-            <TableHead>Task Name</TableHead>
-            <TableHead>Progress</TableHead>
-            <TableHead>Timeline</TableHead>
-            <TableHead className="w-[200px]">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
+        {showHeader && (
+          <TableHeader>
+            <TableRow>
+              {bulkMode && (
+                <TableHead className="w-[50px]">Select</TableHead>
+              )}
+              <TableHead>Task Name</TableHead>
+              <TableHead>Progress</TableHead>
+              <TableHead>Timeline</TableHead>
+              <TableHead className="w-[200px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+        )}
         <TableBody>
           {tasks?.filter(task => showArchived || !task.archived).map((task) => (
             <React.Fragment key={task.id}>

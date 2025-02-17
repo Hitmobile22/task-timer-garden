@@ -92,6 +92,18 @@ export function TaskView() {
 
   const handleDeleteProject = async (projectId: number) => {
     try {
+      const { data: projectTasks, error: checkError } = await supabase
+        .from('Tasks')
+        .select('id')
+        .eq('project_id', projectId);
+      
+      if (checkError) throw checkError;
+      
+      if (projectTasks && projectTasks.length > 0) {
+        toast.error('Cannot delete project that contains tasks');
+        return;
+      }
+
       const { error } = await supabase
         .from('Projects')
         .delete()
@@ -107,6 +119,25 @@ export function TaskView() {
 
   const handleDeleteTaskList = async (listId: number) => {
     try {
+      if (listId === 1) {
+        toast.error('Cannot delete default task list');
+        return;
+      }
+
+      const [tasksResult, projectsResult] = await Promise.all([
+        supabase.from('Tasks').select('id').eq('task_list_id', listId),
+        supabase.from('Projects').select('id').eq('task_list_id', listId)
+      ]);
+      
+      if (tasksResult.error) throw tasksResult.error;
+      if (projectsResult.error) throw projectsResult.error;
+      
+      if ((tasksResult.data && tasksResult.data.length > 0) || 
+          (projectsResult.data && projectsResult.data.length > 0)) {
+        toast.error('Cannot delete list that contains tasks or projects');
+        return;
+      }
+
       const { error } = await supabase
         .from('TaskLists')
         .delete()
@@ -128,15 +159,36 @@ export function TaskView() {
     const overId = Number(over.id.toString().replace('task-', ''));
     
     const activeTask = tasks?.find(t => t.id === activeId);
-    const overTask = tasks?.find(t => t.id === overId);
-    
-    if (!activeTask || !overTask) return;
+    if (!activeTask) return;
 
     try {
+      let targetListId = activeTask.task_list_id;
+      let targetProjectId = null;
+
+      if (over.id.toString().startsWith('project-')) {
+        const projectId = Number(over.id.toString().replace('project-', ''));
+        const project = projects?.find(p => p.id === projectId);
+        if (project) {
+          targetListId = project.task_list_id;
+          targetProjectId = project.id;
+        }
+      }
+      else if (over.id.toString().startsWith('list-')) {
+        targetListId = Number(over.id.toString().replace('list-', ''));
+        targetProjectId = null;
+      }
+      else {
+        const overTask = tasks?.find(t => t.id === overId);
+        if (overTask) {
+          targetListId = overTask.task_list_id;
+          targetProjectId = overTask.project_id;
+        }
+      }
+
       await handleMoveTask(
         activeTask.id,
-        overTask.task_list_id ?? activeTask.task_list_id ?? 0,
-        overTask.project_id
+        targetListId ?? 1,
+        targetProjectId
       );
 
       toast.success('Task moved successfully');
@@ -319,6 +371,7 @@ export function TaskView() {
                           background: `linear-gradient(to right, ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}15, ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}30)`,
                           borderLeft: `4px solid ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}` 
                         }}
+                        data-id={`list-${list.id}`}
                       >
                         <div className="flex items-center gap-2">
                           <h3 className="text-lg font-semibold">{list.name}</h3>
@@ -326,19 +379,25 @@ export function TaskView() {
                             ({tasks.length + projects.reduce((sum, p) => sum + p.tasks.length, 0)} tasks)
                           </span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteTaskList(list.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {list.id !== 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteTaskList(list.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     )}
                     
                     {projects.map(({ project, tasks: projectTasks }) => (
-                      <div key={project.id} className="ml-4 space-y-2">
+                      <div 
+                        key={project.id} 
+                        className="ml-4 space-y-2"
+                        data-id={`project-${project.id}`}
+                      >
                         <div className="flex items-center justify-between px-4 py-2 bg-white/30 rounded-lg">
                           <div className="flex items-center gap-2">
                             <h4 className="text-md font-medium">{project["Project Name"]}</h4>
@@ -355,46 +414,49 @@ export function TaskView() {
                         </div>
                         <div className="ml-4">
                           <SortableContext items={projectTasks.map(t => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
-                            <TaskListComponent
-                              tasks={projectTasks}
-                              subtasks={subtasks}
-                              expandedTasks={expandedTasks}
-                              editingTaskId={editingTaskId}
-                              editingTaskName={editingTaskName}
-                              taskLists={taskLists || []}
-                              bulkMode={bulkMode}
-                              selectedTasks={selectedTasks}
-                              showArchived={showArchived}
-                              onToggleExpand={handleToggleExpand}
-                              onEditStart={(task) => {
-                                setEditingTaskId(task.id);
-                                setEditingTaskName(task["Task Name"]);
-                              }}
-                              onEditCancel={() => {
-                                setEditingTaskId(null);
-                                setEditingTaskName("");
-                              }}
-                              onEditSave={(taskId, isSubtask) => {
-                                if (editingTaskName.trim()) {
-                                  updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                            <div className={`min-h-[100px] ${projectTasks.length === 0 ? 'bg-gray-50/50 rounded-lg p-4' : ''}`}>
+                              <TaskListComponent
+                                tasks={projectTasks}
+                                subtasks={subtasks}
+                                expandedTasks={expandedTasks}
+                                editingTaskId={editingTaskId}
+                                editingTaskName={editingTaskName}
+                                taskLists={taskLists || []}
+                                bulkMode={bulkMode}
+                                selectedTasks={selectedTasks}
+                                showArchived={showArchived}
+                                showHeader={projectTasks.length > 0}
+                                onToggleExpand={handleToggleExpand}
+                                onEditStart={(task) => {
+                                  setEditingTaskId(task.id);
+                                  setEditingTaskName(task["Task Name"]);
+                                }}
+                                onEditCancel={() => {
                                   setEditingTaskId(null);
                                   setEditingTaskName("");
-                                }
-                              }}
-                              onEditNameChange={setEditingTaskName}
-                              onUpdateProgress={(taskId, progress, isSubtask) => {
-                                updateProgressMutation.mutate({ taskId, progress, isSubtask });
-                              }}
-                              onMoveTask={handleMoveTask}
-                              onDeleteTask={deleteMutation.mutate}
-                              onArchiveTask={archiveTaskMutation.mutate}
-                              onAddSubtask={handleAddSubtask}
-                              onTimelineEdit={(taskId, start, end) => {
-                                updateTaskTimelineMutation.mutate({ taskId, start, end });
-                              }}
-                              onBulkSelect={handleBulkSelect}
-                              onBulkProgressUpdate={handleBulkProgressUpdate}
-                            />
+                                }}
+                                onEditSave={(taskId, isSubtask) => {
+                                  if (editingTaskName.trim()) {
+                                    updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                                    setEditingTaskId(null);
+                                    setEditingTaskName("");
+                                  }
+                                }}
+                                onEditNameChange={setEditingTaskName}
+                                onUpdateProgress={(taskId, progress, isSubtask) => {
+                                  updateProgressMutation.mutate({ taskId, progress, isSubtask });
+                                }}
+                                onMoveTask={handleMoveTask}
+                                onDeleteTask={deleteMutation.mutate}
+                                onArchiveTask={archiveTaskMutation.mutate}
+                                onAddSubtask={handleAddSubtask}
+                                onTimelineEdit={(taskId, start, end) => {
+                                  updateTaskTimelineMutation.mutate({ taskId, start, end });
+                                }}
+                                onBulkSelect={handleBulkSelect}
+                                onBulkProgressUpdate={handleBulkProgressUpdate}
+                              />
+                            </div>
                           </SortableContext>
                         </div>
                       </div>

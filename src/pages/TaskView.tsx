@@ -512,6 +512,14 @@ export function TaskView() {
     }
   };
 
+  const handleUpdateProgress = useCallback((taskId: number, progress: Task['Progress'], isSubtask?: boolean) => {
+    updateProgressMutation.mutate({ taskId, progress, isSubtask });
+  }, [updateProgressMutation]);
+
+  const handleMoveTask = useCallback((taskId: number, listId: number) => {
+    updateTaskListMutation.mutate({ listId, name: taskId.toString() });
+  }, [updateTaskListMutation]);
+
   return (
     <div 
       className="min-h-screen p-6 space-y-8 animate-fadeIn"
@@ -616,8 +624,8 @@ export function TaskView() {
                                 onEditCancel={handleEditCancel}
                                 onEditSave={handleEditSave}
                                 onEditNameChange={setEditingTaskName}
-                                onUpdateProgress={updateProgressMutation.mutate}
-                                onMoveTask={updateTaskListMutation.mutate}
+                                onUpdateProgress={handleUpdateProgress}
+                                onMoveTask={handleMoveTask}
                                 onDeleteTask={deleteMutation.mutate}
                                 onArchiveTask={handleArchiveTask}
                                 onAddSubtask={handleAddSubtask}
@@ -658,8 +666,8 @@ export function TaskView() {
                           onEditCancel={handleEditCancel}
                           onEditSave={handleEditSave}
                           onEditNameChange={setEditingTaskName}
-                          onUpdateProgress={updateProgressMutation.mutate}
-                          onMoveTask={updateTaskListMutation.mutate}
+                          onUpdateProgress={handleUpdateProgress}
+                          onMoveTask={handleMoveTask}
                           onDeleteTask={deleteMutation.mutate}
                           onArchiveTask={handleArchiveTask}
                           onAddSubtask={handleAddSubtask}

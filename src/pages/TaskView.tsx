@@ -165,11 +165,11 @@ export function TaskView() {
   });
 
   const updateTaskListMutation = useMutation({
-    mutationFn: async ({ listId, name }: { listId: number; name: string }) => {
+    mutationFn: async ({ taskId, listId }: { taskId: number; listId: number }) => {
       const { error } = await supabase
         .from('Tasks')
         .update({ task_list_id: listId })
-        .eq('id', parseInt(name)); // Convert the string ID to a number
+        .eq('id', taskId);
       
       if (error) throw error;
     },
@@ -337,6 +337,10 @@ export function TaskView() {
     return grouped;
   }, [tasks, taskLists, getSortedAndFilteredTasks]);
 
+  const handleMoveTask = (taskId: number, listId: number) => {
+    updateTaskListMutation.mutate({ taskId, listId });
+  };
+
   return (
     <div 
       className="min-h-screen p-6 space-y-8 animate-fadeIn"
@@ -461,9 +465,7 @@ export function TaskView() {
                         onUpdateProgress={(taskId, progress, isSubtask) => 
                           updateProgressMutation.mutate({ taskId, progress, isSubtask })
                         }
-                        onMoveTask={(taskId, listId) => 
-                          updateTaskListMutation.mutate({ listId, name: taskId.toString() })
-                        }
+                        onMoveTask={handleMoveTask}
                         onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
                         onTimelineEdit={(taskId, start, end) => {
                           updateTaskTimelineMutation.mutate({ 
@@ -494,9 +496,7 @@ export function TaskView() {
               onUpdateProgress={(taskId, progress, isSubtask) => 
                 updateProgressMutation.mutate({ taskId, progress, isSubtask })
               }
-              onMoveTask={(taskId, listId) => 
-                updateTaskListMutation.mutate({ listId, name: taskId.toString() })
-              }
+              onMoveTask={handleMoveTask}
               onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
               onTimelineEdit={(taskId, start, end) => {
                 updateTaskTimelineMutation.mutate({ 

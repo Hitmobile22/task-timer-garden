@@ -59,7 +59,6 @@ export const TaskViewContent2 = ({ state, handlers, queries, mutations }) => {
           state={state}
           handlers={handlers}
           queries={queries}
-          mutations={mutations}
         />
       </DndContext>
     </>

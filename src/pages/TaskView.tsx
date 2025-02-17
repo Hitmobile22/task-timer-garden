@@ -71,6 +71,19 @@ export function TaskView() {
     },
   });
 
+  const { data: subtasks, isLoading: subtasksLoading } = useQuery({
+    queryKey: ['subtasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('subtasks')
+        .select('*')
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      return data as Subtask[];
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (taskId: number) => {
       const { error } = await supabase
@@ -271,7 +284,7 @@ export function TaskView() {
     return format(new Date(date), 'MMM d, h:mm a');
   };
 
-  const isLoading = tasksLoading;
+  const isLoading = tasksLoading || subtasksLoading;
 
   const getSortedAndFilteredTasks = React.useCallback((tasks: Task[] | undefined) => {
     if (!tasks) return [];

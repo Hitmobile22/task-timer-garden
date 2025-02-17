@@ -8,12 +8,14 @@ import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
 import { GoogleCalendarIntegration } from '@/components/task/GoogleCalendarIntegration';
 import { ProjectDialog } from '@/components/task/ProjectDialog';
-import { PencilIcon, ListFilter, Folders } from "lucide-react";
+import { PencilIcon, ListFilter, Folders, Trash2 } from "lucide-react";
 import { DEFAULT_LIST_COLOR, TASK_LIST_COLORS } from '@/constants/taskColors';
 import { useTaskQueries } from '@/hooks/useTaskQueries';
 import { useTaskMutations } from '@/hooks/useTaskMutations';
 import { getSortedAndFilteredTasks, getFilteredProjects, getTaskListColor } from '@/utils/taskViewUtils';
 import { supabase } from "@/integrations/supabase/client";
+import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 export function TaskView() {
   const navigate = useNavigate();
@@ -88,6 +90,62 @@ export function TaskView() {
     }
   };
 
+  const handleDeleteProject = async (projectId: number) => {
+    try {
+      const { error } = await supabase
+        .from('Projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+      toast.success('Project deleted');
+    } catch (error) {
+      console.error('Delete project error:', error);
+      toast.error('Failed to delete project');
+    }
+  };
+
+  const handleDeleteTaskList = async (listId: number) => {
+    try {
+      const { error } = await supabase
+        .from('TaskLists')
+        .delete()
+        .eq('id', listId);
+
+      if (error) throw error;
+      toast.success('Task list deleted');
+    } catch (error) {
+      console.error('Delete task list error:', error);
+      toast.error('Failed to delete task list');
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeId = Number(active.id.toString().replace('task-', ''));
+    const overId = Number(over.id.toString().replace('task-', ''));
+    
+    const activeTask = tasks?.find(t => t.id === activeId);
+    const overTask = tasks?.find(t => t.id === overId);
+    
+    if (!activeTask || !overTask) return;
+
+    try {
+      await handleMoveTask(
+        activeTask.id,
+        overTask.task_list_id ?? activeTask.task_list_id ?? 0,
+        overTask.project_id
+      );
+
+      toast.success('Task moved successfully');
+    } catch (error) {
+      console.error('Move task error:', error);
+      toast.error('Failed to move task');
+    }
+  };
+
   const filteredProjects = React.useMemo(() => 
     getFilteredProjects(projects, searchQuery, progressFilter),
     [projects, searchQuery, progressFilter]
@@ -97,7 +155,6 @@ export function TaskView() {
     const filtered = getSortedAndFilteredTasks(tasks, showArchived, searchQuery, progressFilter, sortBy);
     
     if (sortBy === 'list') {
-      // Group tasks by task list and then by project
       return taskLists?.map(list => ({
         list,
         projects: getFilteredProjects(projects, searchQuery, progressFilter)
@@ -116,7 +173,6 @@ export function TaskView() {
       })) || [];
     }
 
-    // For date sorting, return all tasks together
     return [{ tasks: filtered }];
   }, [tasks, projects, showArchived, searchQuery, progressFilter, sortBy, taskLists]);
 
@@ -249,35 +305,105 @@ export function TaskView() {
             </div>
           </div>
 
-          {isLoading ? (
-            <div>Loading...</div>
-          ) : sortBy === 'list' ? (
-            <div className="space-y-8">
-              {filteredTasks.map(({ list, projects = [], tasks }) => (
-                <div key={list?.id || 'unsorted'} className="space-y-4">
-                  {list && (
-                    <div 
-                      className="flex items-center gap-2 px-4 py-2 bg-white/50 rounded-lg shadow-sm"
-                      style={{ 
-                        borderLeft: `4px solid ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}` 
-                      }}
-                    >
-                      <h3 className="text-lg font-semibold">{list.name}</h3>
-                      <span className="text-sm text-gray-500">
-                        ({tasks.length + projects.reduce((sum, p) => sum + p.tasks.length, 0)} tasks)
-                      </span>
-                    </div>
-                  )}
-                  
-                  {projects.map(({ project, tasks: projectTasks }) => (
-                    <div key={project.id} className="ml-4 space-y-2">
-                      <div className="flex items-center gap-2 px-4 py-2 bg-white/30 rounded-lg">
-                        <h4 className="text-md font-medium">{project["Project Name"]}</h4>
-                        <span className="text-sm text-gray-500">({projectTasks.length})</span>
+          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            {isLoading ? (
+              <div>Loading...</div>
+            ) : sortBy === 'list' ? (
+              <div className="space-y-8">
+                {filteredTasks.map(({ list, projects = [], tasks }) => (
+                  <div key={list?.id || 'unsorted'} className="space-y-4">
+                    {list && (
+                      <div 
+                        className="flex items-center justify-between px-4 py-2 rounded-lg shadow-sm"
+                        style={{ 
+                          background: `linear-gradient(to right, ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}15, ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}30)`,
+                          borderLeft: `4px solid ${list.color || getTaskListColor(list.name) || DEFAULT_LIST_COLOR}` 
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-semibold">{list.name}</h3>
+                          <span className="text-sm text-gray-500">
+                            ({tasks.length + projects.reduce((sum, p) => sum + p.tasks.length, 0)} tasks)
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteTaskList(list.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
-                      <div className="ml-4">
+                    )}
+                    
+                    {projects.map(({ project, tasks: projectTasks }) => (
+                      <div key={project.id} className="ml-4 space-y-2">
+                        <div className="flex items-center justify-between px-4 py-2 bg-white/30 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-md font-medium">{project["Project Name"]}</h4>
+                            <span className="text-sm text-gray-500">({projectTasks.length})</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteProject(project.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <div className="ml-4">
+                          <SortableContext items={projectTasks.map(t => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
+                            <TaskListComponent
+                              tasks={projectTasks}
+                              subtasks={subtasks}
+                              expandedTasks={expandedTasks}
+                              editingTaskId={editingTaskId}
+                              editingTaskName={editingTaskName}
+                              taskLists={taskLists || []}
+                              bulkMode={bulkMode}
+                              selectedTasks={selectedTasks}
+                              showArchived={showArchived}
+                              onToggleExpand={handleToggleExpand}
+                              onEditStart={(task) => {
+                                setEditingTaskId(task.id);
+                                setEditingTaskName(task["Task Name"]);
+                              }}
+                              onEditCancel={() => {
+                                setEditingTaskId(null);
+                                setEditingTaskName("");
+                              }}
+                              onEditSave={(taskId, isSubtask) => {
+                                if (editingTaskName.trim()) {
+                                  updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                                  setEditingTaskId(null);
+                                  setEditingTaskName("");
+                                }
+                              }}
+                              onEditNameChange={setEditingTaskName}
+                              onUpdateProgress={(taskId, progress, isSubtask) => {
+                                updateProgressMutation.mutate({ taskId, progress, isSubtask });
+                              }}
+                              onMoveTask={handleMoveTask}
+                              onDeleteTask={deleteMutation.mutate}
+                              onArchiveTask={archiveTaskMutation.mutate}
+                              onAddSubtask={handleAddSubtask}
+                              onTimelineEdit={(taskId, start, end) => {
+                                updateTaskTimelineMutation.mutate({ taskId, start, end });
+                              }}
+                              onBulkSelect={handleBulkSelect}
+                              onBulkProgressUpdate={handleBulkProgressUpdate}
+                            />
+                          </SortableContext>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <div className="ml-4">
+                      <SortableContext items={tasks.map(t => `task-${t.id}`)} strategy={verticalListSortingStrategy}>
                         <TaskListComponent
-                          tasks={projectTasks}
+                          tasks={tasks}
                           subtasks={subtasks}
                           expandedTasks={expandedTasks}
                           editingTaskId={editingTaskId}
@@ -316,97 +442,54 @@ export function TaskView() {
                           onBulkSelect={handleBulkSelect}
                           onBulkProgressUpdate={handleBulkProgressUpdate}
                         />
-                      </div>
+                      </SortableContext>
                     </div>
-                  ))}
-                  
-                  <div className="ml-4">
-                    <TaskListComponent
-                      tasks={tasks}
-                      subtasks={subtasks}
-                      expandedTasks={expandedTasks}
-                      editingTaskId={editingTaskId}
-                      editingTaskName={editingTaskName}
-                      taskLists={taskLists || []}
-                      bulkMode={bulkMode}
-                      selectedTasks={selectedTasks}
-                      showArchived={showArchived}
-                      onToggleExpand={handleToggleExpand}
-                      onEditStart={(task) => {
-                        setEditingTaskId(task.id);
-                        setEditingTaskName(task["Task Name"]);
-                      }}
-                      onEditCancel={() => {
-                        setEditingTaskId(null);
-                        setEditingTaskName("");
-                      }}
-                      onEditSave={(taskId, isSubtask) => {
-                        if (editingTaskName.trim()) {
-                          updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
-                          setEditingTaskId(null);
-                          setEditingTaskName("");
-                        }
-                      }}
-                      onEditNameChange={setEditingTaskName}
-                      onUpdateProgress={(taskId, progress, isSubtask) => {
-                        updateProgressMutation.mutate({ taskId, progress, isSubtask });
-                      }}
-                      onMoveTask={handleMoveTask}
-                      onDeleteTask={deleteMutation.mutate}
-                      onArchiveTask={archiveTaskMutation.mutate}
-                      onAddSubtask={handleAddSubtask}
-                      onTimelineEdit={(taskId, start, end) => {
-                        updateTaskTimelineMutation.mutate({ taskId, start, end });
-                      }}
-                      onBulkSelect={handleBulkSelect}
-                      onBulkProgressUpdate={handleBulkProgressUpdate}
-                    />
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <TaskListComponent
-              tasks={filteredTasks[0]?.tasks || []}
-              subtasks={subtasks}
-              expandedTasks={expandedTasks}
-              editingTaskId={editingTaskId}
-              editingTaskName={editingTaskName}
-              taskLists={taskLists || []}
-              bulkMode={bulkMode}
-              selectedTasks={selectedTasks}
-              showArchived={showArchived}
-              onToggleExpand={handleToggleExpand}
-              onEditStart={(task) => {
-                setEditingTaskId(task.id);
-                setEditingTaskName(task["Task Name"]);
-              }}
-              onEditCancel={() => {
-                setEditingTaskId(null);
-                setEditingTaskName("");
-              }}
-              onEditSave={(taskId, isSubtask) => {
-                if (editingTaskName.trim()) {
-                  updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                ))}
+              </div>
+            ) : (
+              <TaskListComponent
+                tasks={filteredTasks[0]?.tasks || []}
+                subtasks={subtasks}
+                expandedTasks={expandedTasks}
+                editingTaskId={editingTaskId}
+                editingTaskName={editingTaskName}
+                taskLists={taskLists || []}
+                bulkMode={bulkMode}
+                selectedTasks={selectedTasks}
+                showArchived={showArchived}
+                onToggleExpand={handleToggleExpand}
+                onEditStart={(task) => {
+                  setEditingTaskId(task.id);
+                  setEditingTaskName(task["Task Name"]);
+                }}
+                onEditCancel={() => {
                   setEditingTaskId(null);
                   setEditingTaskName("");
-                }
-              }}
-              onEditNameChange={setEditingTaskName}
-              onUpdateProgress={(taskId, progress, isSubtask) => {
-                updateProgressMutation.mutate({ taskId, progress, isSubtask });
-              }}
-              onMoveTask={handleMoveTask}
-              onDeleteTask={deleteMutation.mutate}
-              onArchiveTask={archiveTaskMutation.mutate}
-              onAddSubtask={handleAddSubtask}
-              onTimelineEdit={(taskId, start, end) => {
-                updateTaskTimelineMutation.mutate({ taskId, start, end });
-              }}
-              onBulkSelect={handleBulkSelect}
-              onBulkProgressUpdate={handleBulkProgressUpdate}
-            />
-          )}
+                }}
+                onEditSave={(taskId, isSubtask) => {
+                  if (editingTaskName.trim()) {
+                    updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                    setEditingTaskId(null);
+                    setEditingTaskName("");
+                  }
+                }}
+                onEditNameChange={setEditingTaskName}
+                onUpdateProgress={(taskId, progress, isSubtask) => {
+                  updateProgressMutation.mutate({ taskId, progress, isSubtask });
+                }}
+                onMoveTask={handleMoveTask}
+                onDeleteTask={deleteMutation.mutate}
+                onArchiveTask={archiveTaskMutation.mutate}
+                onAddSubtask={handleAddSubtask}
+                onTimelineEdit={(taskId, start, end) => {
+                  updateTaskTimelineMutation.mutate({ taskId, start, end });
+                }}
+                onBulkSelect={handleBulkSelect}
+                onBulkProgressUpdate={handleBulkProgressUpdate}
+              />
+            )}
+          </DndContext>
         </div>
       </main>
 

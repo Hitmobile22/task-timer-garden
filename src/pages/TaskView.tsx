@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MenuBar } from "@/components/MenuBar";
@@ -13,22 +14,19 @@ import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { useTaskQueries } from '@/hooks/useTaskQueries';
 import { useTaskMutations } from '@/hooks/useTaskMutations';
 import { getSortedAndFilteredTasks, getFilteredProjects } from '@/utils/taskViewUtils';
-import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
 
 export function TaskView() {
   const navigate = useNavigate();
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [editingTaskName, setEditingTaskName] = useState("");
   const [expandedTasks, setExpandedTasks] = useState<number[]>([]);
-  const [progressFilter, setProgressFilter] = useState<Task['Progress'][]>(["Not started", "In progress"]);
+  const [progressFilter, setProgressFilter] = useState<Task['Progress'][]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<'date' | 'list'>('list');
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [showProjectDialog, setShowProjectDialog] = useState(false);
-  const [showNewTaskListDialog, setShowNewTaskListDialog] = useState(false);
-  const [newTaskListName, setNewTaskListName] = useState("");
 
   const {
     projects,
@@ -51,91 +49,10 @@ export function TaskView() {
     [projects, searchQuery, progressFilter]
   );
 
-  const organizedTasks = React.useMemo(() => {
-    if (!tasks || !taskLists) return [];
-    
-    const filteredTasks = getSortedAndFilteredTasks(tasks, showArchived, searchQuery, progressFilter, sortBy);
-    const result = [];
-
-    if (!taskLists.length) {
-      const defaultList = {
-        id: 'default',
-        name: 'Default List',
-        color: DEFAULT_LIST_COLOR
-      };
-
-      const listTasks = filteredTasks.filter(task => !task.task_list_id);
-      const listProjects = filteredProjects?.filter(project => !project.task_list_id) || [];
-
-      if (listTasks.length > 0 || listProjects.length > 0) {
-        result.push({
-          type: 'list',
-          id: 'list-default',
-          name: defaultList.name,
-          color: defaultList.color,
-          projects: listProjects.map(project => ({
-            type: 'project',
-            id: `project-${project.id}`,
-            name: project["Project Name"],
-            progress: project.progress,
-            tasks: filteredTasks.filter(task => task.project_id === project.id),
-            parentList: defaultList
-          })),
-          tasks: listTasks
-        });
-      }
-    }
-
-    taskLists.forEach(list => {
-      const listProjects = filteredProjects?.filter(project => project.task_list_id === list.id) || [];
-      const projectComponents = listProjects.map(project => {
-        const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
-        return {
-          type: 'project',
-          id: `project-${project.id}`,
-          name: project["Project Name"],
-          progress: project.progress,
-          tasks: projectTasks,
-          parentList: list
-        };
-      });
-
-      const listTasks = filteredTasks.filter(
-        task => task.task_list_id === list.id && !task.project_id
-      );
-
-      if (projectComponents.length > 0 || listTasks.length > 0) {
-        result.push({
-          type: 'list',
-          id: `list-${list.id}`,
-          name: list.name,
-          color: list.color || DEFAULT_LIST_COLOR,
-          projects: projectComponents,
-          tasks: listTasks
-        });
-      }
-    });
-
-    return result;
-  }, [tasks, taskLists, filteredProjects, showArchived, searchQuery, progressFilter, sortBy]);
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (!over) return;
-
-    const activeId = active.id;
-    const overId = over.id;
-
-    const [activeType, activeItemId] = activeId.toString().split('-');
-    const [overType, overItemId] = overId.toString().split('-');
-
-    if (activeType === 'task' && overType === 'list') {
-      toast.success('Task moved to new list');
-    } else if (activeType === 'task' && overType === 'project') {
-      toast.success('Task moved to project');
-    }
-  };
+  const filteredTasks = React.useMemo(() => 
+    getSortedAndFilteredTasks(tasks, showArchived, searchQuery, progressFilter, sortBy),
+    [tasks, showArchived, searchQuery, progressFilter, sortBy]
+  );
 
   const handleToggleExpand = (taskId: number) => {
     setExpandedTasks(prev => {
@@ -164,11 +81,6 @@ export function TaskView() {
       toast.error('Failed to update tasks');
       console.error('Bulk update error:', error);
     }
-  };
-
-  const handleCreateTaskList = () => {
-    setShowNewTaskListDialog(false);
-    setNewTaskListName("");
   };
 
   const handleBulkSelect = (taskId: number, selected: boolean) => {
@@ -202,8 +114,6 @@ export function TaskView() {
               searchQuery={searchQuery}
               progressFilter={progressFilter}
               sortBy={sortBy}
-              showNewTaskListDialog={showNewTaskListDialog}
-              newTaskListName={newTaskListName}
               onSearchChange={setSearchQuery}
               onProgressFilterChange={(progress) => {
                 setProgressFilter(prev => {
@@ -214,9 +124,6 @@ export function TaskView() {
                 });
               }}
               onSortByChange={setSortBy}
-              onNewTaskListDialogChange={setShowNewTaskListDialog}
-              onNewTaskListNameChange={setNewTaskListName}
-              onCreateTaskList={handleCreateTaskList}
             />
             <div className="flex items-center gap-4">
               <Button
@@ -246,128 +153,50 @@ export function TaskView() {
             </div>
           </div>
 
-          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <div className="space-y-6">
-              {organizedTasks.map(list => (
-                <div 
-                  key={list.id}
-                  className="space-y-4"
-                >
-                  <div 
-                    className="p-4 rounded-lg"
-                    style={{
-                      background: list.color || DEFAULT_LIST_COLOR,
-                    }}
-                  >
-                    <h2 className="text-xl font-bold text-white mb-4">{list.name}</h2>
-                    
-                    {list.projects.length > 0 && (
-                      <div className="space-y-4 mb-4">
-                        {list.projects.map(project => (
-                          <div 
-                            key={project.id}
-                            className="p-4 rounded-lg bg-white/90 backdrop-blur-sm"
-                          >
-                            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                              <span>{project.name}</span>
-                              <span className="text-sm font-normal text-gray-500">
-                                ({project.progress})
-                              </span>
-                            </h3>
-                            {project.tasks.length > 0 ? (
-                              <TaskListComponent
-                                tasks={project.tasks}
-                                subtasks={subtasks}
-                                expandedTasks={expandedTasks}
-                                editingTaskId={editingTaskId}
-                                editingTaskName={editingTaskName}
-                                taskLists={taskLists || []}
-                                bulkMode={bulkMode}
-                                selectedTasks={selectedTasks}
-                                showArchived={showArchived}
-                                onToggleExpand={handleToggleExpand}
-                                onEditStart={(task) => {
-                                  setEditingTaskId(task.id);
-                                  setEditingTaskName(task["Task Name"]);
-                                }}
-                                onEditCancel={() => {
-                                  setEditingTaskId(null);
-                                  setEditingTaskName("");
-                                }}
-                                onEditSave={(taskId, isSubtask) => {
-                                  if (editingTaskName.trim()) {
-                                    updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
-                                  }
-                                }}
-                                onEditNameChange={setEditingTaskName}
-                                onUpdateProgress={(taskId, progress, isSubtask) => {
-                                  updateProgressMutation.mutate({ taskId, progress, isSubtask });
-                                }}
-                                onMoveTask={() => {}}
-                                onDeleteTask={deleteMutation.mutate}
-                                onArchiveTask={archiveTaskMutation.mutate}
-                                onAddSubtask={() => {}}
-                                onTimelineEdit={(taskId, start, end) => {
-                                  updateTaskTimelineMutation.mutate({ taskId, start, end });
-                                }}
-                                onBulkSelect={handleBulkSelect}
-                                onBulkProgressUpdate={handleBulkProgressUpdate}
-                              />
-                            ) : (
-                              <p className="text-gray-500 italic">No tasks in this project yet</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {list.tasks.length > 0 && (
-                      <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4">
-                        <TaskListComponent
-                          tasks={list.tasks}
-                          subtasks={subtasks}
-                          expandedTasks={expandedTasks}
-                          editingTaskId={editingTaskId}
-                          editingTaskName={editingTaskName}
-                          taskLists={taskLists || []}
-                          bulkMode={bulkMode}
-                          selectedTasks={selectedTasks}
-                          showArchived={showArchived}
-                          onToggleExpand={handleToggleExpand}
-                          onEditStart={(task) => {
-                            setEditingTaskId(task.id);
-                            setEditingTaskName(task["Task Name"]);
-                          }}
-                          onEditCancel={() => {
-                            setEditingTaskId(null);
-                            setEditingTaskName("");
-                          }}
-                          onEditSave={(taskId, isSubtask) => {
-                            if (editingTaskName.trim()) {
-                              updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
-                            }
-                          }}
-                          onEditNameChange={setEditingTaskName}
-                          onUpdateProgress={(taskId, progress, isSubtask) => {
-                            updateProgressMutation.mutate({ taskId, progress, isSubtask });
-                          }}
-                          onMoveTask={() => {}}
-                          onDeleteTask={deleteMutation.mutate}
-                          onArchiveTask={archiveTaskMutation.mutate}
-                          onAddSubtask={() => {}}
-                          onTimelineEdit={(taskId, start, end) => {
-                            updateTaskTimelineMutation.mutate({ taskId, start, end });
-                          }}
-                          onBulkSelect={handleBulkSelect}
-                          onBulkProgressUpdate={handleBulkProgressUpdate}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </DndContext>
+          {isLoading ? (
+            <div>Loading...</div>
+          ) : (
+            <TaskListComponent
+              tasks={filteredTasks}
+              subtasks={subtasks}
+              expandedTasks={expandedTasks}
+              editingTaskId={editingTaskId}
+              editingTaskName={editingTaskName}
+              taskLists={taskLists || []}
+              bulkMode={bulkMode}
+              selectedTasks={selectedTasks}
+              showArchived={showArchived}
+              onToggleExpand={handleToggleExpand}
+              onEditStart={(task) => {
+                setEditingTaskId(task.id);
+                setEditingTaskName(task["Task Name"]);
+              }}
+              onEditCancel={() => {
+                setEditingTaskId(null);
+                setEditingTaskName("");
+              }}
+              onEditSave={(taskId, isSubtask) => {
+                if (editingTaskName.trim()) {
+                  updateTaskNameMutation.mutate({ taskId, taskName: editingTaskName, isSubtask });
+                  setEditingTaskId(null);
+                  setEditingTaskName("");
+                }
+              }}
+              onEditNameChange={setEditingTaskName}
+              onUpdateProgress={(taskId, progress, isSubtask) => {
+                updateProgressMutation.mutate({ taskId, progress, isSubtask });
+              }}
+              onMoveTask={() => {}}
+              onDeleteTask={deleteMutation.mutate}
+              onArchiveTask={archiveTaskMutation.mutate}
+              onAddSubtask={() => {}}
+              onTimelineEdit={(taskId, start, end) => {
+                updateTaskTimelineMutation.mutate({ taskId, start, end });
+              }}
+              onBulkSelect={handleBulkSelect}
+              onBulkProgressUpdate={handleBulkProgressUpdate}
+            />
+          )}
         </div>
       </main>
 

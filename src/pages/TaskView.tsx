@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MenuBar } from "@/components/MenuBar";
@@ -14,6 +13,7 @@ import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { useTaskQueries } from '@/hooks/useTaskQueries';
 import { useTaskMutations } from '@/hooks/useTaskMutations';
 import { getSortedAndFilteredTasks, getFilteredProjects } from '@/utils/taskViewUtils';
+import { supabase } from "@/integrations/supabase/client";
 
 export function TaskView() {
   const navigate = useNavigate();

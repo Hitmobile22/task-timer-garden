@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface TaskFiltersProps {
   searchQuery: string;
@@ -25,6 +33,7 @@ interface TaskFiltersProps {
   onNewTaskListDialogChange: (open: boolean) => void;
   onNewTaskListNameChange: (value: string) => void;
   onCreateTaskList: () => void;
+  onCreateProject?: () => void;
 }
 
 export const TaskFilters: React.FC<TaskFiltersProps> = ({
@@ -39,10 +48,14 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   onNewTaskListDialogChange,
   onNewTaskListNameChange,
   onCreateTaskList,
+  onCreateProject,
 }) => {
+  const [showNewProjectDialog, setShowNewProjectDialog] = React.useState(false);
+  const [newProjectName, setNewProjectName] = React.useState("");
+
   return (
-    <div className="mb-6 space-y-4">
-      <div className="flex flex-wrap gap-4 items-center justify-between">
+    <div className="flex flex-wrap gap-4 items-center justify-between w-full">
+      <div className="flex items-center gap-4 flex-1">
         <div className="flex-1 min-w-[200px] max-w-sm">
           <Input
             placeholder="Search tasks..."
@@ -51,71 +64,82 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
             className="w-full"
           />
         </div>
-        <div className="flex items-center gap-4">
-          <Dialog open={showNewTaskListDialog} onOpenChange={onNewTaskListDialogChange}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="icon">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Task List</DialogTitle>
-                <DialogDescription>
-                  Enter a name for your new task list.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <Input
-                  placeholder="Task List Name"
-                  value={newTaskListName}
-                  onChange={(e) => onNewTaskListNameChange(e.target.value)}
-                />
-                <Button 
-                  onClick={onCreateTaskList}
-                  disabled={!newTaskListName.trim()}
-                >
-                  Create List
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <Filter className="h-4 w-4" />
+              Status Filter
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-48">
+            {['Not started', 'In progress', 'Completed', 'Backlog'].map((status) => (
+              <DropdownMenuCheckboxItem
+                key={status}
+                checked={progressFilter === status}
+                onCheckedChange={() => onProgressFilterChange(status as Task['Progress'])}
+              >
+                {status}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-          <Select
-            value={progressFilter}
-            onValueChange={(value: Task['Progress'] | "all") => onProgressFilterChange(value)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                <SelectValue placeholder="Filter by status" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Not started">Not Started</SelectItem>
-              <SelectItem value="In progress">In Progress</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
-              <SelectItem value="Backlog">Backlog</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={sortBy}
-            onValueChange={(value: 'date' | 'list') => onSortByChange(value)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <div className="flex items-center gap-2">
-                <ArrowUpDown className="h-4 w-4" />
-                <SelectValue placeholder="Sort by" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Sort by Date</SelectItem>
-              <SelectItem value="list">Sort by List</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select
+          value={sortBy}
+          onValueChange={(value: 'date' | 'list') => onSortByChange(value)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4" />
+              <SelectValue placeholder="Sort by" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date">Sort by Date</SelectItem>
+            <SelectItem value="list">Sort by List</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="outline"
+          onClick={() => setShowNewProjectDialog(true)}
+          className="gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Add Project
+        </Button>
       </div>
+
+      <Dialog open={showNewProjectDialog} onOpenChange={setShowNewProjectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Project</DialogTitle>
+            <DialogDescription>
+              Enter a name for your new project.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Input
+              placeholder="Project Name"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                onCreateProject?.();
+                setShowNewProjectDialog(false);
+                setNewProjectName("");
+              }}
+              disabled={!newProjectName.trim()}
+            >
+              Create Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -87,14 +87,14 @@ export const getFilteredProjects = (
     );
   }
   
-  // Sort projects by task list and then by project_order
+  // Sort projects by task list and then by sort order
   return filtered.sort((a, b) => {
     const aListId = a.task_list_id ?? -1;
     const bListId = b.task_list_id ?? -1;
     if (aListId !== bListId) {
       return aListId - bListId;
     }
-    return (a.project_order ?? 0) - (b.project_order ?? 0);
+    return (a.sort_order ?? 0) - (b.sort_order ?? 0);
   });
 };
 

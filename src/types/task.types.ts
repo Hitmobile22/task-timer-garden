@@ -15,11 +15,12 @@ export type Task = {
 export type Project = {
   id: number;
   "Project Name": string;
-  progress: "Not started" | "In progress" | "Completed" | "Backlog"; // Changed to match database column name
+  progress: "Not started" | "In progress" | "Completed" | "Backlog";
   date_started?: string;
   date_due?: string;
   task_list_id: number | null;
   sort_order: number;
+  project_order?: number;  // Added to match database schema
 };
 
 export type Subtask = {

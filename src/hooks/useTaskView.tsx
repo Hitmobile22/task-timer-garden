@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useMemo } from 'react';
 import { useTaskQueries } from './useTaskQueries';
 import { useTaskMutations } from './useTaskMutations';
@@ -224,14 +223,16 @@ export const useTaskView = () => {
       }
     }, [queries.projects, queries.tasks]),
 
-    handleCreateProject: useCallback(async (name: string) => {
+    handleCreateProject: useCallback(async (project: { name: string; startDate?: Date; dueDate?: Date }) => {
       try {
         const { error } = await supabase
           .from('Projects')
           .insert({
-            "Project Name": name,
+            "Project Name": project.name,
             progress: "Not started",
-            task_list_id: 1
+            task_list_id: 1,
+            date_started: project.startDate?.toISOString(),
+            date_due: project.dueDate?.toISOString()
           });
 
         if (error) throw error;

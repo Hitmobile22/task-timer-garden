@@ -44,19 +44,25 @@ export function TaskView() {
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('Tasks')
-        .select('*')
-        .order('date_started', { ascending: false });
+      const [tasksResult, projectsResult] = await Promise.all([
+        supabase.from('Tasks').select('*').order('date_started', { ascending: false }),
+        supabase.from('Projects').select('*').order('date_started', { ascending: false })
+      ]);
       
-      if (error) throw error;
+      if (tasksResult.error) throw tasksResult.error;
+      if (projectsResult.error) throw projectsResult.error;
       
-      return data.map(task => ({
-        ...task,
-        task_lists_order: 0,
-        is_backlog: false,
-        bulk_selection_id: undefined
-      })) as Task[];
+      const projectTasks = projectsResult.data.map(project => ({
+        id: project.id,
+        "Task Name": project["Project Name"],
+        Progress: project.Progress,
+        date_started: project.date_started,
+        date_due: project.date_due,
+        task_list_id: project.task_list_id,
+        is_project: true
+      }));
+      
+      return [...tasksResult.data, ...projectTasks] as Task[];
     },
   });
 

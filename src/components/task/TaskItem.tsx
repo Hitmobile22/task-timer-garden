@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
@@ -86,9 +85,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     onEditSave(task.id);
   };
 
+  const getListName = () => {
+    const list = taskLists.find(l => l.id === task.task_list_id);
+    return list ? list.name : 'Uncategorized';
+  };
+
   return (
     <React.Fragment>
-      <TableRow>
+      <TableRow className="w-full">
         <TaskNameCell
           task={task}
           subtasks={subtasks}
@@ -99,6 +103,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onEditNameChange={onEditNameChange}
           onAddSubtask={() => onAddSubtask?.(task.id)}
         />
+        <TableCell>{getListName()}</TableCell>
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}
           isEditing={isEditing}
@@ -110,17 +115,19 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           isEditing={isEditing}
           onTimelineUpdate={handleTimelineUpdate}
         />
-        <TaskActionsCell
-          task={{...task, task_list_id: tempListId}}
-          isEditing={isEditing}
-          taskLists={taskLists}
-          onMoveTask={setTempListId}
-          onEditStart={onEditStart}
-          onEditCancel={onEditCancel}
-          onEditSave={handleSave}
-          onDeleteTask={onDeleteTask}
-          onArchiveTask={onArchiveTask}
-        />
+        <TableCell className="text-right space-x-1">
+          <TaskActionsCell
+            task={{...task, task_list_id: tempListId}}
+            isEditing={isEditing}
+            taskLists={taskLists}
+            onMoveTask={setTempListId}
+            onEditStart={onEditStart}
+            onEditCancel={onEditCancel}
+            onEditSave={handleSave}
+            onDeleteTask={onDeleteTask}
+            onArchiveTask={onArchiveTask}
+          />
+        </TableCell>
       </TableRow>
     </React.Fragment>
   );

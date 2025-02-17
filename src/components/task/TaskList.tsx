@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
@@ -198,7 +197,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
         </div>
       )}
 
-      <div className="rounded-md border w-full">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -214,9 +213,10 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
                 )}
               </TableHead>
               <TableHead className="w-[40%]">Task Name</TableHead>
-              <TableHead className="w-[20%]">Progress</TableHead>
-              <TableHead className="w-[20%]">Timeline</TableHead>
-              <TableHead className="w-[20%]">Actions</TableHead>
+              <TableHead className="w-[15%]">List</TableHead>
+              <TableHead className="w-[15%]">Progress</TableHead>
+              <TableHead className="w-[15%]">Timeline</TableHead>
+              <TableHead className="w-[15%] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -224,7 +224,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               <SortableContext items={filteredTasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
                 {filteredTasks.map((task) => (
                   <React.Fragment key={task.id}>
-                    <SortableTaskRow id={task.id}>
+                    <SortableTaskRow key={task.id} id={task.id}>
                       {showBulkEdit && (
                         <TableCell>
                           <Checkbox

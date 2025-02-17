@@ -5,7 +5,7 @@ import { TaskList } from './TaskList';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Clock, List } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SubTask {
   name: string;
@@ -31,6 +32,7 @@ export const TaskScheduler = () => {
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number>();
+  const [sortBy, setSortBy] = useState<'date' | 'list'>('list');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -41,7 +43,7 @@ export const TaskScheduler = () => {
         .from('Tasks')
         .select('*')
         .or('Progress.eq.In progress,Progress.eq.Not started')
-        .order('date_started', { ascending: true });
+        .order(sortBy === 'date' ? 'date_started' : 'order', { ascending: true });
       
       if (error) throw error;
       return data;
@@ -80,7 +82,7 @@ export const TaskScheduler = () => {
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-// Get all not started tasks for today only
+
       const notStartedTasks = activeTasks
           ?.filter(t => {
             const taskDate = t.date_started ? new Date(t.date_started) : null;
@@ -190,6 +192,30 @@ export const TaskScheduler = () => {
                   />
                 </div>
               )}
+              <div className="flex justify-between items-center">
+                <Select 
+                  value={sortBy} 
+                  onValueChange={(value: 'date' | 'list') => setSortBy(value)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">
+                      <div className="flex items-center">
+                        <Clock className="mr-2 h-4 w-4" />
+                        Sort by Date
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="list">
+                      <div className="flex items-center">
+                        <List className="mr-2 h-4 w-4" />
+                        Sort by List
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <TaskForm onTasksCreate={handleTasksCreate} />
               <TaskList 
                 tasks={tasks} 

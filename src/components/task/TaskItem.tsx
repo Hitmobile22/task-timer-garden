@@ -92,8 +92,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   return (
-    <React.Fragment>
-      <TableRow className="w-full">
+    <TableRow>
+      {/* Empty cell for checkbox/drag handle */}
+      <TableCell className="w-[40px]"></TableCell>
+      {/* Task Name */}
+      <TableCell className="max-w-[300px]">
         <TaskNameCell
           task={task}
           subtasks={subtasks}
@@ -104,32 +107,40 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onEditNameChange={onEditNameChange}
           onAddSubtask={() => onAddSubtask?.(task.id)}
         />
-        <TableCell>{getListName()}</TableCell>
+      </TableCell>
+      {/* List */}
+      <TableCell className="w-[150px]">{getListName()}</TableCell>
+      {/* Progress */}
+      <TableCell className="w-[150px]">
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}
           isEditing={isEditing}
           onUpdateProgress={handleProgressUpdate}
         />
+      </TableCell>
+      {/* Timeline */}
+      <TableCell className="w-[200px]">
         <TaskTimelineCell
           startDate={selectedStartDate}
           endDate={selectedEndDate}
           isEditing={isEditing}
           onTimelineUpdate={handleTimelineUpdate}
         />
-        <TableCell className="text-right space-x-1">
-          <TaskActionsCell
-            task={{...task, task_list_id: tempListId}}
-            isEditing={isEditing}
-            taskLists={taskLists}
-            onMoveTask={setTempListId}
-            onEditStart={onEditStart}
-            onEditCancel={onEditCancel}
-            onEditSave={handleSave}
-            onDeleteTask={onDeleteTask}
-            onArchiveTask={onArchiveTask}
-          />
-        </TableCell>
-      </TableRow>
-    </React.Fragment>
+      </TableCell>
+      {/* Actions */}
+      <TableCell className="w-[150px] text-right">
+        <TaskActionsCell
+          task={{...task, task_list_id: tempListId}}
+          isEditing={isEditing}
+          taskLists={taskLists}
+          onMoveTask={setTempListId}
+          onEditStart={onEditStart}
+          onEditCancel={onEditCancel}
+          onEditSave={handleSave}
+          onDeleteTask={onDeleteTask}
+          onArchiveTask={onArchiveTask}
+        />
+      </TableCell>
+    </TableRow>
   );
 };

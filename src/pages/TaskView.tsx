@@ -41,6 +41,20 @@ export function TaskView() {
   const [editingListName, setEditingListName] = useState("");
   const [sortBy, setSortBy] = useState<'date' | 'list'>('list');
 
+  const { data: taskLists } = useQuery({
+    queryKey: ['task-lists'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('TaskLists')
+        .select('*')
+        .order('order', { ascending: true });
+      
+      if (error) throw error;
+      console.log('TaskView: Available task lists:', data);
+      return data;
+    },
+  });
+
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
@@ -50,20 +64,10 @@ export function TaskView() {
         .order('date_started', { ascending: false });
       
       if (error) throw error;
+      console.log('TaskView: Current tasks with their list IDs:', 
+        data?.map(t => ({ id: t.id, name: t["Task Name"], list_id: t.task_list_id }))
+      );
       return data as Task[];
-    },
-  });
-
-  const { data: subtasks, isLoading: subtasksLoading } = useQuery({
-    queryKey: ['subtasks'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('subtasks')
-        .select('*')
-        .order('created_at', { ascending: true });
-      
-      if (error) throw error;
-      return data as Subtask[];
     },
   });
 
@@ -167,6 +171,7 @@ export function TaskView() {
   const updateTaskListMutation = useMutation({
     mutationFn: async ({ taskId, listId }: { taskId: number; listId: number }) => {
       console.log('TaskView: updateTaskListMutation called with:', { taskId, listId });
+      console.log('TaskView: Available task lists at time of mutation:', taskLists);
       
       const { data, error } = await supabase
         .from('Tasks')
@@ -179,11 +184,11 @@ export function TaskView() {
         throw error;
       }
       
-      console.log('TaskView: Update successful:', data);
+      console.log('TaskView: Update successful, updated task:', data);
       return data;
     },
     onSuccess: (data) => {
-      console.log('TaskView: Mutation succeeded:', data);
+      console.log('TaskView: Mutation succeeded, invalidating queries');
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task moved to new list');
     },
@@ -266,7 +271,7 @@ export function TaskView() {
     return format(new Date(date), 'MMM d, h:mm a');
   };
 
-  const isLoading = tasksLoading || subtasksLoading;
+  const isLoading = tasksLoading;
 
   const getSortedAndFilteredTasks = React.useCallback((tasks: Task[] | undefined) => {
     if (!tasks) return [];
@@ -303,21 +308,11 @@ export function TaskView() {
     });
   }, [progressFilter, searchQuery, sortBy]);
 
-  const { data: taskLists } = useQuery({
-    queryKey: ['task-lists'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('TaskLists')
-        .select('*')
-        .order('order', { ascending: true });
-      
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const filteredAndGroupedTasks = React.useMemo(() => {
-    if (!tasks || !taskLists) return new Map();
+    if (!tasks || !taskLists) {
+      console.log('TaskView: No tasks or taskLists available for grouping');
+      return new Map();
+    }
     
     const filteredTasks = getSortedAndFilteredTasks(tasks);
     const grouped = new Map();
@@ -344,11 +339,14 @@ export function TaskView() {
       }
     }
     
+    console.log('TaskView: Grouped tasks by list:', Object.fromEntries([...grouped]));
     return grouped;
   }, [tasks, taskLists, getSortedAndFilteredTasks]);
 
   const handleMoveTask = (taskId: number, listId: number) => {
     console.log('TaskView: handleMoveTask called with:', { taskId, listId });
+    console.log('TaskView: Current taskLists:', taskLists);
+    console.log('TaskView: Current tasks:', tasks);
     updateTaskListMutation.mutate({ taskId, listId });
   };
 

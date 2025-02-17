@@ -13,6 +13,7 @@ export const useTaskQueries = () => {
         .order('sort_order', { ascending: true });
       
       if (error) throw error;
+      console.log('Fetched projects:', data); // Debug log
       return data as Project[];
     },
   });
@@ -23,9 +24,10 @@ export const useTaskQueries = () => {
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('order', { ascending: true });
       
       if (error) throw error;
+      console.log('Fetched tasks:', data); // Debug log
       return data as Task[];
     },
   });
@@ -42,6 +44,7 @@ export const useTaskQueries = () => {
         .in('Parent Task ID', taskIds);
       
       if (error) throw error;
+      console.log('Fetched subtasks:', data); // Debug log
       return data as Subtask[];
     },
     enabled: !!tasks?.length,
@@ -56,6 +59,7 @@ export const useTaskQueries = () => {
         .order('order', { ascending: true });
       
       if (error) throw error;
+      console.log('Fetched task lists:', data); // Debug log
       return data;
     },
   });

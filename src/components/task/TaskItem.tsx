@@ -22,6 +22,7 @@ interface TaskItemProps {
   onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
+  onArchiveTask?: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
 }
 
@@ -40,6 +41,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onUpdateProgress,
   onMoveTask,
   onDeleteTask,
+  onArchiveTask,
   onTimelineEdit,
 }) => {
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
@@ -116,6 +118,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onEditCancel={onEditCancel}
           onEditSave={handleSave}
           onDeleteTask={onDeleteTask}
+          onArchiveTask={onArchiveTask}
         />
       </TableRow>
     </React.Fragment>

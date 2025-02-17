@@ -9,6 +9,7 @@ export type Task = {
   archived?: boolean;
   project_id?: number | null;
   is_project?: boolean;
+  order?: number;
 };
 
 export type Project = {

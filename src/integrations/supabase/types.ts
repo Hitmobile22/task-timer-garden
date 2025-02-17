@@ -42,53 +42,6 @@ export type Database = {
         }
         Relationships: []
       }
-      Projects: {
-        Row: {
-          created_at: string
-          date_due: string | null
-          date_started: string | null
-          id: number
-          position: number | null
-          progress: Database["public"]["Enums"]["status"] | null
-          "Project Name": string
-          project_order: number | null
-          sort_order: number
-          task_list_id: number | null
-        }
-        Insert: {
-          created_at?: string
-          date_due?: string | null
-          date_started?: string | null
-          id?: number
-          position?: number | null
-          progress?: Database["public"]["Enums"]["status"] | null
-          "Project Name": string
-          project_order?: number | null
-          sort_order?: number
-          task_list_id?: number | null
-        }
-        Update: {
-          created_at?: string
-          date_due?: string | null
-          date_started?: string | null
-          id?: number
-          position?: number | null
-          progress?: Database["public"]["Enums"]["status"] | null
-          "Project Name"?: string
-          project_order?: number | null
-          sort_order?: number
-          task_list_id?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "Projects_task_list_id_fkey"
-            columns: ["task_list_id"]
-            isOneToOne: false
-            referencedRelation: "TaskLists"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       subtasks: {
         Row: {
           created_at: string
@@ -163,7 +116,6 @@ export type Database = {
           id: number
           name: string
           order: number
-          position: number | null
         }
         Insert: {
           color?: string | null
@@ -171,7 +123,6 @@ export type Database = {
           id?: number
           name: string
           order?: number
-          position?: number | null
         }
         Update: {
           color?: string | null
@@ -179,13 +130,11 @@ export type Database = {
           id?: number
           name?: string
           order?: number
-          position?: number | null
         }
         Relationships: []
       }
       Tasks: {
         Row: {
-          archived: boolean | null
           created_at: string
           date_due: string | null
           date_started: string | null
@@ -193,15 +142,11 @@ export type Database = {
           delay_value: string | null
           id: number
           order: number
-          position: number | null
           Progress: Database["public"]["Enums"]["status"] | null
-          project_id: number | null
-          sort_order: number | null
           "Task Name": string | null
           task_list_id: number | null
         }
         Insert: {
-          archived?: boolean | null
           created_at?: string
           date_due?: string | null
           date_started?: string | null
@@ -209,15 +154,11 @@ export type Database = {
           delay_value?: string | null
           id?: number
           order?: number
-          position?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
-          project_id?: number | null
-          sort_order?: number | null
           "Task Name"?: string | null
           task_list_id?: number | null
         }
         Update: {
-          archived?: boolean | null
           created_at?: string
           date_due?: string | null
           date_started?: string | null
@@ -225,21 +166,11 @@ export type Database = {
           delay_value?: string | null
           id?: number
           order?: number
-          position?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
-          project_id?: number | null
-          sort_order?: number | null
           "Task Name"?: string | null
           task_list_id?: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "Tasks_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "Projects"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "Tasks_task_list_id_fkey"
             columns: ["task_list_id"]

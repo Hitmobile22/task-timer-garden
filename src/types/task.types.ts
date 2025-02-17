@@ -6,21 +6,6 @@ export type Task = {
   date_started?: string;
   date_due?: string;
   task_list_id: number | null;
-  archived?: boolean;
-  project_id?: number | null;
-  is_project?: boolean;
-  order?: number;
-};
-
-export type Project = {
-  id: number;
-  "Project Name": string;
-  progress: "Not started" | "In progress" | "Completed" | "Backlog";
-  date_started?: string;
-  date_due?: string;
-  task_list_id: number | null;
-  sort_order: number;
-  project_order?: number;  // Added to match database schema
 };
 
 export type Subtask = {

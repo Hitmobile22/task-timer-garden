@@ -1,28 +1,20 @@
+
 import React from 'react';
 import { TableCell } from "@/components/ui/table";
-import { Task } from '@/types/task.types';
 import { Button } from "@/components/ui/button";
-import { Plus, PencilIcon, Archive, Trash2 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ListFilter, PencilIcon, Trash2, Check, X } from "lucide-react";
+import { Task } from '@/types/task.types';
 
 interface TaskActionsCellProps {
   task: Task;
   isEditing: boolean;
   taskLists: any[];
-  onMoveTask: (listId: number | null) => void;
+  onMoveTask: (taskId: number, listId: number) => void;
   onEditStart: (task: Task) => void;
   onEditCancel: () => void;
-  onEditSave: () => void;
+  onEditSave: (taskId: number) => void;
   onDeleteTask: (taskId: number) => void;
-  onArchiveTask: (taskId: number) => void;
-  onAddSubtask: (taskId: number) => void;
 }
 
 export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
@@ -34,44 +26,62 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   onEditCancel,
   onEditSave,
   onDeleteTask,
-  onArchiveTask,
-  onAddSubtask,
 }) => {
   const currentList = taskLists?.find(list => list.id === task.task_list_id);
+  const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
 
+  React.useEffect(() => {
+    setTempListId(task.task_list_id);
+  }, [task.task_list_id, isEditing]);
+  
   return (
     <TableCell>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         {isEditing ? (
-          <div className="flex items-center gap-2">
-            <Select onValueChange={(value) => onMoveTask(value === "none" ? null : parseInt(value))}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder={currentList ? currentList.name : "Move to list"} />
+          <>
+            <Select
+              value={tempListId?.toString() || ''}
+              onValueChange={(value) => setTempListId(parseInt(value))}
+            >
+              <SelectTrigger className="w-[150px]">
+                <div className="flex items-center gap-2">
+                  <ListFilter className="h-4 w-4" />
+                  <SelectValue placeholder="Move to list" />
+                </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No List</SelectItem>
-                {taskLists?.map(list => (
-                  <SelectItem key={list.id} value={list.id.toString()}>
+                {taskLists?.map((list) => (
+                  <SelectItem 
+                    key={list.id} 
+                    value={list.id.toString()}
+                    className="flex items-center gap-2"
+                  >
+                    <div 
+                      className="w-2 h-2 rounded-full"
+                      style={{ 
+                        backgroundColor: list.color || 'gray'
+                      }} 
+                    />
                     {list.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Button
-              variant="outline"
-              size="sm"
-              onClick={onEditSave}
+              variant="ghost"
+              size="icon"
+              onClick={() => onEditSave(task.id)}
             >
-              Save
+              <Check className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={onEditCancel}
             >
-              Cancel
+              <X className="h-4 w-4" />
             </Button>
-          </div>
+          </>
         ) : (
           <>
             <div className="flex items-center gap-2 text-sm">
@@ -87,44 +97,20 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onAddSubtask(task.id)}
-                className="h-8 w-8"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onEditStart(task)}
-                className="h-8 w-8"
-              >
-                <PencilIcon className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onArchiveTask(task.id)}
-                className={cn(
-                  "h-8 w-8",
-                  task.archived && "text-yellow-600 hover:text-yellow-700"
-                )}
-                title={task.archived ? "Unarchive" : "Archive"}
-              >
-                <Archive className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onDeleteTask(task.id)}
-                className="h-8 w-8 text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onEditStart(task)}
+            >
+              <PencilIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDeleteTask(task.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </>
         )}
       </div>

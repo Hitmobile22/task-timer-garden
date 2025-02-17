@@ -1,15 +1,11 @@
 
 import React from 'react';
-import { TableRow, TableCell } from "@/components/ui/table";
+import { TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
 import { TaskNameCell } from './cells/TaskNameCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
 import { TaskTimelineCell } from './cells/TaskTimelineCell';
 import { TaskActionsCell } from './cells/TaskActionsCell';
-import { Checkbox } from "@/components/ui/checkbox";
-import { GripVertical } from "lucide-react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
 interface TaskItemProps {
   task: Task;
@@ -18,8 +14,6 @@ interface TaskItemProps {
   editingTaskId: number | null;
   editingTaskName: string;
   taskLists: any[];
-  bulkMode?: boolean;
-  isSelected?: boolean;
   onToggleExpand: (taskId: number) => void;
   onEditStart: (task: Task | Subtask) => void;
   onEditCancel: () => void;
@@ -28,10 +22,7 @@ interface TaskItemProps {
   onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
-  onArchiveTask: (taskId: number) => void;
-  onAddSubtask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
-  onBulkSelect?: (taskId: number, selected: boolean) => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -41,8 +32,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   editingTaskId,
   editingTaskName,
   taskLists,
-  bulkMode,
-  isSelected,
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -51,29 +40,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onUpdateProgress,
   onMoveTask,
   onDeleteTask,
-  onArchiveTask,
-  onAddSubtask,
   onTimelineEdit,
-  onBulkSelect,
 }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: `task-${task.id}`,
-    data: { type: 'task', id: task.id }
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
   );
@@ -115,52 +83,41 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   return (
-    <TableRow ref={setNodeRef} style={style}>
-      <TableCell className="w-[40px] cursor-grab" {...attributes} {...listeners}>
-        <GripVertical className="h-4 w-4 text-gray-400" />
-      </TableCell>
-      {bulkMode && (
-        <TableCell className="w-[50px]">
-          <Checkbox 
-            checked={isSelected} 
-            onCheckedChange={(checked) => onBulkSelect?.(task.id, checked as boolean)}
-          />
-        </TableCell>
-      )}
-      <TaskNameCell
-        task={task}
-        subtasks={subtasks}
-        expandedTasks={expandedTasks}
-        editingTaskId={editingTaskId}
-        editingTaskName={editingTaskName}
-        onToggleExpand={onToggleExpand}
-        onEditNameChange={onEditNameChange}
-        onEditSave={onEditSave}
-        onEditCancel={onEditCancel}
-      />
-      <TaskProgressCell
-        task={{...task, Progress: tempProgress}}
-        isEditing={isEditing}
-        onUpdateProgress={handleProgressUpdate}
-      />
-      <TaskTimelineCell
-        startDate={selectedStartDate}
-        endDate={selectedEndDate}
-        isEditing={isEditing}
-        onTimelineUpdate={handleTimelineUpdate}
-      />
-      <TaskActionsCell
-        task={{...task, task_list_id: tempListId}}
-        isEditing={isEditing}
-        taskLists={taskLists}
-        onMoveTask={setTempListId}
-        onEditStart={onEditStart}
-        onEditCancel={onEditCancel}
-        onEditSave={handleSave}
-        onDeleteTask={onDeleteTask}
-        onArchiveTask={onArchiveTask}
-        onAddSubtask={onAddSubtask}
-      />
-    </TableRow>
+    <React.Fragment>
+      <TableRow>
+        <TaskNameCell
+          task={task}
+          subtasks={subtasks}
+          expandedTasks={expandedTasks}
+          editingTaskId={editingTaskId}
+          editingTaskName={editingTaskName}
+          onToggleExpand={onToggleExpand}
+          onEditNameChange={onEditNameChange}
+          onEditSave={onEditSave}
+          onEditCancel={onEditCancel}
+        />
+        <TaskProgressCell
+          task={{...task, Progress: tempProgress}}
+          isEditing={isEditing}
+          onUpdateProgress={handleProgressUpdate}
+        />
+        <TaskTimelineCell
+          startDate={selectedStartDate}
+          endDate={selectedEndDate}
+          isEditing={isEditing}
+          onTimelineUpdate={handleTimelineUpdate}
+        />
+        <TaskActionsCell
+          task={{...task, task_list_id: tempListId}}
+          isEditing={isEditing}
+          taskLists={taskLists}
+          onMoveTask={setTempListId}
+          onEditStart={onEditStart}
+          onEditCancel={onEditCancel}
+          onEditSave={handleSave}
+          onDeleteTask={onDeleteTask}
+        />
+      </TableRow>
+    </React.Fragment>
   );
 };

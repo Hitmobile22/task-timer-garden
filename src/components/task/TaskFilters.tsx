@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,11 +19,13 @@ interface TaskFiltersProps {
   progressFilter: Task['Progress'] | "all";
   sortBy: 'date' | 'list';
   showNewTaskListDialog: boolean;
+  showProjectModal: boolean;  // New prop
   newTaskListName: string;
   onSearchChange: (value: string) => void;
   onProgressFilterChange: (value: Task['Progress'] | "all") => void;
   onSortByChange: (value: 'date' | 'list') => void;
   onNewTaskListDialogChange: (open: boolean) => void;
+  onProjectModalChange: (open: boolean) => void;  // New prop
   onNewTaskListNameChange: (value: string) => void;
   onCreateTaskList: () => void;
 }
@@ -32,11 +35,13 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   progressFilter,
   sortBy,
   showNewTaskListDialog,
+  showProjectModal,
   newTaskListName,
   onSearchChange,
   onProgressFilterChange,
   onSortByChange,
   onNewTaskListDialogChange,
+  onProjectModalChange,
   onNewTaskListNameChange,
   onCreateTaskList,
 }) => {
@@ -81,6 +86,14 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
             </DialogContent>
           </Dialog>
 
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => onProjectModalChange(true)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+
           <Select
             value={progressFilter}
             onValueChange={(value: Task['Progress'] | "all") => onProgressFilterChange(value)}
@@ -99,6 +112,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
               <SelectItem value="Backlog">Backlog</SelectItem>
             </SelectContent>
           </Select>
+          
           <Select
             value={sortBy}
             onValueChange={(value: 'date' | 'list') => onSortByChange(value)}

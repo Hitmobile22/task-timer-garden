@@ -40,6 +40,7 @@ export function TaskView() {
   const [editingListId, setEditingListId] = useState<number | null>(null);
   const [editingListName, setEditingListName] = useState("");
   const [sortBy, setSortBy] = useState<'date' | 'list'>('list');
+  const [showProjectModal, setShowProjectModal] = useState(false);
 
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
@@ -254,6 +255,24 @@ export function TaskView() {
     },
   });
 
+  const createProjectMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const { error } = await supabase
+        .from('Projects')
+        .insert([{ name }]);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      toast.success('Project created');
+    },
+    onError: (error) => {
+      toast.error('Failed to create project');
+      console.error('Create error:', error);
+    },
+  });
+
   const handleEditStart = (task: Task | Subtask) => {
     setEditingTaskId(task.id);
     setEditingTaskName(task["Task Name"]);
@@ -364,12 +383,9 @@ export function TaskView() {
   };
 
   return (
-    <div 
-      className="min-h-screen p-6 space-y-8 animate-fadeIn"
-      style={{
-        background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
-      }}
-    >
+    <div className="min-h-screen p-6 space-y-8 animate-fadeIn" style={{
+      background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
+    }}>
       <div className="container mx-auto max-w-4xl">
         <MenuBar />
       </div>
@@ -387,11 +403,13 @@ export function TaskView() {
               progressFilter={progressFilter}
               sortBy={sortBy}
               showNewTaskListDialog={showNewTaskListDialog}
+              showProjectModal={showProjectModal}
               newTaskListName={newTaskListName}
               onSearchChange={setSearchQuery}
               onProgressFilterChange={setProgressFilter}
               onSortByChange={setSortBy}
               onNewTaskListDialogChange={setShowNewTaskListDialog}
+              onProjectModalChange={setShowProjectModal}
               onNewTaskListNameChange={setNewTaskListName}
               onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
             />
@@ -531,6 +549,14 @@ export function TaskView() {
           )}
         </div>
       </main>
+
+      <ProjectModal
+        open={showProjectModal}
+        onClose={() => setShowProjectModal(false)}
+        onSubmit={createProjectMutation.mutate}
+        taskLists={taskLists || []}
+        availableTasks={tasks || []}
+      />
     </div>
   );
 }

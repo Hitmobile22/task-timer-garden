@@ -6,6 +6,7 @@ export type Task = {
   date_started?: string;
   date_due?: string;
   task_list_id: number | null;
+  project_id?: number | null;  // Added project_id field
 };
 
 export type Subtask = {

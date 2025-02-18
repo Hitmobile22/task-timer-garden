@@ -40,7 +40,7 @@ export function TaskView() {
   const [showNewTaskListDialog, setShowNewTaskListDialog] = React.useState(false);
   const [editingListId, setEditingListId] = useState<number | null>(null);
   const [editingListName, setEditingListName] = useState("");
-  const [sortBy, setSortBy] = useState<'date' | 'list'>('list');
+  const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('list');
   const [showProjectModal, setShowProjectModal] = useState(false);
 
   const { data: taskLists } = useQuery({
@@ -83,6 +83,19 @@ export function TaskView() {
       
       if (error) throw error;
       return data as Subtask[];
+    },
+  });
+
+  const { data: projects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('Projects')
+        .select('*')
+        .order('sort_order', { ascending: true });
+      
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -288,6 +301,25 @@ export function TaskView() {
     },
   });
 
+  const updateTaskProjectMutation = useMutation({
+    mutationFn: async ({ taskId, projectId }: { taskId: number; projectId: number | null }) => {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ project_id: projectId })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Task project updated');
+    },
+    onError: (error) => {
+      toast.error('Failed to update task project');
+      console.error('Update error:', error);
+    },
+  });
+
   const handleEditStart = (task: Task | Subtask) => {
     setEditingTaskId(task.id);
     setEditingTaskName(task["Task Name"]);
@@ -336,54 +368,88 @@ export function TaskView() {
       filteredTasks = filteredTasks.filter(task => task.Progress === progressFilter);
     }
     
-    if (sortBy === 'date') {
-      return filteredTasks.sort((a, b) => {
-        const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
-        const bDate = b.date_started ? new Date(b.date_started) : new Date(0);
-        return aDate.getTime() - bDate.getTime();
-      });
+    switch (sortBy) {
+      case 'date':
+        return filteredTasks.sort((a, b) => {
+          const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
+          const bDate = b.date_started ? new Date(b.date_started) : new Date(0);
+          return aDate.getTime() - bDate.getTime();
+        });
+      case 'list':
+        return filteredTasks.sort((a, b) => {
+          const aListId = a.task_list_id || 0;
+          const bListId = b.task_list_id || 0;
+          return aListId - bListId;
+        });
+      case 'project':
+        return filteredTasks.sort((a, b) => {
+          const aProjectId = a.project_id || 0;
+          const bProjectId = b.project_id || 0;
+          return aProjectId - bProjectId;
+        });
+      default:
+        return filteredTasks;
     }
-    
-    return filteredTasks.sort((a, b) => {
-      const aListId = a.task_list_id || 0;
-      const bListId = b.task_list_id || 0;
-      return aListId - bListId;
-    });
   }, [progressFilter, searchQuery, sortBy]);
 
   const filteredAndGroupedTasks = React.useMemo(() => {
-    if (!tasks || !taskLists) {
-      console.log('TaskView: No tasks or taskLists available for grouping');
+    if (!tasks || (!taskLists && sortBy === 'list') || (!projects && sortBy === 'project')) {
+      console.log('TaskView: No tasks or required grouping data available');
       return new Map();
     }
     
     const filteredTasks = getSortedAndFilteredTasks(tasks);
     const grouped = new Map();
     
-    taskLists.forEach(list => {
-      const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
-      if (listTasks.length > 0) {
-        grouped.set(list.id, {
-          list,
-          tasks: listTasks
+    if (sortBy === 'list') {
+      taskLists.forEach(list => {
+        const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
+        if (listTasks.length > 0) {
+          grouped.set(list.id, {
+            list,
+            tasks: listTasks
+          });
+        }
+      });
+      
+      const uncategorizedTasks = filteredTasks.filter(task => !task.task_list_id);
+      if (uncategorizedTasks.length > 0) {
+        const defaultList = taskLists.find(list => list.name === 'Default');
+        if (defaultList) {
+          grouped.set(defaultList.id, {
+            list: defaultList,
+            tasks: uncategorizedTasks
+          });
+        }
+      }
+    } else if (sortBy === 'project') {
+      if (projects) {
+        projects.forEach(project => {
+          const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
+          if (projectTasks.length > 0) {
+            grouped.set(project.id, {
+              project,
+              tasks: projectTasks
+            });
+          }
         });
       }
-    });
-    
-    const uncategorizedTasks = filteredTasks.filter(task => !task.task_list_id);
-    if (uncategorizedTasks.length > 0) {
-      const defaultList = taskLists.find(list => list.name === 'Default');
-      if (defaultList) {
-        grouped.set(defaultList.id, {
-          list: defaultList,
-          tasks: uncategorizedTasks
+      
+      const unassignedTasks = filteredTasks.filter(task => !task.project_id);
+      if (unassignedTasks.length > 0) {
+        grouped.set('unassigned', {
+          project: { id: 'unassigned', "Project Name": 'Unassigned Tasks' },
+          tasks: unassignedTasks
         });
       }
+    } else {
+      grouped.set('all', {
+        tasks: filteredTasks
+      });
     }
     
-    console.log('TaskView: Grouped tasks by list:', Object.fromEntries([...grouped]));
     return grouped;
-  }, [tasks, taskLists, getSortedAndFilteredTasks]);
+  }, [tasks, taskLists, projects, getSortedAndFilteredTasks, sortBy]);
 
   const handleMoveTask = (taskId: number, listId: number) => {
     console.log('TaskView: handleMoveTask called with:', { taskId, listId });
@@ -426,7 +492,54 @@ export function TaskView() {
             <GoogleCalendarIntegration />
           </div>
 
-          {sortBy === 'list' ? (
+          {sortBy === 'project' ? (
+            <DndContext collisionDetection={closestCenter}>
+              {Array.from(filteredAndGroupedTasks.values()).map(({ project, tasks: projectTasks }) => {
+                if (!project || projectTasks.length === 0) return null;
+                
+                return (
+                  <div key={project.id} className="mb-8">
+                    <div 
+                      className="mb-4 p-2 rounded flex items-center justify-between"
+                      style={{
+                        background: project.color || DEFAULT_LIST_COLOR,
+                        color: 'white'
+                      }}
+                    >
+                      <h3 className="text-lg font-semibold text-white">{project["Project Name"]}</h3>
+                    </div>
+                    <SortableContext items={projectTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                      <TaskListComponent
+                        tasks={projectTasks}
+                        subtasks={subtasks}
+                        expandedTasks={expandedTasks}
+                        editingTaskId={editingTaskId}
+                        editingTaskName={editingTaskName}
+                        taskLists={taskLists}
+                        onToggleExpand={toggleTaskExpansion}
+                        onEditStart={handleEditStart}
+                        onEditCancel={handleEditCancel}
+                        onEditSave={handleEditSave}
+                        onEditNameChange={setEditingTaskName}
+                        onUpdateProgress={(taskId, progress, isSubtask) => 
+                          updateProgressMutation.mutate({ taskId, progress, isSubtask })
+                        }
+                        onMoveTask={handleMoveTask}
+                        onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
+                        onTimelineEdit={(taskId, start, end) => {
+                          updateTaskTimelineMutation.mutate({ 
+                            taskId, 
+                            start: new Date(start), 
+                            end: new Date(end) 
+                          });
+                        }}
+                      />
+                    </SortableContext>
+                  </div>
+                );
+              })}
+            </DndContext>
+          ) : sortBy === 'list' ? (
             <DndContext collisionDetection={closestCenter}>
               {Array.from(filteredAndGroupedTasks.values()).map(({ list, tasks: listTasks }) => {
                 if (listTasks.length === 0) return null;

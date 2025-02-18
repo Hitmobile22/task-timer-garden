@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,15 +16,15 @@ import {
 interface TaskFiltersProps {
   searchQuery: string;
   progressFilter: Task['Progress'] | "all";
-  sortBy: 'date' | 'list';
+  sortBy: 'date' | 'list' | 'project';
   showNewTaskListDialog: boolean;
-  showProjectModal: boolean;  // New prop
+  showProjectModal: boolean;
   newTaskListName: string;
   onSearchChange: (value: string) => void;
   onProgressFilterChange: (value: Task['Progress'] | "all") => void;
-  onSortByChange: (value: 'date' | 'list') => void;
+  onSortByChange: (value: 'date' | 'list' | 'project') => void;
   onNewTaskListDialogChange: (open: boolean) => void;
-  onProjectModalChange: (open: boolean) => void;  // New prop
+  onProjectModalChange: (open: boolean) => void;
   onNewTaskListNameChange: (value: string) => void;
   onCreateTaskList: () => void;
 }
@@ -115,7 +114,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
           
           <Select
             value={sortBy}
-            onValueChange={(value: 'date' | 'list') => onSortByChange(value)}
+            onValueChange={(value: 'date' | 'list' | 'project') => onSortByChange(value)}
           >
             <SelectTrigger className="w-[180px]">
               <div className="flex items-center gap-2">
@@ -126,6 +125,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
             <SelectContent>
               <SelectItem value="date">Sort by Date</SelectItem>
               <SelectItem value="list">Sort by List</SelectItem>
+              <SelectItem value="project">Sort by Project</SelectItem>
             </SelectContent>
           </Select>
         </div>

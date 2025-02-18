@@ -256,7 +256,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     mutationFn: async ({ tasks, shouldResetTimer, movedTaskId }: { tasks: any[], shouldResetTimer: boolean, movedTaskId: number }) => {
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
-
       const today5AM = new Date(currentTime);
       today5AM.setHours(5, 0, 0, 0);
       
@@ -277,6 +276,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       }
 
       const updates = [];
+      const currentTask = tasks.find(t => t.Progress === 'In progress');
       
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
@@ -288,7 +288,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         let taskStartTime: Date;
         let taskEndTime: Date;
 
-        if (isFirst && shouldResetTimer) {
+        // Only reset timer if this is the first task AND it's currently in progress
+        if (isFirst && shouldResetTimer && currentTask && currentTask.id === task.id) {
           taskStartTime = currentTime;
         } else {
           taskStartTime = new Date(nextStartTime);
@@ -312,11 +313,13 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           date_due: taskEndTime.toISOString(),
         };
 
-        // Update progress status
-        if (isFirst && shouldResetTimer) {
-          updateData.Progress = 'In progress';
-        } else if (task.Progress === 'In progress' && (!isFirst || !shouldResetTimer)) {
-          updateData.Progress = 'Not started';
+        // Only update progress status if we're dealing with the current task
+        if (currentTask && currentTask.id === task.id) {
+          if (isFirst && shouldResetTimer) {
+            updateData.Progress = 'In progress';
+          } else if (task.Progress === 'In progress' && (!isFirst || !shouldResetTimer)) {
+            updateData.Progress = 'Not started';
+          }
         }
 
         updates.push(updateData);

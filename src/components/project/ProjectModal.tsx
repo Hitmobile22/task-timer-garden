@@ -207,4 +207,3 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     </Dialog>
   );
 };
-

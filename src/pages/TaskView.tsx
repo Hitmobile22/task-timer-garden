@@ -264,7 +264,7 @@ export function TaskView() {
         .from('Projects')
         .insert([{
           "Project Name": name,
-          Progress: status || "Not started",
+          progress: status || "Not started",
           date_started: startDate?.toISOString(),
           date_due: dueDate?.toISOString(),
           task_list_id: taskListId,

@@ -404,39 +404,12 @@ export function TaskView() {
     if (sortBy === 'list') {
       taskLists?.forEach(list => {
         const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
-        const listProjects = projects?.filter(p => p.task_list_id === list.id) || [];
         
-        if (sortBy === 'project') {
-          const projectGroups = new Map();
-          listProjects.forEach(project => {
-            const projectTasks = listTasks.filter(task => task.project_id === project.id);
-            projectGroups.set(project.id, {
-              project,
-              tasks: projectTasks
-            });
+        if (listTasks.length > 0) {
+          grouped.set(list.id, {
+            list,
+            tasks: listTasks
           });
-          
-          const unassignedTasks = listTasks.filter(task => !task.project_id);
-          if (unassignedTasks.length > 0) {
-            projectGroups.set('unassigned', {
-              project: { id: 'unassigned', "Project Name": 'Unassigned Tasks' },
-              tasks: unassignedTasks
-            });
-          }
-          
-          if (projectGroups.size > 0 || listTasks.length > 0) {
-            grouped.set(list.id, {
-              list,
-              projectGroups
-            });
-          }
-        } else {
-          if (listTasks.length > 0) {
-            grouped.set(list.id, {
-              list,
-              tasks: listTasks
-            });
-          }
         }
       });
     } else if (sortBy === 'project') {
@@ -444,11 +417,13 @@ export function TaskView() {
         const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
         const listProjects = projects?.filter(p => p.task_list_id === list.id) || [];
         
-        grouped.set(list.id, {
-          list,
-          projects: listProjects,
-          tasks: listTasks
-        });
+        if (listProjects.length > 0 || listTasks.length > 0) {
+          grouped.set(list.id, {
+            list,
+            projects: listProjects,
+            tasks: listTasks
+          });
+        }
       });
     } else {
       grouped.set('all', {

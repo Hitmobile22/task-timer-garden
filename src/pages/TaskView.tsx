@@ -21,11 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpDown, Filter, ListFilter, Plus, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock } from "lucide-react";
+import { ArrowUpDown, Filter, ListFilter, Plus, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, Edit2, Trash2 } from "lucide-react";
 import { format } from 'date-fns';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { ProjectModal } from '@/components/project/ProjectModal';
-import { Edit2, Trash2 } from 'lucide-react';
 
 export function TaskView() {
   const queryClient = useQueryClient();

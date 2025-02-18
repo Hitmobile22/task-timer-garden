@@ -426,12 +426,10 @@ export function TaskView() {
       if (projects) {
         projects.forEach(project => {
           const projectTasks = filteredTasks.filter(task => task.project_id === project.id);
-          if (projectTasks.length > 0) {
-            grouped.set(project.id, {
-              project,
-              tasks: projectTasks
-            });
-          }
+          grouped.set(project.id, {
+            project,
+            tasks: projectTasks
+          });
         });
       }
       
@@ -495,7 +493,7 @@ export function TaskView() {
           {sortBy === 'project' ? (
             <DndContext collisionDetection={closestCenter}>
               {Array.from(filteredAndGroupedTasks.values()).map(({ project, tasks: projectTasks }) => {
-                if (!project || projectTasks.length === 0) return null;
+                if (!project) return null;
                 
                 return (
                   <div key={project.id} className="mb-8">
@@ -508,33 +506,37 @@ export function TaskView() {
                     >
                       <h3 className="text-lg font-semibold text-white">{project["Project Name"]}</h3>
                     </div>
-                    <SortableContext items={projectTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                      <TaskListComponent
-                        tasks={projectTasks}
-                        subtasks={subtasks}
-                        expandedTasks={expandedTasks}
-                        editingTaskId={editingTaskId}
-                        editingTaskName={editingTaskName}
-                        taskLists={taskLists}
-                        onToggleExpand={toggleTaskExpansion}
-                        onEditStart={handleEditStart}
-                        onEditCancel={handleEditCancel}
-                        onEditSave={handleEditSave}
-                        onEditNameChange={setEditingTaskName}
-                        onUpdateProgress={(taskId, progress, isSubtask) => 
-                          updateProgressMutation.mutate({ taskId, progress, isSubtask })
-                        }
-                        onMoveTask={handleMoveTask}
-                        onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
-                        onTimelineEdit={(taskId, start, end) => {
-                          updateTaskTimelineMutation.mutate({ 
-                            taskId, 
-                            start: new Date(start), 
-                            end: new Date(end) 
-                          });
-                        }}
-                      />
-                    </SortableContext>
+                    {projectTasks && projectTasks.length > 0 ? (
+                      <SortableContext items={projectTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                        <TaskListComponent
+                          tasks={projectTasks}
+                          subtasks={subtasks}
+                          expandedTasks={expandedTasks}
+                          editingTaskId={editingTaskId}
+                          editingTaskName={editingTaskName}
+                          taskLists={taskLists}
+                          onToggleExpand={toggleTaskExpansion}
+                          onEditStart={handleEditStart}
+                          onEditCancel={handleEditCancel}
+                          onEditSave={handleEditSave}
+                          onEditNameChange={setEditingTaskName}
+                          onUpdateProgress={(taskId, progress, isSubtask) => 
+                            updateProgressMutation.mutate({ taskId, progress, isSubtask })
+                          }
+                          onMoveTask={handleMoveTask}
+                          onDeleteTask={(taskId) => deleteMutation.mutate(taskId)}
+                          onTimelineEdit={(taskId, start, end) => {
+                            updateTaskTimelineMutation.mutate({ 
+                              taskId, 
+                              start: new Date(start), 
+                              end: new Date(end) 
+                            });
+                          }}
+                        />
+                      </SortableContext>
+                    ) : (
+                      <p className="text-gray-500 italic">No tasks in this project yet</p>
+                    )}
                   </div>
                 );
               })}

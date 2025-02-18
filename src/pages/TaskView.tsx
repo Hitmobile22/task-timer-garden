@@ -25,6 +25,7 @@ import { ArrowUpDown, Filter, ListFilter, Plus, Trash2, PencilIcon, Check, X, Ch
 import { format } from 'date-fns';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { ProjectModal } from '@/components/project/ProjectModal';
+import { Edit2, Trash2 } from 'lucide-react';
 
 export function TaskView() {
   const queryClient = useQueryClient();
@@ -42,6 +43,7 @@ export function TaskView() {
   const [editingListName, setEditingListName] = useState("");
   const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('list');
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [editingProject, setEditingProject] = React.useState<any>(null);
 
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
@@ -301,22 +303,77 @@ export function TaskView() {
     },
   });
 
-  const updateTaskProjectMutation = useMutation({
-    mutationFn: async ({ taskId, projectId }: { taskId: number; projectId: number | null }) => {
-      const { error } = await supabase
+  const updateProjectMutation = useMutation({
+    mutationFn: async (projectData: any) => {
+      const { data: updatedProject, error: projectError } = await supabase
+        .from('Projects')
+        .update({
+          "Project Name": projectData.name,
+          progress: projectData.status,
+          date_started: projectData.startDate,
+          date_due: projectData.dueDate,
+          task_list_id: projectData.taskListId,
+        })
+        .eq('id', projectData.id)
+        .select()
+        .single();
+
+      if (projectError) throw projectError;
+
+      const { error: tasksError } = await supabase
         .from('Tasks')
-        .update({ project_id: projectId })
-        .eq('id', taskId);
-      
-      if (error) throw error;
+        .update({ project_id: null })
+        .eq('project_id', projectData.id);
+
+      if (tasksError) throw tasksError;
+
+      if (projectData.selectedTasks.length > 0) {
+        const { error: assignError } = await supabase
+          .from('Tasks')
+          .update({ project_id: projectData.id })
+          .in('id', projectData.selectedTasks);
+
+        if (assignError) throw assignError;
+      }
+
+      return updatedProject;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Task project updated');
+      toast.success('Project updated successfully');
+      setEditingProject(null);
     },
     onError: (error) => {
-      toast.error('Failed to update task project');
-      console.error('Update error:', error);
+      console.error('Failed to update project:', error);
+      toast.error('Failed to update project');
+    },
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId: number) => {
+      const { error: tasksError } = await supabase
+        .from('Tasks')
+        .update({ project_id: null })
+        .eq('project_id', projectId);
+
+      if (tasksError) throw tasksError;
+
+      const { error: projectError } = await supabase
+        .from('Projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (projectError) throw projectError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Project deleted successfully');
+    },
+    onError: (error) => {
+      console.error('Failed to delete project:', error);
+      toast.error('Failed to delete project');
     },
   });
 
@@ -441,6 +498,15 @@ export function TaskView() {
     updateTaskListMutation.mutate({ taskId, listId });
   };
 
+  const handleProjectSubmit = (projectData: any) => {
+    if (projectData.id) {
+      updateProjectMutation.mutate(projectData);
+    } else {
+      createProjectMutation.mutate(projectData);
+    }
+    setShowProjectModal(false);
+  };
+
   return (
     <div className="min-h-screen p-6 space-y-8 animate-fadeIn" style={{
       background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
@@ -491,13 +557,43 @@ export function TaskView() {
                 <div className="space-y-4">
                   {listProjects?.map(project => (
                     <div key={project.id} className="border rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        {expandedTasks.includes(project.id) ? (
-                          <ChevronDown className="h-4 w-4 cursor-pointer" onClick={() => toggleTaskExpansion(project.id)} />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 cursor-pointer" onClick={() => toggleTaskExpansion(project.id)} />
-                        )}
-                        <span className="font-medium">{project["Project Name"]}</span>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          {expandedTasks.includes(project.id) ? (
+                            <ChevronDown className="h-4 w-4 cursor-pointer" onClick={() => toggleTaskExpansion(project.id)} />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 cursor-pointer" onClick={() => toggleTaskExpansion(project.id)} />
+                          )}
+                          <span className="font-medium">{project["Project Name"]}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const projectTasks = listTasks?.filter(t => t.project_id === project.id);
+                              setEditingProject({
+                                id: project.id,
+                                name: project["Project Name"],
+                                status: project.progress,
+                                startDate: project.date_started ? new Date(project.date_started) : undefined,
+                                dueDate: project.date_due ? new Date(project.date_due) : undefined,
+                                taskListId: project.task_list_id,
+                                selectedTasks: projectTasks?.map(t => t.id) || [],
+                              });
+                              setShowProjectModal(true);
+                            }}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteProjectMutation.mutate(project.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                       
                       {expandedTasks.includes(project.id) && (
@@ -572,10 +668,14 @@ export function TaskView() {
 
       <ProjectModal
         open={showProjectModal}
-        onClose={() => setShowProjectModal(false)}
-        onSubmit={createProjectMutation.mutate}
+        onClose={() => {
+          setShowProjectModal(false);
+          setEditingProject(null);
+        }}
+        onSubmit={handleProjectSubmit}
         taskLists={taskLists || []}
         availableTasks={tasks || []}
+        initialData={editingProject}
       />
     </div>
   );

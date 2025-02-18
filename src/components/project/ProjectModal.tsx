@@ -19,7 +19,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Check } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Task } from '@/types/task.types';
@@ -30,6 +30,15 @@ interface ProjectModalProps {
   onSubmit: (projectData: any) => void;
   taskLists: any[];
   availableTasks: Task[];
+  initialData?: {
+    id?: number;
+    name: string;
+    startDate?: Date;
+    dueDate?: Date;
+    status: string;
+    taskListId?: number;
+    selectedTasks?: number[];
+  };
 }
 
 export const ProjectModal: React.FC<ProjectModalProps> = ({
@@ -38,17 +47,30 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   onSubmit,
   taskLists,
   availableTasks,
+  initialData,
 }) => {
-  const [name, setName] = React.useState("");
-  const [selectedTasks, setSelectedTasks] = React.useState<number[]>([]);
-  const [startDate, setStartDate] = React.useState<Date>();
-  const [dueDate, setDueDate] = React.useState<Date>();
-  const [status, setStatus] = React.useState<string>("Not started");
-  const [taskListId, setTaskListId] = React.useState<string>();
+  const [name, setName] = React.useState(initialData?.name || "");
+  const [selectedTasks, setSelectedTasks] = React.useState<number[]>(initialData?.selectedTasks || []);
+  const [startDate, setStartDate] = React.useState<Date | undefined>(initialData?.startDate);
+  const [dueDate, setDueDate] = React.useState<Date | undefined>(initialData?.dueDate);
+  const [status, setStatus] = React.useState(initialData?.status || "Not started");
+  const [taskListId, setTaskListId] = React.useState(initialData?.taskListId?.toString() || "");
+
+  React.useEffect(() => {
+    if (initialData) {
+      setName(initialData.name);
+      setSelectedTasks(initialData.selectedTasks || []);
+      setStartDate(initialData.startDate);
+      setDueDate(initialData.dueDate);
+      setStatus(initialData.status);
+      setTaskListId(initialData.taskListId?.toString() || "");
+    }
+  }, [initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
+      id: initialData?.id,
       name,
       selectedTasks,
       startDate,
@@ -60,12 +82,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   };
 
   const handleReset = () => {
-    setName("");
-    setSelectedTasks([]);
-    setStartDate(undefined);
-    setDueDate(undefined);
-    setStatus("Not started");
-    setTaskListId(undefined);
+    if (!initialData) {
+      setName("");
+      setSelectedTasks([]);
+      setStartDate(undefined);
+      setDueDate(undefined);
+      setStatus("Not started");
+      setTaskListId("");
+    }
   };
 
   return (
@@ -75,7 +99,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Create New Project</DialogTitle>
+          <DialogTitle>{initialData ? 'Edit Project' : 'Create New Project'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -118,6 +142,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
+                    type="button"
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
@@ -144,6 +169,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
+                    type="button"
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
@@ -200,7 +226,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">Create Project</Button>
+            <Button type="submit">{initialData ? 'Update' : 'Create'} Project</Button>
           </DialogFooter>
         </form>
       </DialogContent>

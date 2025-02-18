@@ -24,6 +24,7 @@ import {
 import { ArrowUpDown, Filter, ListFilter, Plus, Trash2, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock } from "lucide-react";
 import { format } from 'date-fns';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
+import { ProjectModal } from '@/components/project/ProjectModal';
 
 export function TaskView() {
   const queryClient = useQueryClient();
@@ -256,20 +257,34 @@ export function TaskView() {
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const { error } = await supabase
-        .from('Projects')
-        .insert([{ name }]);
+    mutationFn: async (projectData: any) => {
+      const { name, selectedTasks, startDate, dueDate, status, taskListId } = projectData;
       
-      if (error) throw error;
+      const { data: newProject, error: projectError } = await supabase
+        .from('Projects')
+        .insert([{
+          "Project Name": name,
+          Progress: status || "Not started",
+          date_started: startDate?.toISOString(),
+          date_due: dueDate?.toISOString(),
+          task_list_id: taskListId,
+          sort_order: 0
+        }])
+        .select()
+        .single();
+      
+      if (projectError) throw projectError;
+      
+      return newProject;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast.success('Project created');
+      setShowProjectModal(false);
+      toast.success('Project created successfully');
     },
     onError: (error) => {
+      console.error('Failed to create project:', error);
       toast.error('Failed to create project');
-      console.error('Create error:', error);
     },
   });
 
@@ -310,7 +325,6 @@ export function TaskView() {
     
     let filteredTasks = [...tasks];
     
-    // Apply search filter
     if (searchQuery) {
       const searchLower = searchQuery.toLowerCase();
       filteredTasks = filteredTasks.filter(task => 
@@ -318,12 +332,10 @@ export function TaskView() {
       );
     }
     
-    // Apply progress filter
     if (progressFilter !== "all") {
       filteredTasks = filteredTasks.filter(task => task.Progress === progressFilter);
     }
     
-    // Apply sorting
     if (sortBy === 'date') {
       return filteredTasks.sort((a, b) => {
         const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
@@ -332,7 +344,6 @@ export function TaskView() {
       });
     }
     
-    // Sort by list
     return filteredTasks.sort((a, b) => {
       const aListId = a.task_list_id || 0;
       const bListId = b.task_list_id || 0;
@@ -359,7 +370,6 @@ export function TaskView() {
       }
     });
     
-    // Add uncategorized tasks
     const uncategorizedTasks = filteredTasks.filter(task => !task.task_list_id);
     if (uncategorizedTasks.length > 0) {
       const defaultList = taskLists.find(list => list.name === 'Default');

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -281,6 +280,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
         const isFirst = i === 0;
+        const isMovedTask = task.id === movedTaskId;
 
         // Skip completed tasks
         if (task.Progress === 'Completed') continue;
@@ -288,15 +288,20 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         let taskStartTime: Date;
         let taskEndTime: Date;
 
-        // Only reset timer if this is the first task AND it's currently in progress
-        if (isFirst && shouldResetTimer && currentTask && currentTask.id === task.id) {
-          taskStartTime = currentTime;
+        // If this is the current task AND it wasn't the one moved AND we're not resetting the timer
+        if (currentTask && currentTask.id === task.id && !isMovedTask && !shouldResetTimer) {
+          // Keep the original start time for the current task
+          taskStartTime = new Date(currentTask.date_started);
+          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         } else {
-          taskStartTime = new Date(nextStartTime);
+          // For all other tasks or if this task was moved
+          if (isFirst && shouldResetTimer && currentTask && currentTask.id === task.id) {
+            taskStartTime = currentTime;
+          } else {
+            taskStartTime = new Date(nextStartTime);
+          }
+          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         }
-
-        // Add 25 minutes for task duration
-        taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
 
         if (isLateNight) {
           if (isAfter(taskEndTime, tomorrow5AM)) {

@@ -214,39 +214,26 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       
       if (error) throw error;
       
-      return data.filter(task => {
-        const taskDate = task.date_started ? new Date(task.date_started) : null;
-        if (!taskDate) return false;
+      if (!isTaskView) {
+        return data.filter(task => {
+          const taskDate = task.date_started ? new Date(task.date_started) : null;
+          if (!taskDate) return false;
 
-        if (today.getHours() < 5) {
-          const yesterday9PM = new Date(today);
-          yesterday9PM.setDate(yesterday9PM.getDate() - 1);
-          yesterday9PM.setHours(21, 0, 0, 0);
-          return taskDate >= yesterday9PM && taskDate <= tomorrow5AM;
-        }
+          if (today.getHours() < 5) {
+            const yesterday9PM = new Date(today);
+            yesterday9PM.setDate(yesterday9PM.getDate() - 1);
+            yesterday9PM.setHours(21, 0, 0, 0);
+            return taskDate >= yesterday9PM && taskDate <= tomorrow5AM;
+          }
 
-        const today9PM = new Date(today);
-        today9PM.setHours(21, 0, 0, 0);
-        return taskDate <= tomorrow5AM;
-      });
-    },
-  });
-
-  const { data: dbSubtasks } = useQuery({
-    queryKey: ['today-subtasks'],
-    queryFn: async () => {
-      if (!dbTasks || dbTasks.length === 0) return [];
+          const today9PM = new Date(today);
+          today9PM.setHours(21, 0, 0, 0);
+          return taskDate <= tomorrow5AM;
+        });
+      }
       
-      const taskIds = dbTasks.map(task => task.id);
-      const { data, error } = await supabase
-        .from('subtasks')
-        .select('*')
-        .in('Parent Task ID', taskIds);
-      
-      if (error) throw error;
       return data;
     },
-    enabled: !!dbTasks?.length,
   });
 
   const updateTaskOrder = useMutation({
@@ -265,25 +252,28 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const updates = [];
       const currentTask = tasks.find(t => t.Progress === 'In progress');
       
+      console.log('Current task:', currentTask?.["Task Name"], 'Moved task ID:', movedTaskId);
+      
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
         const isFirst = i === 0;
         const isMovedTask = task.id === movedTaskId;
         const isCurrentTask = currentTask && currentTask.id === task.id;
+        const wasFirstTask = tasks.findIndex(t => t.id === task.id) === 0;
 
         if (task.Progress === 'Completed') continue;
 
         let taskStartTime: Date;
         let taskEndTime: Date;
 
-        const shouldPreserveCurrentTaskTime = isCurrentTask && !isMovedTask && !shouldResetTimer;
+        const shouldPreserveCurrentTaskTime = isCurrentTask && !isMovedTask && (!shouldResetTimer || !isFirst);
 
         if (shouldPreserveCurrentTaskTime) {
           taskStartTime = new Date(currentTask.date_started);
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
           console.log('Preserving current task time for:', task["Task Name"], 'Start:', taskStartTime);
         } else {
-          if (isFirst && shouldResetTimer && isCurrentTask) {
+          if (isFirst && (shouldResetTimer || isMovedTask)) {
             taskStartTime = currentTime;
           } else {
             taskStartTime = new Date(nextStartTime);
@@ -307,7 +297,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         };
 
         if (isCurrentTask) {
-          if (isFirst && shouldResetTimer) {
+          if (isFirst && (shouldResetTimer || isMovedTask)) {
             updateData.Progress = 'In progress';
           } else if (!isFirst && task.Progress === 'In progress') {
             updateData.Progress = 'Not started';
@@ -358,7 +348,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     reorderedTasks.splice(newIndex, 0, movedTask);
 
     const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
-    const shouldResetTimer = newIndex === 0 || (oldIndex === 0 && movedTask.id === currentTask?.id);
+    const shouldResetTimer = movedTask.id === currentTask?.id;
 
     await updateTaskOrder.mutate({ 
       tasks: reorderedTasks,

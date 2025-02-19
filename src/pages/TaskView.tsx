@@ -433,20 +433,14 @@ export function TaskView() {
         });
       case 'list':
         return filteredTasks.sort((a, b) => {
-          const aListId = a.task_list_id || 0;
-          const bListId = b.task_list_id || 0;
-          return aListId - bListId;
-        });
-      case 'project':
-        return filteredTasks.sort((a, b) => {
-          const aProjectId = a.project_id || 0;
-          const bProjectId = b.project_id || 0;
-          return aProjectId - bProjectId;
+          const aListName = taskLists?.find(l => l.id === a.task_list_id)?.name || '';
+          const bListName = taskLists?.find(l => l.id === b.task_list_id)?.name || '';
+          return aListName.localeCompare(bListName);
         });
       default:
         return filteredTasks;
     }
-  }, [progressFilter, searchQuery, sortBy]);
+  }, [progressFilter, searchQuery, sortBy, taskLists]);
 
   const filteredAndGroupedTasks = React.useMemo(() => {
     if (!tasks || (!taskLists && sortBy === 'list') || (!projects && sortBy === 'project')) {
@@ -460,7 +454,6 @@ export function TaskView() {
     if (sortBy === 'list') {
       taskLists?.forEach(list => {
         const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
-        
         if (listTasks.length > 0) {
           grouped.set(list.id, {
             list,

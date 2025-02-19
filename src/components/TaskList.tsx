@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -239,56 +238,53 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
   const updateTaskOrder = useMutation({
     mutationFn: async ({ tasks, shouldResetTimer, movedTaskId }: { tasks: any[], shouldResetTimer: boolean, movedTaskId: number }) => {
+      const currentTask = tasks.find(t => t.Progress === 'In progress');
+      const movedTask = tasks.find(t => t.id === movedTaskId);
+      const oldIndex = tasks.findIndex(t => t.id === movedTaskId);
+      const newIndex = tasks.findIndex(t => t.id === movedTaskId);
+      const isMovingToFirst = newIndex === 0;
+      const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
+      
+      console.log('Task update operation:', {
+        currentTaskId: currentTask?.id,
+        movedTaskId,
+        oldIndex,
+        newIndex,
+        isMovingToFirst,
+        isMovingCurrentTask
+      });
+
+      const shouldUpdateCurrentTask = isMovingCurrentTask || isMovingToFirst;
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
-      const today5AM = new Date(currentTime);
-      today5AM.setHours(5, 0, 0, 0);
-      
-      const tomorrow5AM = new Date(currentTime);
-      tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
-      tomorrow5AM.setHours(5, 0, 0, 0);
 
-      const isLateNight = currentTime.getHours() >= 21 || currentTime.getHours() < 5;
+      if (!shouldUpdateCurrentTask && currentTask) {
+        nextStartTime = new Date(new Date(currentTask.date_started).getTime() + 30 * 60 * 1000);
+      }
 
       const updates = [];
-      const currentTask = tasks.find(t => t.Progress === 'In progress');
       
-      console.log('Current task:', currentTask?.["Task Name"], 'Moved task ID:', movedTaskId);
-      
-      for (let i = 0; i < tasks.length; i++) {
-        const task = tasks[i];
-        const isFirst = i === 0;
-        const isMovedTask = task.id === movedTaskId;
-        const isCurrentTask = currentTask && currentTask.id === task.id;
-        const wasFirstTask = tasks.findIndex(t => t.id === task.id) === 0;
-
+      for (const task of tasks) {
         if (task.Progress === 'Completed') continue;
+
+        const isCurrentTask = currentTask && task.id === currentTask.id;
+        const isFirst = tasks.indexOf(task) === 0;
 
         let taskStartTime: Date;
         let taskEndTime: Date;
 
-        const shouldPreserveCurrentTaskTime = isCurrentTask && !isMovedTask && (!shouldResetTimer || !isFirst);
-
-        if (shouldPreserveCurrentTaskTime) {
+        if (isCurrentTask && !shouldUpdateCurrentTask) {
           taskStartTime = new Date(currentTask.date_started);
-          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-          console.log('Preserving current task time for:', task["Task Name"], 'Start:', taskStartTime);
+          taskEndTime = new Date(currentTask.date_due);
+          console.log('Preserving current task time:', taskStartTime);
         } else {
-          if (isFirst && (shouldResetTimer || isMovedTask)) {
+          if (isFirst && shouldUpdateCurrentTask) {
             taskStartTime = currentTime;
           } else {
             taskStartTime = new Date(nextStartTime);
           }
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-        }
-
-        if (isLateNight) {
-          if (isAfter(taskEndTime, tomorrow5AM)) {
-            const nextDay = addDays(startOfDay(currentTime), 1);
-            nextDay.setHours(9, 0, 0, 0);
-            taskStartTime = nextDay;
-            taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-          }
+          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
 
         const updateData: any = {
@@ -297,30 +293,27 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           date_due: taskEndTime.toISOString(),
         };
 
-        if (isCurrentTask) {
-          if (isFirst && (shouldResetTimer || isMovedTask)) {
-            updateData.Progress = 'In progress';
-          } else if (!isFirst && task.Progress === 'In progress') {
-            updateData.Progress = 'Not started';
-          }
+        if (isCurrentTask && !isFirst && shouldUpdateCurrentTask) {
+          updateData.Progress = 'Not started';
+        } else if (isFirst && shouldUpdateCurrentTask && !isCurrentTask) {
+          updateData.Progress = 'In progress';
         }
+
+        console.log('Updating task:', {
+          taskName: task["Task Name"],
+          startTime: taskStartTime,
+          endTime: taskEndTime,
+          isCurrentTask,
+          progress: updateData.Progress || task.Progress
+        });
 
         updates.push(updateData);
-        console.log('Task update:', task["Task Name"], updateData);
-
-        if (!shouldPreserveCurrentTaskTime) {
-          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
-        }
       }
 
       for (const update of updates) {
         const { error } = await supabase
           .from('Tasks')
-          .update({
-            date_started: update.date_started,
-            date_due: update.date_due,
-            Progress: update.Progress
-          })
+          .update(update)
           .eq('id', update.id);
 
         if (error) throw error;
@@ -349,11 +342,12 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     reorderedTasks.splice(newIndex, 0, movedTask);
 
     const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
-    const shouldResetTimer = movedTask.id === currentTask?.id;
-
+    const isMovingToFirst = newIndex === 0;
+    const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
+    
     await updateTaskOrder.mutate({ 
       tasks: reorderedTasks,
-      shouldResetTimer,
+      shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
       movedTaskId: movedTask.id
     });
   };

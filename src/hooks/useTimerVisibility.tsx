@@ -5,7 +5,9 @@ export const useTimerVisibility = (currentTask: any, getNextTask: () => any) => 
   const [isVisible, setIsVisible] = useState(true);
 
   const shouldShowTimer = () => {
-    if (currentTask && new Date() >= new Date(currentTask.date_started)) {
+    if (!currentTask) return false;
+
+    if (new Date() >= new Date(currentTask.date_started)) {
       return true;
     }
 

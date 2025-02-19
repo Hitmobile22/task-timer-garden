@@ -218,7 +218,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
 
-        // If it's before 5 AM, include tasks from yesterday 9 PM onwards
         if (today.getHours() < 5) {
           const yesterday9PM = new Date(today);
           yesterday9PM.setDate(yesterday9PM.getDate() - 1);
@@ -226,7 +225,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           return taskDate >= yesterday9PM && taskDate <= tomorrow5AM;
         }
 
-        // Otherwise, include tasks from today until tomorrow 5 AM
         const today9PM = new Date(today);
         today9PM.setHours(21, 0, 0, 0);
         return taskDate <= tomorrow5AM;
@@ -258,21 +256,11 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const today5AM = new Date(currentTime);
       today5AM.setHours(5, 0, 0, 0);
       
-      const yesterday9PM = new Date(currentTime);
-      yesterday9PM.setDate(yesterday9PM.getDate() - 1);
-      yesterday9PM.setHours(21, 0, 0, 0);
-      
       const tomorrow5AM = new Date(currentTime);
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
 
       const isLateNight = currentTime.getHours() >= 21 || currentTime.getHours() < 5;
-      const isBeforeFiveAM = currentTime.getHours() < 5;
-
-      if (isBeforeFiveAM) {
-        yesterday9PM.setDate(yesterday9PM.getDate() + 1);
-        today5AM.setDate(today5AM.getDate() + 1);
-      }
 
       const updates = [];
       const currentTask = tasks.find(t => t.Progress === 'In progress');
@@ -281,21 +269,21 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         const task = tasks[i];
         const isFirst = i === 0;
         const isMovedTask = task.id === movedTaskId;
+        const isCurrentTask = currentTask && currentTask.id === task.id;
 
-        // Skip completed tasks
         if (task.Progress === 'Completed') continue;
 
         let taskStartTime: Date;
         let taskEndTime: Date;
 
-        // If this is the current task AND it wasn't the one moved AND we're not resetting the timer
-        if (currentTask && currentTask.id === task.id && !isMovedTask && !shouldResetTimer) {
-          // Keep the original start time for the current task
+        const shouldPreserveCurrentTaskTime = isCurrentTask && !isMovedTask && !shouldResetTimer;
+
+        if (shouldPreserveCurrentTaskTime) {
           taskStartTime = new Date(currentTask.date_started);
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+          console.log('Preserving current task time for:', task["Task Name"], 'Start:', taskStartTime);
         } else {
-          // For all other tasks or if this task was moved
-          if (isFirst && shouldResetTimer && currentTask && currentTask.id === task.id) {
+          if (isFirst && shouldResetTimer && isCurrentTask) {
             taskStartTime = currentTime;
           } else {
             taskStartTime = new Date(nextStartTime);
@@ -318,22 +306,22 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           date_due: taskEndTime.toISOString(),
         };
 
-        // Only update progress status if we're dealing with the current task
-        if (currentTask && currentTask.id === task.id) {
+        if (isCurrentTask) {
           if (isFirst && shouldResetTimer) {
             updateData.Progress = 'In progress';
-          } else if (task.Progress === 'In progress' && (!isFirst || !shouldResetTimer)) {
+          } else if (!isFirst && task.Progress === 'In progress') {
             updateData.Progress = 'Not started';
           }
         }
 
         updates.push(updateData);
+        console.log('Task update:', task["Task Name"], updateData);
 
-        // Add 5-minute break for next task
-        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        if (!shouldPreserveCurrentTaskTime) {
+          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        }
       }
 
-      // Apply all updates
       for (const update of updates) {
         const { error } = await supabase
           .from('Tasks')
@@ -369,7 +357,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
 
-    const shouldResetTimer = newIndex === 0 || (oldIndex === 0 && movedTask.Progress === 'In progress');
+    const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
+    const shouldResetTimer = newIndex === 0 || (oldIndex === 0 && movedTask.id === currentTask?.id);
 
     await updateTaskOrder.mutate({ 
       tasks: reorderedTasks,

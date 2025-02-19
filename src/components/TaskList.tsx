@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -207,7 +208,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const tomorrow5AM = addDays(today, 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
       
-      console.log('Fetching tasks for view:', isTaskView ? 'Task View' : 'Today\'s Tasks');
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
@@ -238,79 +238,89 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
   });
 
   const updateTaskOrder = useMutation({
-    mutationFn: async ({ tasks, movedTaskId, newIndex }: { tasks: any[], movedTaskId: number, newIndex: number }) => {
+    mutationFn: async ({ tasks, shouldResetTimer, movedTaskId }: { tasks: any[], shouldResetTimer: boolean, movedTaskId: number }) => {
       const currentTime = new Date();
-      const currentTask = tasks.find(t => t.Progress === 'In progress');
-      const movedTask = tasks.find(t => t.id === movedTaskId);
-      
-      console.log('Update task order:', {
-        currentTaskId: currentTask?.id,
-        movedTaskId,
-        newIndex,
-        currentTaskName: currentTask?.["Task Name"],
-        movedTaskName: movedTask?.["Task Name"]
-      });
-
-      const shouldResetCurrentTask = 
-        (movedTaskId === currentTask?.id) || 
-        (newIndex === 0 && movedTaskId !== currentTask?.id);
-
       let nextStartTime = new Date(currentTime);
+      const today5AM = new Date(currentTime);
+      today5AM.setHours(5, 0, 0, 0);
+      
+      const tomorrow5AM = new Date(currentTime);
+      tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
+      tomorrow5AM.setHours(5, 0, 0, 0);
 
-      const updates = tasks
-        .filter(task => task.Progress !== 'Completed')
-        .map((task, index) => {
-          const isCurrentTask = task.id === currentTask?.id;
-          const isMovedTask = task.id === movedTaskId;
-          const isFirst = index === 0;
+      const isLateNight = currentTime.getHours() >= 21 || currentTime.getHours() < 5;
 
-          let taskStartTime: Date;
-          let taskEndTime: Date;
+      const updates = [];
+      const currentTask = tasks.find(t => t.Progress === 'In progress');
+      
+      console.log('Current task:', currentTask?.["Task Name"], 'Moved task ID:', movedTaskId);
+      
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        const isFirst = i === 0;
+        const isMovedTask = task.id === movedTaskId;
+        const isCurrentTask = currentTask && currentTask.id === task.id;
+        const wasFirstTask = tasks.findIndex(t => t.id === task.id) === 0;
 
-          if (isCurrentTask && !shouldResetCurrentTask) {
-            taskStartTime = new Date(currentTask.date_started);
-            console.log('Preserving current task time:', taskStartTime);
-          } else if (isFirst && shouldResetCurrentTask) {
+        if (task.Progress === 'Completed') continue;
+
+        let taskStartTime: Date;
+        let taskEndTime: Date;
+
+        const shouldPreserveCurrentTaskTime = isCurrentTask && !isMovedTask && (!shouldResetTimer || !isFirst);
+
+        if (shouldPreserveCurrentTaskTime) {
+          taskStartTime = new Date(currentTask.date_started);
+          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+          console.log('Preserving current task time for:', task["Task Name"], 'Start:', taskStartTime);
+        } else {
+          if (isFirst && (shouldResetTimer || isMovedTask)) {
             taskStartTime = currentTime;
           } else {
             taskStartTime = new Date(nextStartTime);
           }
-
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-          
-          if (!isCurrentTask || shouldResetCurrentTask) {
-            nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        }
+
+        if (isLateNight) {
+          if (isAfter(taskEndTime, tomorrow5AM)) {
+            const nextDay = addDays(startOfDay(currentTime), 1);
+            nextDay.setHours(9, 0, 0, 0);
+            taskStartTime = nextDay;
+            taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
           }
+        }
 
-          const updateData = {
-            id: task.id,
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString(),
-          };
+        const updateData: any = {
+          id: task.id,
+          date_started: taskStartTime.toISOString(),
+          date_due: taskEndTime.toISOString(),
+        };
 
-          if (isCurrentTask) {
-            if (shouldResetCurrentTask && !isFirst) {
-              updateData['Progress'] = 'Not started';
-            }
-          } else if (isFirst && shouldResetCurrentTask) {
-            updateData['Progress'] = 'In progress';
+        if (isCurrentTask) {
+          if (isFirst && (shouldResetTimer || isMovedTask)) {
+            updateData.Progress = 'In progress';
+          } else if (!isFirst && task.Progress === 'In progress') {
+            updateData.Progress = 'Not started';
           }
+        }
 
-          console.log('Task update:', {
-            taskName: task["Task Name"],
-            isCurrentTask,
-            shouldResetCurrentTask,
-            startTime: taskStartTime,
-            endTime: taskEndTime
-          });
+        updates.push(updateData);
+        console.log('Task update:', task["Task Name"], updateData);
 
-          return updateData;
-        });
+        if (!shouldPreserveCurrentTaskTime) {
+          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        }
+      }
 
       for (const update of updates) {
         const { error } = await supabase
           .from('Tasks')
-          .update(update)
+          .update({
+            date_started: update.date_started,
+            date_due: update.date_due,
+            Progress: update.Progress
+          })
           .eq('id', update.id);
 
         if (error) throw error;
@@ -338,10 +348,13 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
 
+    const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
+    const shouldResetTimer = movedTask.id === currentTask?.id;
+
     await updateTaskOrder.mutate({ 
       tasks: reorderedTasks,
-      movedTaskId: movedTask.id,
-      newIndex
+      shouldResetTimer,
+      movedTaskId: movedTask.id
     });
   };
 

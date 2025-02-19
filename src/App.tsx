@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from "@/components/ui/toaster";
 import Index from '@/pages/Index';
-import { TaskView } from '@/pages/TaskView';
+import TaskView from '@/pages/TaskView';
 import Calendar from '@/pages/Calendar';
 import NotFound from '@/pages/NotFound';
 

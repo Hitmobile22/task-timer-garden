@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
@@ -391,7 +392,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                   <SortableTaskItem key={task.id} task={task}>
                     <TaskItem
                       task={task}
-                      subtasks={dbSubtasks}
+                      subtasks={subtasks}
                       updateTaskProgress={updateTaskProgress}
                       onTaskStart={onTaskStart}
                     />

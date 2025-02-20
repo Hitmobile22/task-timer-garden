@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState } from 'react';
 
 interface RecurringTasksModalProps {
@@ -26,6 +27,16 @@ export interface RecurringTaskSettings {
   dailyTaskCount: number;
   daysOfWeek: string[];
 }
+
+const DAYS_OF_WEEK = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
 
 export const RecurringTasksModal = ({
   open,
@@ -46,6 +57,15 @@ export const RecurringTasksModal = ({
     e.preventDefault();
     onSubmit(settings);
     onClose();
+  };
+
+  const toggleDay = (day: string) => {
+    setSettings(prev => ({
+      ...prev,
+      daysOfWeek: prev.daysOfWeek.includes(day)
+        ? prev.daysOfWeek.filter(d => d !== day)
+        : [...prev.daysOfWeek, day],
+    }));
   };
 
   return (
@@ -81,6 +101,22 @@ export const RecurringTasksModal = ({
               }
               disabled={!settings.enabled}
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Days of Week</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {DAYS_OF_WEEK.map((day) => (
+                <div key={day} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`day-${day}`}
+                    checked={settings.daysOfWeek.includes(day)}
+                    onCheckedChange={() => toggleDay(day)}
+                    disabled={!settings.enabled}
+                  />
+                  <Label htmlFor={`day-${day}`}>{day}</Label>
+                </div>
+              ))}
+            </div>
           </div>
           <DialogFooter>
             <Button type="submit">Save Changes</Button>

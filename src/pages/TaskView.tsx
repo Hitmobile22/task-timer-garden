@@ -521,7 +521,14 @@ export function TaskView() {
     if (!selectedListId) return;
 
     try {
-      // Get today's active tasks count for the list
+      const today = new Date();
+      const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+      
+      if (!settings.enabled || !settings.daysOfWeek.includes(dayOfWeek)) {
+        toast.success('Recurring tasks settings updated');
+        return;
+      }
+
       const { data: existingTasks, error: countError } = await supabase
         .from('Tasks')
         .select('id')
@@ -532,17 +539,18 @@ export function TaskView() {
       if (countError) throw countError;
 
       const existingCount = existingTasks?.length || 0;
-      const neededTasks = settings.enabled ? 
-        Math.max(0, settings.dailyTaskCount - existingCount) : 0;
-
+      const neededTasks = Math.max(0, settings.dailyTaskCount - existingCount);
       const selectedList = taskLists?.find(l => l.id === selectedListId);
       
       if (neededTasks > 0) {
         const newTasks = Array.from({ length: neededTasks }, (_, i) => ({
           "Task Name": `${selectedList?.name || 'Task'} ${existingCount + i + 1}`,
-          Progress: 'Not started',
+          Progress: "Not started" as const,
           task_list_id: selectedListId,
           date_started: new Date().toISOString(),
+          date_due: new Date(new Date().setHours(new Date().getHours() + 1)).toISOString(),
+          order: existingCount + i,
+          archived: false,
         }));
 
         const { error: insertError } = await supabase
@@ -550,9 +558,12 @@ export function TaskView() {
           .insert(newTasks);
 
         if (insertError) throw insertError;
+        
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       }
 
-      toast.success('Recurring tasks settings updated');
+      toast.success('Recurring tasks updated');
     } catch (error) {
       console.error('Error setting up recurring tasks:', error);
       toast.error('Failed to set up recurring tasks');

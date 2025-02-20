@@ -1,5 +1,5 @@
+
 import React, { useState } from 'react';
-import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle } from 'lucide-react';
 
 interface SubTask {
   name: string;
@@ -113,10 +114,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
         )}
       </div>
 
-      {hasSubtasks && isExpanded && (
+      {isExpanded && hasSubtasks && (
         <ul className="pl-6 space-y-2">
           {subtasks
-            .filter(subtask => subtask["Parent Task ID"] === task.id)
+            ?.filter(subtask => subtask["Parent Task ID"] === task.id)
             .sort((a, b) => {
               if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
               if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
@@ -232,6 +233,19 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         });
       }
       
+      return data;
+    },
+  });
+
+  const { data: todaySubtasks } = useQuery({
+    queryKey: ['today-subtasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('subtasks')
+        .select('*')
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
       return data;
     },
   });
@@ -386,7 +400,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                   <SortableTaskItem key={task.id} task={task}>
                     <TaskItem
                       task={task}
-                      subtasks={subtasks}
+                      subtasks={todaySubtasks}
                       updateTaskProgress={updateTaskProgress}
                       onTaskStart={onTaskStart}
                     />

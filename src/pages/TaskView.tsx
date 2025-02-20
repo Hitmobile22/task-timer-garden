@@ -21,10 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowUpDown, Filter, ListFilter, Plus, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, Edit2, Trash2 } from "lucide-react";
+import { ArrowUpDown, Filter, ListFilter, Plus, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, Edit2, Trash2, Repeat } from "lucide-react";
 import { format } from 'date-fns';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { ProjectModal } from '@/components/project/ProjectModal';
+import { RecurringTasksModal, RecurringTaskSettings } from '@/components/task/RecurringTasksModal';
 
 export function TaskView() {
   const queryClient = useQueryClient();
@@ -43,6 +44,8 @@ export function TaskView() {
   const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('list');
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProject, setEditingProject] = React.useState<any>(null);
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [selectedListId, setSelectedListId] = useState<number | null>(null);
 
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
@@ -267,6 +270,21 @@ export function TaskView() {
     onError: (error) => {
       toast.error('Failed to update list name');
       console.error('Update error:', error);
+    },
+  });
+
+  const deleteListMutation = useMutation({
+    mutationFn: async (listId: number) => {
+      const { error } = await supabase
+        .from('TaskLists')
+        .delete()
+        .eq('id', listId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
+      toast.success('List deleted');
     },
   });
 
@@ -499,6 +517,48 @@ export function TaskView() {
     setShowProjectModal(false);
   };
 
+  const handleRecurringTasksSubmit = async (settings: RecurringTaskSettings) => {
+    if (!selectedListId) return;
+
+    try {
+      // Get today's active tasks count for the list
+      const { data: existingTasks, error: countError } = await supabase
+        .from('Tasks')
+        .select('id')
+        .eq('task_list_id', selectedListId)
+        .in('Progress', ['Not started', 'In progress'])
+        .gte('date_started', new Date().toISOString().split('T')[0]);
+
+      if (countError) throw countError;
+
+      const existingCount = existingTasks?.length || 0;
+      const neededTasks = settings.enabled ? 
+        Math.max(0, settings.dailyTaskCount - existingCount) : 0;
+
+      const selectedList = taskLists?.find(l => l.id === selectedListId);
+      
+      if (neededTasks > 0) {
+        const newTasks = Array.from({ length: neededTasks }, (_, i) => ({
+          "Task Name": `${selectedList?.name || 'Task'} ${existingCount + i + 1}`,
+          Progress: 'Not started',
+          task_list_id: selectedListId,
+          date_started: new Date().toISOString(),
+        }));
+
+        const { error: insertError } = await supabase
+          .from('Tasks')
+          .insert(newTasks);
+
+        if (insertError) throw insertError;
+      }
+
+      toast.success('Recurring tasks settings updated');
+    } catch (error) {
+      console.error('Error setting up recurring tasks:', error);
+      toast.error('Failed to set up recurring tasks');
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 space-y-8 animate-fadeIn" style={{
       background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
@@ -543,7 +603,60 @@ export function TaskView() {
                     color: 'white'
                   }}
                 >
-                  <h3 className="text-lg font-semibold text-white">{list?.name}</h3>
+                  {editingListId === list?.id ? (
+                    <Input
+                      value={editingListName}
+                      onChange={(e) => setEditingListName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          updateListNameMutation.mutate({ 
+                            listId: list.id, 
+                            name: editingListName 
+                          });
+                        }
+                      }}
+                      className="bg-white/10 border-none text-white placeholder:text-white/60"
+                      autoFocus
+                    />
+                  ) : (
+                    <h3 className="text-lg font-semibold text-white">{list?.name}</h3>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:bg-white/20"
+                      onClick={() => {
+                        setSelectedListId(list?.id || null);
+                        setShowRecurringModal(true);
+                      }}
+                    >
+                      <Repeat className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:bg-white/20"
+                      onClick={() => {
+                        setEditingListId(list?.id || null);
+                        setEditingListName(list?.name || "");
+                      }}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-white hover:bg-white/20"
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this list?')) {
+                          deleteListMutation.mutate(list?.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 
                 <div className="space-y-4">
@@ -668,6 +781,13 @@ export function TaskView() {
         taskLists={taskLists || []}
         availableTasks={tasks || []}
         initialData={editingProject}
+      />
+
+      <RecurringTasksModal
+        open={showRecurringModal}
+        onClose={() => setShowRecurringModal(false)}
+        onSubmit={handleRecurringTasksSubmit}
+        listName={taskLists?.find(l => l.id === selectedListId)?.name || ''}
       />
     </div>
   );

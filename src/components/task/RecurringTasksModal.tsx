@@ -12,13 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from 'sonner';
 
 interface RecurringTasksModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (settings: RecurringTaskSettings) => void;
   listName: string;
+  listId: number;
   initialSettings?: RecurringTaskSettings;
 }
 
@@ -43,6 +46,7 @@ export const RecurringTasksModal = ({
   onClose,
   onSubmit,
   listName,
+  listId,
   initialSettings,
 }: RecurringTasksModalProps) => {
   const [settings, setSettings] = useState<RecurringTaskSettings>(
@@ -53,10 +57,62 @@ export const RecurringTasksModal = ({
     }
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('recurring_task_settings')
+          .select('*')
+          .eq('task_list_id', listId)
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        if (data) {
+          setSettings({
+            enabled: data.enabled,
+            dailyTaskCount: data.daily_task_count,
+            daysOfWeek: data.days_of_week,
+          });
+        }
+      } catch (error) {
+        console.error('Error loading recurring task settings:', error);
+        toast.error('Failed to load recurring task settings');
+      }
+    };
+
+    if (open && listId) {
+      loadSettings();
+    }
+  }, [open, listId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(settings);
-    onClose();
+    try {
+      const { error } = await supabase
+        .from('recurring_task_settings')
+        .upsert({
+          task_list_id: listId,
+          enabled: settings.enabled,
+          daily_task_count: settings.dailyTaskCount,
+          days_of_week: settings.daysOfWeek,
+        });
+
+      if (error) throw error;
+
+      onSubmit(settings);
+      onClose();
+      toast.success('Recurring task settings saved');
+
+      // Trigger immediate check for new tasks if enabled
+      if (settings.enabled) {
+        const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks');
+        if (checkError) throw checkError;
+      }
+    } catch (error) {
+      console.error('Error saving recurring task settings:', error);
+      toast.error('Failed to save recurring task settings');
+    }
   };
 
   const toggleDay = (day: string) => {

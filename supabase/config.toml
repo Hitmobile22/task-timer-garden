@@ -3,3 +3,6 @@ project_id = "yjngziesjqltethpvogp"
 
 [functions.google-calendar]
 verify_jwt = false
+
+[functions.check-recurring-tasks]
+verify_jwt = false

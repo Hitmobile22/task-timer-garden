@@ -22,7 +22,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 type Status = Database['public']['Enums']['status'];
@@ -50,7 +50,7 @@ export const TaskForm = ({ onTasksCreate }) => {
     },
   });
 
-  const [numTasks, setNumTasks] = useState(1);
+  const [numTasks, setNumTasks] = useState<string>("none");
   const [tasks, setTasks] = useState<Task[]>([{ name: "", subtasks: [] }]);
   const [loadingTaskIndex, setLoadingTaskIndex] = useState<number | null>(null);
   const [delayType, setDelayType] = useState<'minutes' | 'datetime' | null>(null);
@@ -59,16 +59,23 @@ export const TaskForm = ({ onTasksCreate }) => {
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const handleNumTasksChange = (value: string) => {
-    const num = parseInt(value);
-    setNumTasks(num);
-    setTasks((prevTasks) =>
-      Array(num)
-        .fill(null)
-        .map((_, i) => ({
-          name: prevTasks[i]?.name || "",
-          subtasks: prevTasks[i]?.subtasks || [],
-        }))
-    );
+    setNumTasks(value);
+    if (value === "none") {
+      setTasks([{ name: "", subtasks: [] }]);
+      setDelayType(null);
+      setSelectedDate(undefined);
+      setSelectedMinutes('');
+    } else {
+      const num = parseInt(value);
+      setTasks((prevTasks) =>
+        Array(num)
+          .fill(null)
+          .map((_, i) => ({
+            name: prevTasks[i]?.name || "",
+            subtasks: prevTasks[i]?.subtasks || [],
+          }))
+      );
+    }
   };
 
   const handleTaskInputChange = (index: number, value: string) => {
@@ -219,11 +226,12 @@ export const TaskForm = ({ onTasksCreate }) => {
       <div className="space-y-4">
         <div>
           <Label htmlFor="numTasks">Number of Tasks</Label>
-          <Select value={numTasks.toString()} onValueChange={handleNumTasksChange}>
+          <Select value={numTasks} onValueChange={handleNumTasksChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select number of tasks" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">None</SelectItem>
               {[...Array(10)].map((_, i) => (
                 <SelectItem key={i + 1} value={(i + 1).toString()}>
                   {i + 1} {i === 0 ? "Task" : "Tasks"}
@@ -233,162 +241,166 @@ export const TaskForm = ({ onTasksCreate }) => {
           </Select>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label>Delay by Minutes</Label>
-            <Select
-              value={delayType === 'minutes' ? selectedMinutes : ''}
-              onValueChange={(value) => {
-                if (value === 'none') {
-                  setDelayType(null);
-                  setSelectedMinutes('');
-                } else {
-                  setDelayType('minutes');
-                  setSelectedMinutes(value);
-                  setSelectedDate(undefined);
-                }
-              }}
-              disabled={delayType === 'datetime'}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select delay" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {[5, 10, 25, 30, 45, 60, 120, 180].map((minutes) => (
-                  <SelectItem key={minutes} value={minutes.toString()}>
-                    {minutes >= 60 
-                      ? `${minutes / 60} ${minutes === 60 ? 'hour' : 'hours'}`
-                      : `${minutes} minutes`
-                    }
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Schedule for</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !selectedDate && "text-muted-foreground"
-                  )}
-                  disabled={delayType === 'minutes'}
-                  onClick={() => {
-                    if (delayType !== 'datetime') {
-                      setDelayType('datetime');
+        {numTasks !== "none" && (
+          <>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Delay by Minutes</Label>
+                <Select
+                  value={delayType === 'minutes' ? selectedMinutes : ''}
+                  onValueChange={(value) => {
+                    if (value === 'none') {
+                      setDelayType(null);
                       setSelectedMinutes('');
+                    } else {
+                      setDelayType('minutes');
+                      setSelectedMinutes(value);
+                      setSelectedDate(undefined);
                     }
                   }}
+                  disabled={delayType === 'datetime'}
                 >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? (
-                    format(selectedDate, "PPP p")
-                  ) : (
-                    <span>Pick date and time</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-4 space-y-4">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => {
-                      if (date) {
-                        const currentTime = selectedDate || new Date();
-                        date.setHours(currentTime.getHours());
-                        date.setMinutes(currentTime.getMinutes());
-                        setSelectedDate(date);
-                      }
-                    }}
-                    initialFocus
-                  />
-                  <div className="flex gap-2 items-center">
-                    <Input
-                      type="time"
-                      value={selectedDate ? format(selectedDate, "HH:mm") : ""}
-                      onChange={(e) => {
-                        const [hours, minutes] = e.target.value.split(':').map(Number);
-                        const newDate = selectedDate || new Date();
-                        newDate.setHours(hours);
-                        newDate.setMinutes(minutes);
-                        setSelectedDate(new Date(newDate));
-                      }}
-                    />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-      </div>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select delay" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {[5, 10, 25, 30, 45, 60, 120, 180].map((minutes) => (
+                      <SelectItem key={minutes} value={minutes.toString()}>
+                        {minutes >= 60 
+                          ? `${minutes / 60} ${minutes === 60 ? 'hour' : 'hours'}`
+                          : `${minutes} minutes`
+                        }
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      <div className="space-y-6">
-        {tasks.map((task, taskIndex) => (
-          <div key={taskIndex} className="space-y-4 p-4 rounded-lg bg-white/50">
-            <div className="space-y-2">
-              <Label htmlFor={`task-${taskIndex}`}>Task {taskIndex + 1} Name</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`task-${taskIndex}`}
-                  value={task.name}
-                  onChange={(e) => handleTaskInputChange(taskIndex, e.target.value)}
-                  placeholder={`Enter task ${taskIndex + 1} name`}
-                  className="hover-lift flex-grow"
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => addSubtask(taskIndex)}
-                  className="flex-shrink-0"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+              <div>
+                <Label>Schedule for</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !selectedDate && "text-muted-foreground"
+                      )}
+                      disabled={delayType === 'minutes'}
+                      onClick={() => {
+                        if (delayType !== 'datetime') {
+                          setDelayType('datetime');
+                          setSelectedMinutes('');
+                        }
+                      }}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? (
+                        format(selectedDate, "PPP p")
+                      ) : (
+                        <span>Pick date and time</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <div className="p-4 space-y-4">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            const currentTime = selectedDate || new Date();
+                            date.setHours(currentTime.getHours());
+                            date.setMinutes(currentTime.getMinutes());
+                            setSelectedDate(date);
+                          }
+                        }}
+                        initialFocus
+                      />
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          type="time"
+                          value={selectedDate ? format(selectedDate, "HH:mm") : ""}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':').map(Number);
+                            const newDate = selectedDate || new Date();
+                            newDate.setHours(hours);
+                            newDate.setMinutes(minutes);
+                            setSelectedDate(new Date(newDate));
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
-            <div className="space-y-3 pl-4 border-l-2 border-primary/20">
-              {loadingTaskIndex === taskIndex ? (
-                <p className="text-gray-500">Generating response...</p>
-              ) : (
-                task.subtasks.map((subtask, subtaskIndex) => (
-                  <div key={subtaskIndex} className="flex items-center gap-2">
-                    <Input
-                      value={subtask.name}
-                      onChange={(e) =>
-                        handleSubtaskInputChange(taskIndex, subtaskIndex, e.target.value)
-                      }
-                      placeholder={`Enter subtask ${subtaskIndex + 1} name`}
-                      className="hover-lift"
-                      required
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeSubtask(taskIndex, subtaskIndex)}
-                      className="flex-shrink-0"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
+            <div className="space-y-6">
+              {tasks.map((task, taskIndex) => (
+                <div key={taskIndex} className="space-y-4 p-4 rounded-lg bg-white/50">
+                  <div className="space-y-2">
+                    <Label htmlFor={`task-${taskIndex}`}>Task {taskIndex + 1} Name</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id={`task-${taskIndex}`}
+                        value={task.name}
+                        onChange={(e) => handleTaskInputChange(taskIndex, e.target.value)}
+                        placeholder={`Enter task ${taskIndex + 1} name`}
+                        className="hover-lift flex-grow"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => addSubtask(taskIndex)}
+                        className="flex-shrink-0"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
 
-      <Button type="submit" className="w-full hover-lift">
-        Create Tasks
-      </Button>
+                  <div className="space-y-3 pl-4 border-l-2 border-primary/20">
+                    {loadingTaskIndex === taskIndex ? (
+                      <p className="text-gray-500">Generating response...</p>
+                    ) : (
+                      task.subtasks.map((subtask, subtaskIndex) => (
+                        <div key={subtaskIndex} className="flex items-center gap-2">
+                          <Input
+                            value={subtask.name}
+                            onChange={(e) =>
+                              handleSubtaskInputChange(taskIndex, subtaskIndex, e.target.value)
+                            }
+                            placeholder={`Enter subtask ${subtaskIndex + 1} name`}
+                            className="hover-lift"
+                            required
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeSubtask(taskIndex, subtaskIndex)}
+                            className="flex-shrink-0"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button type="submit" className="w-full hover-lift">
+              Create Tasks
+            </Button>
+          </>
+        )}
+      </div>
     </form>
   );
 };

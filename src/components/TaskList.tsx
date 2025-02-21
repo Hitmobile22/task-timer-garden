@@ -1,23 +1,36 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
-import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle } from 'lucide-react';
+import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
 
 interface SubTask {
-  name: string;
+  id: number;
+  "Task Name": string;
+  Progress: string;
+  "Parent Task ID": number;
 }
 
 interface Task {
+  id: number;
   name: string;
+  Progress: string;
   subtasks: SubTask[];
 }
 
@@ -34,21 +47,193 @@ interface TaskItemProps {
   dragHandleProps?: any;
   updateTaskProgress: any;
   onTaskStart?: (taskId: number) => void;
+  isCurrentTask?: boolean;
 }
+
+const EditTaskModal = ({ 
+  isOpen, 
+  onClose, 
+  task, 
+  subtasks,
+  onSave 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  task: any; 
+  subtasks?: SubTask[];
+  onSave: (taskName: string, subtasks: SubTask[]) => void;
+}) => {
+  const [taskName, setTaskName] = useState(task["Task Name"]);
+  const [editingSubtasks, setEditingSubtasks] = useState<SubTask[]>(
+    subtasks?.filter(st => st["Parent Task ID"] === task.id) || []
+  );
+  const [newSubtask, setNewSubtask] = useState("");
+
+  const handleSave = () => {
+    onSave(taskName, editingSubtasks);
+    onClose();
+  };
+
+  const addSubtask = () => {
+    if (!newSubtask.trim()) return;
+    setEditingSubtasks([
+      ...editingSubtasks,
+      {
+        id: Date.now(), // Temporary ID for new subtasks
+        "Task Name": newSubtask,
+        Progress: "Not started",
+        "Parent Task ID": task.id
+      }
+    ]);
+    setNewSubtask("");
+  };
+
+  const removeSubtask = (subtaskId: number) => {
+    setEditingSubtasks(editingSubtasks.filter(st => st.id !== subtaskId));
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Edit Task</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="task-name">Task Name</Label>
+            <Input
+              id="task-name"
+              value={taskName}
+              onChange={(e) => setTaskName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Subtasks</Label>
+            <div className="space-y-2">
+              {editingSubtasks.map((subtask) => (
+                <div key={subtask.id} className="flex items-center gap-2">
+                  <Input
+                    value={subtask["Task Name"]}
+                    onChange={(e) => {
+                      setEditingSubtasks(prev =>
+                        prev.map(st =>
+                          st.id === subtask.id
+                            ? { ...st, "Task Name": e.target.value }
+                            : st
+                        )
+                      );
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeSubtask(subtask.id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="New subtask"
+                  value={newSubtask}
+                  onChange={(e) => setNewSubtask(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addSubtask();
+                    }
+                  }}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={addSubtask}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handleSave}>Save changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 const TaskItem: React.FC<TaskItemProps> = ({
   task,
   subtasks,
   dragHandleProps,
   updateTaskProgress,
-  onTaskStart
+  onTaskStart,
+  isCurrentTask
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const queryClient = useQueryClient();
   const hasSubtasks = subtasks?.some(st => st["Parent Task ID"] === task.id);
+  const location = useLocation();
+  const isTaskView = location.pathname === '/tasks';
+
+  const handleEditSave = async (newTaskName: string, newSubtasks: SubTask[]) => {
+    try {
+      if (newTaskName !== task["Task Name"]) {
+        await supabase
+          .from('Tasks')
+          .update({ "Task Name": newTaskName })
+          .eq('id', task.id);
+      }
+
+      const existingSubtasks = subtasks?.filter(st => st["Parent Task ID"] === task.id) || [];
+      const subtasksToAdd = newSubtasks.filter(st => !st.id || st.id > Date.now() - 1000000);
+      const subtasksToUpdate = newSubtasks.filter(st => st.id && st.id < Date.now() - 1000000);
+      const subtasksToDelete = existingSubtasks.filter(
+        est => !newSubtasks.some(nst => nst.id === est.id)
+      );
+
+      if (subtasksToAdd.length > 0) {
+        await supabase
+          .from('subtasks')
+          .insert(subtasksToAdd.map(st => ({
+            "Task Name": st["Task Name"],
+            "Parent Task ID": task.id,
+            Progress: "Not started"
+          })));
+      }
+
+      for (const subtask of subtasksToUpdate) {
+        await supabase
+          .from('subtasks')
+          .update({ "Task Name": subtask["Task Name"] })
+          .eq('id', subtask.id);
+      }
+
+      if (subtasksToDelete.length > 0) {
+        await supabase
+          .from('subtasks')
+          .delete()
+          .in('id', subtasksToDelete.map(st => st.id));
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
+      toast.success('Task updated successfully');
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast.error('Failed to update task');
+    }
+  };
 
   return (
     <li className="space-y-2">
-      <div className="flex items-start gap-3 p-4 rounded-lg bg-white/50 hover:bg-white/80 transition-colors shadow-sm">
+      <div className={cn(
+        "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm",
+        isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80"
+      )}>
         <div className="flex gap-2 flex-shrink-0">
           <Button
             size="icon"
@@ -98,6 +283,16 @@ const TaskItem: React.FC<TaskItemProps> = ({
             )}
           </div>
         </div>
+        {!isTaskView && task.Progress !== 'Completed' && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-primary/10"
+            onClick={() => setIsEditing(true)}
+          >
+            <PencilIcon className="h-4 w-4" />
+          </Button>
+        )}
         {hasSubtasks && (
           <Button
             size="icon"
@@ -113,6 +308,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
           </Button>
         )}
       </div>
+
+      <EditTaskModal
+        isOpen={isEditing}
+        onClose={() => setIsEditing(false)}
+        task={task}
+        subtasks={subtasks}
+        onSave={handleEditSave}
+      />
 
       {isExpanded && hasSubtasks && (
         <ul className="pl-6 space-y-2">
@@ -157,7 +360,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   );
 };
 
-const SortableTaskItem: React.FC<{ task: any; children: React.ReactElement }> = ({ task, children }) => {
+const SortableTaskItem = ({ task, children }) => {
   const {
     attributes,
     listeners,
@@ -403,6 +606,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                       subtasks={todaySubtasks}
                       updateTaskProgress={updateTaskProgress}
                       onTaskStart={onTaskStart}
+                      isCurrentTask={task.Progress === 'In progress'}
                     />
                   </SortableTaskItem>
                 ))}

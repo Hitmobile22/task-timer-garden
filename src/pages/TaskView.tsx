@@ -521,14 +521,6 @@ export function TaskView() {
     if (!selectedListId) return;
 
     try {
-      const today = new Date();
-      const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
-      
-      if (!settings.enabled || !settings.daysOfWeek.includes(dayOfWeek)) {
-        toast.success('Recurring tasks settings updated');
-        return;
-      }
-
       const { data: existingTasks, error: countError } = await supabase
         .from('Tasks')
         .select('id')
@@ -799,6 +791,7 @@ export function TaskView() {
         onClose={() => setShowRecurringModal(false)}
         onSubmit={handleRecurringTasksSubmit}
         listName={taskLists?.find(l => l.id === selectedListId)?.name || ''}
+        listId={selectedListId || 0}
       />
     </div>
   );

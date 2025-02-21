@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, addDays, isAfter } from 'date-fns';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
 import {
@@ -19,31 +19,25 @@ import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useS
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
+import { Task, Subtask } from '@/types/task.types';
 
-interface SubTask {
+interface SubtaskData {
   id: number;
   "Task Name": string;
-  Progress: string;
+  Progress: "Not started" | "In progress" | "Completed" | "Backlog";
   "Parent Task ID": number;
-}
-
-interface Task {
-  id: number;
-  name: string;
-  Progress: string;
-  subtasks: SubTask[];
 }
 
 interface TaskListProps {
   tasks: Task[];
   onTaskStart?: (taskId: number) => void;
-  subtasks?: any[];
+  subtasks?: Subtask[];
   taskLists?: any[];
 }
 
 interface TaskItemProps {
-  task: any;
-  subtasks?: any[];
+  task: Task;
+  subtasks?: Subtask[];
   dragHandleProps?: any;
   updateTaskProgress: any;
   onTaskStart?: (taskId: number) => void;
@@ -60,11 +54,11 @@ const EditTaskModal = ({
   isOpen: boolean; 
   onClose: () => void; 
   task: any; 
-  subtasks?: SubTask[];
-  onSave: (taskName: string, subtasks: SubTask[]) => void;
+  subtasks?: Subtask[];
+  onSave: (taskName: string, subtasks: Subtask[]) => void;
 }) => {
   const [taskName, setTaskName] = useState(task["Task Name"]);
-  const [editingSubtasks, setEditingSubtasks] = useState<SubTask[]>(
+  const [editingSubtasks, setEditingSubtasks] = useState<Subtask[]>(
     subtasks?.filter(st => st["Parent Task ID"] === task.id) || []
   );
   const [newSubtask, setNewSubtask] = useState("");
@@ -179,7 +173,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
 
-  const handleEditSave = async (newTaskName: string, newSubtasks: SubTask[]) => {
+  const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[]) => {
     try {
       if (newTaskName !== task["Task Name"]) {
         await supabase
@@ -196,13 +190,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
       );
 
       if (subtasksToAdd.length > 0) {
+        const newSubtasksData = subtasksToAdd.map(st => ({
+          "Task Name": st["Task Name"],
+          "Parent Task ID": task.id,
+          Progress: "Not started" as const
+        }));
+
         await supabase
           .from('subtasks')
-          .insert(subtasksToAdd.map(st => ({
-            "Task Name": st["Task Name"],
-            "Parent Task ID": task.id,
-            Progress: "Not started"
-          })));
+          .insert(newSubtasksData);
       }
 
       for (const subtask of subtasksToUpdate) {

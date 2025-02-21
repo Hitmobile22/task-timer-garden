@@ -18,20 +18,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Task, Subtask } from '@/types/task.types';
 
 interface SubTask {
   name: string;
 }
 
-interface Task {
+interface NewTask {
   name: string;
   subtasks: SubTask[];
 }
 
-type TaskProgress = 'Not started' | 'In progress' | 'Completed' | 'Backlog';
-
 export const TaskScheduler = () => {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<NewTask[]>([]);
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number>();
@@ -61,10 +60,9 @@ export const TaskScheduler = () => {
         .order('date_started', { ascending: true });
       
       if (error) throw error;
-      // Use type guard to ensure we're working with the correct type
       return (data || []).filter(task => {
         return task.Progress && task.Progress !== 'Backlog';
-      });
+      }) as Task[];
     },
   });
 
@@ -76,7 +74,7 @@ export const TaskScheduler = () => {
     }
   }, [activeTasks]);
 
-  const handleTasksCreate = async (newTasks: Task[]) => {
+  const handleTasksCreate = async (newTasks: NewTask[]) => {
     try {
       setTasks(newTasks);
       setShowTimer(true);
@@ -123,7 +121,6 @@ export const TaskScheduler = () => {
 
       const currentTime = new Date();
       
-      // Only update times for non-current tasks
       if (!currentTask || selectedTask.id === currentTask.id) {
         const { error: updateError } = await supabase
           .from('Tasks')
@@ -137,7 +134,6 @@ export const TaskScheduler = () => {
         if (updateError) throw updateError;
       }
 
-      // Schedule remaining tasks with breaks, but only for today and excluding the current task
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       
       for (const task of notStartedTasks) {
@@ -227,9 +223,9 @@ export const TaskScheduler = () => {
               )}
               <TaskForm onTasksCreate={handleTasksCreate} />
               <TaskList 
-                tasks={tasks} 
+                tasks={activeTasks || []}
                 onTaskStart={handleTaskStart} 
-                subtasks={activeTasks?.filter(t => t.Progress !== 'Completed' && t.Progress !== 'Backlog')} 
+                subtasks={[]} // Pass an empty array since we're not dealing with subtasks in this view
                 taskLists={taskLists}
               />
             </div>

@@ -33,6 +33,7 @@ interface TaskListProps {
   onTaskStart?: (taskId: number) => void;
   subtasks?: Subtask[];
   taskLists?: any[];
+  activeTaskId?: number;
 }
 
 interface TaskItemProps {
@@ -379,7 +380,7 @@ const SortableTaskItem = ({ task, children }) => {
   );
 };
 
-export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart, subtasks, taskLists }) => {
+export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskStart, subtasks, taskLists, activeTaskId }) => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
@@ -602,7 +603,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
                       subtasks={todaySubtasks}
                       updateTaskProgress={updateTaskProgress}
                       onTaskStart={onTaskStart}
-                      isCurrentTask={task.Progress === 'In progress'}
+                      isCurrentTask={task.id === activeTaskId}
                     />
                   </SortableTaskItem>
                 ))}

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -225,8 +224,9 @@ export const TaskScheduler = () => {
               <TaskList 
                 tasks={activeTasks || []}
                 onTaskStart={handleTaskStart} 
-                subtasks={[]} // Pass an empty array since we're not dealing with subtasks in this view
+                subtasks={[]}
                 taskLists={taskLists}
+                activeTaskId={activeTaskId}
               />
             </div>
           </div>

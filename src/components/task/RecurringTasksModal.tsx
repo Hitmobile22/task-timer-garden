@@ -31,6 +31,16 @@ export interface RecurringTaskSettings {
   daysOfWeek: string[];
 }
 
+interface DatabaseRecurringTaskSettings {
+  id: number;
+  task_list_id: number;
+  enabled: boolean;
+  daily_task_count: number;
+  days_of_week: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 const DAYS_OF_WEEK = [
   'Monday',
   'Tuesday',
@@ -60,19 +70,19 @@ export const RecurringTasksModal = ({
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const { data, error } = await supabase
+        const { data: settingsData, error } = await supabase
           .from('recurring_task_settings')
           .select('*')
           .eq('task_list_id', listId)
-          .single();
+          .maybeSingle<DatabaseRecurringTaskSettings>();
 
         if (error && error.code !== 'PGRST116') throw error;
 
-        if (data) {
+        if (settingsData) {
           setSettings({
-            enabled: data.enabled,
-            dailyTaskCount: data.daily_task_count,
-            daysOfWeek: data.days_of_week,
+            enabled: settingsData.enabled,
+            dailyTaskCount: settingsData.daily_task_count,
+            daysOfWeek: settingsData.days_of_week,
           });
         }
       } catch (error) {

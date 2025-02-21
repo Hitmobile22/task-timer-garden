@@ -89,6 +89,44 @@ export type Database = {
           },
         ]
       }
+      recurring_task_settings: {
+        Row: {
+          created_at: string | null
+          daily_task_count: number | null
+          days_of_week: string[] | null
+          enabled: boolean | null
+          id: number
+          task_list_id: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          daily_task_count?: number | null
+          days_of_week?: string[] | null
+          enabled?: boolean | null
+          id?: number
+          task_list_id?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          daily_task_count?: number | null
+          days_of_week?: string[] | null
+          enabled?: boolean | null
+          id?: number
+          task_list_id?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_task_settings_task_list_id_fkey"
+            columns: ["task_list_id"]
+            isOneToOne: false
+            referencedRelation: "TaskLists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subtasks: {
         Row: {
           created_at: string
@@ -161,6 +199,7 @@ export type Database = {
           color: string | null
           created_at: string
           id: number
+          last_tasks_added_at: string | null
           name: string
           order: number
           position: number | null
@@ -169,6 +208,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           id?: number
+          last_tasks_added_at?: string | null
           name: string
           order?: number
           position?: number | null
@@ -177,6 +217,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           id?: number
+          last_tasks_added_at?: string | null
           name?: string
           order?: number
           position?: number | null

@@ -454,7 +454,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     mutationFn: async ({ tasks, shouldResetTimer, movedTaskId }: { tasks: any[], shouldResetTimer: boolean, movedTaskId: number }) => {
       const currentTask = tasks.find(t => t.Progress === 'In progress');
       const movedTask = tasks.find(t => t.id === movedTaskId);
-      const oldIndex = tasks.findIndex(t => t.id === movedTaskId);
       const newIndex = tasks.findIndex(t => t.id === movedTaskId);
       const isMovingToFirst = newIndex === 0;
       const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
@@ -462,7 +461,6 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       console.log('Task update operation:', {
         currentTaskId: currentTask?.id,
         movedTaskId,
-        oldIndex,
         newIndex,
         isMovingToFirst,
         isMovingCurrentTask,
@@ -473,7 +471,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
 
-      if (currentTask && !shouldUpdateCurrentTask) {
+      if (currentTask && !shouldResetTimer) {
         nextStartTime = new Date(new Date(currentTask.date_started).getTime() + 30 * 60 * 1000);
       }
 
@@ -488,18 +486,21 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         let taskStartTime: Date;
         let taskEndTime: Date;
 
-        if (isCurrentTask && !shouldUpdateCurrentTask) {
+        if (isCurrentTask && !shouldResetTimer) {
           taskStartTime = new Date(currentTask.date_started);
           taskEndTime = new Date(currentTask.date_due);
           console.log('Preserving current task time:', taskStartTime);
         } else {
           if (isFirst && shouldUpdateCurrentTask) {
             taskStartTime = currentTime;
+          } else if (task.id === movedTaskId && !isMovingToFirst) {
+            taskStartTime = new Date(task.date_started);
+            taskEndTime = new Date(task.date_due);
           } else {
             taskStartTime = new Date(nextStartTime);
+            taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+            nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
           }
-          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
 
         const updateData: any = {

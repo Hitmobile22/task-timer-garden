@@ -454,6 +454,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     mutationFn: async ({ tasks, shouldResetTimer, movedTaskId }: { tasks: any[], shouldResetTimer: boolean, movedTaskId: number }) => {
       const currentTask = tasks.find(t => t.Progress === 'In progress');
       const movedTask = tasks.find(t => t.id === movedTaskId);
+      const oldIndex = tasks.findIndex(t => t.id === movedTaskId);
       const newIndex = tasks.findIndex(t => t.id === movedTaskId);
       const isMovingToFirst = newIndex === 0;
       const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
@@ -461,6 +462,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
       console.log('Task update operation:', {
         currentTaskId: currentTask?.id,
         movedTaskId,
+        oldIndex,
         newIndex,
         isMovingToFirst,
         isMovingCurrentTask,
@@ -469,16 +471,10 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
 
       const shouldUpdateCurrentTask = isMovingCurrentTask && isMovingToFirst;
       const currentTime = new Date();
-      let nextStartTime: Date;
+      let nextStartTime = new Date(currentTime);
 
-      if (currentTask) {
-        nextStartTime = new Date(currentTask.date_started);
-        if (tasks.indexOf(currentTask) > 0) {
-          const tasksBeforeCurrent = tasks.indexOf(currentTask);
-          nextStartTime.setMinutes(nextStartTime.getMinutes() - (tasksBeforeCurrent * 30));
-        }
-      } else {
-        nextStartTime = new Date(currentTime);
+      if (currentTask && !shouldUpdateCurrentTask) {
+        nextStartTime = new Date(new Date(currentTask.date_started).getTime() + 30 * 60 * 1000);
       }
 
       const updates = [];
@@ -496,9 +492,12 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
           taskStartTime = new Date(currentTask.date_started);
           taskEndTime = new Date(currentTask.date_due);
           console.log('Preserving current task time:', taskStartTime);
-          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         } else {
-          taskStartTime = new Date(nextStartTime);
+          if (isFirst && shouldUpdateCurrentTask) {
+            taskStartTime = currentTime;
+          } else {
+            taskStartTime = new Date(nextStartTime);
+          }
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
           nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }

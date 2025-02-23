@@ -465,14 +465,15 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
         oldIndex,
         newIndex,
         isMovingToFirst,
-        isMovingCurrentTask
+        isMovingCurrentTask,
+        shouldResetTimer
       });
 
-      const shouldUpdateCurrentTask = isMovingCurrentTask || isMovingToFirst;
+      const shouldUpdateCurrentTask = isMovingCurrentTask && isMovingToFirst;
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
 
-      if (!shouldUpdateCurrentTask && currentTask) {
+      if (currentTask && !shouldUpdateCurrentTask) {
         nextStartTime = new Date(new Date(currentTask.date_started).getTime() + 30 * 60 * 1000);
       }
 
@@ -559,9 +560,11 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks: initialTasks, onTaskS
     const isMovingToFirst = newIndex === 0;
     const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
     
+    const shouldResetTimer = isMovingToFirst || isMovingCurrentTask;
+    
     await updateTaskOrder.mutate({ 
       tasks: reorderedTasks,
-      shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
+      shouldResetTimer,
       movedTaskId: movedTask.id
     });
   };

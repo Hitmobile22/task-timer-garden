@@ -67,6 +67,7 @@ export const TaskForm = ({ onTasksCreate }) => {
       setSelectedMinutes('');
     } else {
       const num = parseInt(value);
+      setNumTasks(value);
       setTasks((prevTasks) =>
         Array(num)
           .fill(null)

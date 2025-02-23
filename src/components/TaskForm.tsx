@@ -206,7 +206,7 @@ export const TaskForm = ({ onTasksCreate }) => {
 
       // Reset form state
       setTasks([{ name: "", subtasks: [] }]);
-      setNumTasks(1);
+      setNumTasks("1");
       setDelayType(null);
       setSelectedDate(undefined);
       setSelectedMinutes('');

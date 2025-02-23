@@ -216,20 +216,12 @@ export default function CalendarView() {
         background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
       }}
     >
-      <div className="fixed top-0 left-0 h-screen w-[60px] sm:w-[80px] flex flex-col items-center py-8 border-r bg-card/50 backdrop-blur-sm">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate('/')}
-          className="mb-8"
-        >
-          <ArrowLeft className="h-5 w-5 text-white" />
-        </Button>
+      <div className="container mx-auto max-w-4xl flex justify-between items-center">
         <MenuBar />
       </div>
       
-      <main className="pl-[80px] sm:pl-[100px] pr-6">
-        <header className="text-center space-y-2 mb-8">
+      <main className="container mx-auto max-w-4xl space-y-8">
+        <header className="text-center space-y-2">
           <h1 className="text-4xl font-bold tracking-tight text-white">Calendar</h1>
           <p className="text-white/80">View your tasks in calendar format</p>
         </header>

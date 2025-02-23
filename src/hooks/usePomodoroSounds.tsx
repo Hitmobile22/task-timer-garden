@@ -13,6 +13,7 @@ export const usePomodoroSounds = (isVisible: boolean) => {
   });
   const [availableSounds, setAvailableSounds] = useState<Record<SoundType, string[]>>({
     tick: [
+      'none',
       '/sounds/Tick/Tick1.wav',
       '/sounds/Tick/Tick2.wav',
       '/sounds/Tick/Tick3.wav'
@@ -28,6 +29,9 @@ export const usePomodoroSounds = (isVisible: boolean) => {
 
   const playSound = useCallback((type: SoundType) => {
     if (!isMuted && isVisible) {
+      if (type === 'tick' && soundSettings[type] === 'none') {
+        return; // Don't play tick sound if 'none' is selected
+      }
       const audio = new Audio(soundSettings[type]);
       audio.play().catch(error => console.error('Error playing sound:', error));
     }

@@ -29,6 +29,7 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
   isMuted,
 }) => {
   const getDisplayName = (soundPath: string) => {
+    if (soundPath === 'none') return 'No Tick';
     const fileName = soundPath.split('/').pop() || '';
     return fileName.replace('.wav', '');
   };

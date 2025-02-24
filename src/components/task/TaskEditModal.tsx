@@ -16,6 +16,7 @@ import { Clock } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
+import { supabase } from "@/integrations/supabase/client";
 
 interface TaskEditModalProps {
   task: Task;

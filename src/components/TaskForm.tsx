@@ -59,13 +59,14 @@ export const TaskForm = ({ onTasksCreate }) => {
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const handleNumTasksChange = (value: string) => {
-    setNumTasks(value);
     if (value === "none") {
+      setNumTasks("none");
       setTasks([{ name: "", subtasks: [] }]);
       setDelayType(null);
       setSelectedDate(undefined);
       setSelectedMinutes('');
     } else {
+      setNumTasks(value);
       const numericValue = parseInt(value);
       setTasks((prevTasks) =>
         Array(numericValue)

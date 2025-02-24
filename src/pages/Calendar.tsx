@@ -21,7 +21,7 @@ type Task = {
   date_due: string;
 };
 
-export default function CalendarView() {
+const Calendar = () => {
   const navigate = useNavigate();
   const [date, setDate] = React.useState<Date>(new Date());
   const [view, setView] = React.useState<'day' | 'week' | 'month'>('day');
@@ -262,4 +262,6 @@ export default function CalendarView() {
       </main>
     </div>
   );
-}
+};
+
+export default Calendar;

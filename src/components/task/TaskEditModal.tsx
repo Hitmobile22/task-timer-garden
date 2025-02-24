@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface TaskEditModalProps {
   task: Task;
@@ -40,6 +42,8 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   onTimelineEdit,
 }) => {
   const [taskName, setTaskName] = React.useState(task["Task Name"]);
+  const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
+  const [tempListId, setTempListId] = React.useState<number>(task.task_list_id || 1);
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date>(
     task.date_started ? new Date(task.date_started) : new Date()
   );
@@ -51,8 +55,27 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
   });
 
+  React.useEffect(() => {
+    setTaskName(task["Task Name"]);
+    setTempProgress(task.Progress);
+    setTempListId(task.task_list_id || 1);
+    setSelectedStartDate(task.date_started ? new Date(task.date_started) : new Date());
+    setSelectedEndDate(task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000));
+    setDetails(task.details || {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
+    });
+  }, [task]);
+
   const handleSave = async () => {
+    if (!taskName?.trim()) {
+      toast.error("Task name cannot be empty");
+      return;
+    }
+
     onEditNameChange(taskName);
+    onUpdateProgress(task.id, tempProgress);
+    onMoveTask(task.id, tempListId);
     onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     
     try {
@@ -60,11 +83,13 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
         .from('Tasks')
         .update({ details })
         .eq('id', task.id);
+      
+      onClose();
+      toast.success("Task updated successfully");
     } catch (error) {
       console.error('Error updating task details:', error);
+      toast.error("Failed to update task details");
     }
-    
-    onClose();
   };
 
   const formatDateTime = (date: Date) => {
@@ -81,47 +106,49 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
           <div className="space-y-2">
             <label className="text-sm font-medium">Task Name</label>
             <Input
-              value={taskName}
+              value={taskName || ''}
               onChange={(e) => setTaskName(e.target.value)}
               className="w-full"
             />
           </div>
           
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Progress</label>
-            <Select
-              value={task.Progress}
-              onValueChange={(value: Task['Progress']) => onUpdateProgress(task.id, value)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select progress" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Not started">Not started</SelectItem>
-                <SelectItem value="In progress">In progress</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Backlog">Backlog</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Progress</label>
+              <Select
+                value={tempProgress}
+                onValueChange={(value: Task['Progress']) => setTempProgress(value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select progress" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Not started">Not started</SelectItem>
+                  <SelectItem value="In progress">In progress</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Backlog">Backlog</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">List</label>
-            <Select
-              value={String(task.task_list_id)}
-              onValueChange={(value) => onMoveTask(task.id, Number(value))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select list" />
-              </SelectTrigger>
-              <SelectContent>
-                {taskLists?.map((list) => (
-                  <SelectItem key={list.id} value={String(list.id)}>
-                    {list.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">List</label>
+              <Select
+                value={String(tempListId)}
+                onValueChange={(value) => setTempListId(Number(value))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select list" />
+                </SelectTrigger>
+                <SelectContent>
+                  {taskLists?.map((list) => (
+                    <SelectItem key={list.id} value={String(list.id)}>
+                      {list.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">

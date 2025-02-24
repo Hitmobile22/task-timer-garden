@@ -10,7 +10,9 @@ import {
   ListOrdered, 
   Image as ImageIcon,
   Quote,
-  Heading2
+  Heading1,
+  Heading2,
+  Heading3
 } from 'lucide-react';
 
 interface RichTextEditorProps {
@@ -63,10 +65,26 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
         <Button
           variant="ghost"
           size="sm"
+          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          className={editor.isActive('heading', { level: 1 }) ? 'bg-muted' : ''}
+        >
+          <Heading1 className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={editor.isActive('heading', { level: 2 }) ? 'bg-muted' : ''}
         >
           <Heading2 className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          className={editor.isActive('heading', { level: 3 }) ? 'bg-muted' : ''}
+        >
+          <Heading3 className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"

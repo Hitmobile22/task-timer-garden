@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -16,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Clock } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { RichTextEditor } from './editor/RichTextEditor';
 
 interface TaskEditModalProps {
   task: Task;
@@ -45,10 +45,24 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   const [selectedEndDate, setSelectedEndDate] = React.useState<Date>(
     task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000)
   );
+  const [details, setDetails] = React.useState(task.details || {
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
+  });
 
-  const handleSave = () => {
+  const handleSave = async () => {
     onEditNameChange(taskName);
     onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
+    
+    try {
+      await supabase
+        .from('Tasks')
+        .update({ details })
+        .eq('id', task.id);
+    } catch (error) {
+      console.error('Error updating task details:', error);
+    }
+    
     onClose();
   };
 
@@ -58,7 +72,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
@@ -184,6 +198,11 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 </PopoverContent>
               </Popover>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Details</label>
+            <RichTextEditor content={details} onChange={setDetails} />
           </div>
         </div>
         <div className="flex justify-end gap-2">

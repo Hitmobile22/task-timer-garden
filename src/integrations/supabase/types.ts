@@ -232,6 +232,7 @@ export type Database = {
           date_started: string | null
           delay_type: string | null
           delay_value: string | null
+          details: Json | null
           id: number
           order: number
           position: number | null
@@ -248,6 +249,7 @@ export type Database = {
           date_started?: string | null
           delay_type?: string | null
           delay_value?: string | null
+          details?: Json | null
           id?: number
           order?: number
           position?: number | null
@@ -264,6 +266,7 @@ export type Database = {
           date_started?: string | null
           delay_type?: string | null
           delay_value?: string | null
+          details?: Json | null
           id?: number
           order?: number
           position?: number | null

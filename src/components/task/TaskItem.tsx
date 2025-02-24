@@ -42,7 +42,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onDeleteTask,
   onTimelineEdit,
 }) => {
-  console.log('TaskItem: Received onMoveTask function:', !!onMoveTask);
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
   );
@@ -87,10 +86,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           expandedTasks={expandedTasks}
           editingTaskId={editingTaskId}
           editingTaskName={editingTaskName}
+          taskLists={taskLists}
           onToggleExpand={onToggleExpand}
           onEditNameChange={onEditNameChange}
           onEditSave={onEditSave}
           onEditCancel={onEditCancel}
+          onUpdateProgress={onUpdateProgress}
+          onMoveTask={onMoveTask}
+          onTimelineEdit={onTimelineEdit}
         />
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}

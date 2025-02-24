@@ -100,7 +100,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 <SelectValue placeholder="Select list" />
               </SelectTrigger>
               <SelectContent>
-                {taskLists.map((list) => (
+                {taskLists?.map((list) => (
                   <SelectItem key={list.id} value={String(list.id)}>
                     {list.name}
                   </SelectItem>

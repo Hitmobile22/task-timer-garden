@@ -66,9 +66,9 @@ export const TaskForm = ({ onTasksCreate }) => {
       setSelectedDate(undefined);
       setSelectedMinutes('');
     } else {
-      setNumTasks(value);
+      const numTasks = parseInt(value);
       setTasks((prevTasks) =>
-        Array(parseInt(value))
+        Array(numTasks)
           .fill(null)
           .map((_, i) => ({
             name: prevTasks[i]?.name || "",

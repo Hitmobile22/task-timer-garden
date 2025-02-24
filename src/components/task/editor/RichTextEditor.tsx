@@ -23,10 +23,27 @@ interface RichTextEditorProps {
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChange }) => {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3]
+        },
+        bulletList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        orderedList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+      }),
       Image,
     ],
     content,
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl focus:outline-none',
+      },
+    },
     onUpdate: ({ editor }) => {
       onChange(editor.getJSON());
     },
@@ -118,7 +135,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
           <ImageIcon className="h-4 w-4" />
         </Button>
       </div>
-      <div className="prose max-w-none p-4">
+      <div className="prose max-w-none p-4 min-h-[200px] focus-within:outline-none">
         <EditorContent editor={editor} />
       </div>
     </div>

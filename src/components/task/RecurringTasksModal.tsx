@@ -114,10 +114,15 @@ export const RecurringTasksModal = ({
       onClose();
       toast.success('Recurring task settings saved');
 
-      // Trigger immediate check for new tasks if enabled
+      // Only check for new tasks if enabled
       if (settings.enabled) {
-        const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks');
-        if (checkError) throw checkError;
+        try {
+          const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks');
+          if (checkError) throw checkError;
+        } catch (checkError) {
+          console.error('Error checking recurring tasks:', checkError);
+          // Don't show error toast here as it's not critical for the user
+        }
       }
     } catch (error) {
       console.error('Error saving recurring task settings:', error);

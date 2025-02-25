@@ -68,10 +68,11 @@ export const TaskForm = ({ onTasksCreate }) => {
       setSelectedMinutes('');
     } else {
       const numericValue = parseInt(value);
-      setTasks(Array(numericValue).fill(null).map((_, i) => ({
+      const newTasks = Array(numericValue).fill(null).map((_, i) => ({
         name: tasks[i]?.name || "",
         subtasks: tasks[i]?.subtasks || [],
-      })));
+      }));
+      setTasks(newTasks);
     }
   };
 
@@ -203,12 +204,11 @@ export const TaskForm = ({ onTasksCreate }) => {
 
       // Reset form state
       setTasks([{ name: "", subtasks: [] }]);
-      setNumTasks(1);
+      setNumTasks("none");
       setDelayType(null);
       setSelectedDate(undefined);
       setSelectedMinutes('');
       
-      // Update parent component with new tasks
       onTasksCreate(tasks);
       
       toast.success("Tasks created successfully");

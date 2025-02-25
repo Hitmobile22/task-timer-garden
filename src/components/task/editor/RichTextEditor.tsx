@@ -16,6 +16,8 @@ import {
   Heading3,
   Link as LinkIcon
 } from 'lucide-react';
+import { uploadImage } from '@/lib/supabase-storage';
+import { toast } from "sonner";
 
 interface RichTextEditorProps {
   content: any;
@@ -28,12 +30,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
       StarterKit.configure({
         bulletList: {
           HTMLAttributes: {
-            class: 'list-disc list-inside leading-loose',
+            class: 'space-y-1 list-disc list-outside ml-4',
           },
         },
         orderedList: {
           HTMLAttributes: {
-            class: 'list-decimal list-inside leading-loose',
+            class: 'space-y-1 list-decimal list-outside ml-4',
           },
         },
         heading: {
@@ -74,11 +76,29 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
     return null;
   }
 
-  const addImage = () => {
-    const url = window.prompt('Enter image URL');
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
-    }
+  const handleImageUpload = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    input.onchange = async () => {
+      if (input.files?.length) {
+        const file = input.files[0];
+        toast.promise(uploadImage(file), {
+          loading: 'Uploading image...',
+          success: (url) => {
+            if (url) {
+              editor.chain().focus().setImage({ src: url }).run();
+              return 'Image uploaded successfully';
+            }
+            throw new Error('Failed to get image URL');
+          },
+          error: 'Failed to upload image'
+        });
+      }
+    };
+    
+    input.click();
   };
 
   const addLink = () => {
@@ -166,8 +186,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
         <Button
           variant="ghost"
           size="sm"
-          onClick={addImage}
-          title="Add Image"
+          onClick={handleImageUpload}
+          title="Upload Image"
         >
           <ImageIcon className="h-4 w-4" />
         </Button>
@@ -181,6 +201,40 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
           <LinkIcon className="h-4 w-4" />
         </Button>
       </div>
+      <style>
+        {`
+          .ProseMirror h1 {
+            font-size: 2.5em;
+            margin-top: 0.67em;
+            margin-bottom: 0.67em;
+          }
+          .ProseMirror h2 {
+            font-size: 2em;
+            margin-top: 0.83em;
+            margin-bottom: 0.83em;
+          }
+          .ProseMirror h3 {
+            font-size: 1.5em;
+            margin-top: 1em;
+            margin-bottom: 1em;
+          }
+          .ProseMirror p {
+            margin: 1em 0;
+          }
+          .ProseMirror ul,
+          .ProseMirror ol {
+            margin: 1em 0;
+            padding-left: 1em;
+          }
+          .ProseMirror li {
+            margin: 0.5em 0;
+          }
+          .ProseMirror li p {
+            margin: 0;
+            display: inline;
+          }
+        `}
+      </style>
       <div className="p-4">
         <EditorContent editor={editor} />
       </div>

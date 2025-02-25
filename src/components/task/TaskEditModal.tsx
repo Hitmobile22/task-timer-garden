@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -41,31 +40,29 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   onMoveTask,
   onTimelineEdit,
 }) => {
-  const [taskName, setTaskName] = React.useState(task["Task Name"]);
-  const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
-  const [tempListId, setTempListId] = React.useState<number>(task.task_list_id || 1);
-  const [selectedStartDate, setSelectedStartDate] = React.useState<Date>(
-    task.date_started ? new Date(task.date_started) : new Date()
-  );
-  const [selectedEndDate, setSelectedEndDate] = React.useState<Date>(
-    task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000)
-  );
-  const [details, setDetails] = React.useState(task.details || {
+  const [taskName, setTaskName] = React.useState<string>("");
+  const [tempProgress, setTempProgress] = React.useState<Task['Progress']>("Not started");
+  const [tempListId, setTempListId] = React.useState<number>(1);
+  const [selectedStartDate, setSelectedStartDate] = React.useState<Date>(new Date());
+  const [selectedEndDate, setSelectedEndDate] = React.useState<Date>(new Date());
+  const [details, setDetails] = React.useState({
     type: 'doc',
     content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
   });
 
   React.useEffect(() => {
-    setTaskName(task["Task Name"]);
-    setTempProgress(task.Progress);
-    setTempListId(task.task_list_id || 1);
-    setSelectedStartDate(task.date_started ? new Date(task.date_started) : new Date());
-    setSelectedEndDate(task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000));
-    setDetails(task.details || {
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-    });
-  }, [task]);
+    if (isOpen && task) {
+      setTaskName(task["Task Name"] || "");
+      setTempProgress(task.Progress || "Not started");
+      setTempListId(task.task_list_id || 1);
+      setSelectedStartDate(task.date_started ? new Date(task.date_started) : new Date());
+      setSelectedEndDate(task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000));
+      setDetails(task.details || {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
+      });
+    }
+  }, [isOpen, task]);
 
   const handleSave = async () => {
     if (!taskName?.trim()) {
@@ -106,7 +103,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
           <div className="space-y-2">
             <label className="text-sm font-medium">Task Name</label>
             <Input
-              value={taskName || ''}
+              value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
               className="w-full"
             />

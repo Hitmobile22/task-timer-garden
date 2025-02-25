@@ -68,14 +68,10 @@ export const TaskForm = ({ onTasksCreate }) => {
     } else {
       setNumTasks(value);
       const numericValue = parseInt(value);
-      setTasks((prevTasks) =>
-        Array(numericValue)
-          .fill(null)
-          .map((_, i) => ({
-            name: prevTasks[i]?.name || "",
-            subtasks: prevTasks[i]?.subtasks || [],
-          }))
-      );
+      setTasks(Array(numericValue).fill(null).map((_, i) => ({
+        name: tasks[i]?.name || "",
+        subtasks: tasks[i]?.subtasks || [],
+      })));
     }
   };
 

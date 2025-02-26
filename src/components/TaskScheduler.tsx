@@ -178,12 +178,12 @@ export const TaskScheduler = () => {
 
   return (
     <div 
-      className="min-h-screen p-4 md:p-6 space-y-6 md:space-y-8 overflow-x-hidden"
+      className="min-h-screen p-0 space-y-4 md:space-y-8 overflow-x-hidden"
       style={{
         background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
       }}
     >
-      <div className="container mx-auto max-w-[95%] md:max-w-4xl flex justify-between items-center">
+      <div className="container mx-auto flex justify-between items-center py-4">
         <MenuBar />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -199,18 +199,18 @@ export const TaskScheduler = () => {
         </DropdownMenu>
       </div>
       
-      <main className="container mx-auto max-w-[95%] md:max-w-4xl space-y-6 md:space-y-8">
-        <header className="text-center space-y-2">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Pomouroboros Timer</h1>
+      <main className="container mx-auto space-y-4 md:space-y-8">
+        <header className="text-center space-y-2 px-4">
+          <h1 className="text-2xl md:text-4xl font-bold tracking-tight text-white">Pomouroboros Timer</h1>
           <p className="text-sm md:text-base text-white/80">It really whips the ollama's ass</p>
         </header>
 
-        <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-4 md:p-8 shadow-lg w-full">
-          <div className="grid gap-6 md:gap-8 md:grid-cols-[1fr,auto] items-start">
-            <div className="space-y-4 md:space-y-6 w-full">
+        <div className="glass bg-white/90 backdrop-blur-lg shadow-lg w-full md:rounded-xl">
+          <div className="p-4 md:p-8 space-y-6">
+            <div className="space-y-6 w-full">
               {showTimer && (
                 <div 
-                  className="w-full animate-slideIn rounded-lg overflow-hidden"
+                  className="timer-container animate-slideIn rounded-lg overflow-hidden"
                   style={{
                     background: activeTaskListColor || undefined
                   }}
@@ -222,14 +222,18 @@ export const TaskScheduler = () => {
                   />
                 </div>
               )}
-              <TaskForm onTasksCreate={handleTasksCreate} />
-              <TaskList 
-                tasks={activeTasks || []}
-                onTaskStart={handleTaskStart} 
-                subtasks={[]}
-                taskLists={taskLists}
-                activeTaskId={activeTaskId}
-              />
+              <div className="form-control">
+                <TaskForm onTasksCreate={handleTasksCreate} />
+              </div>
+              <div className="task-list">
+                <TaskList 
+                  tasks={activeTasks || []}
+                  onTaskStart={handleTaskStart} 
+                  subtasks={[]}
+                  taskLists={taskLists}
+                  activeTaskId={activeTaskId}
+                />
+              </div>
             </div>
           </div>
         </div>

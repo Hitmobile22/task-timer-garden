@@ -194,7 +194,7 @@ export const TaskForm = ({
     }
   };
   return <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="space-y-4">
+      <div className="space-y-4 px-[20px]">
         <div className="px-[58px]">
           <Label htmlFor="numTasks">Number of Tasks</Label>
           <Select value={numTasks} onValueChange={handleNumTasksChange}>
@@ -276,7 +276,7 @@ export const TaskForm = ({
             </div>
 
             <div className="space-y-6">
-              {tasks.map((task, taskIndex) => <div key={taskIndex} className="space-y-4 p-4 rounded-lg bg-white/50">
+              {tasks.map((task, taskIndex) => <div key={taskIndex} className="space-y-4 p-4 rounded-lg bg-white/50 px-[11px] py-[4px]">
                   <div className="space-y-2">
                     <Label htmlFor={`task-${taskIndex}`}>Task {taskIndex + 1} Name</Label>
                     <div className="flex items-center gap-2">

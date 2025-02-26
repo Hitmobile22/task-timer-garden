@@ -31,7 +31,7 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
   availableSounds,
 }) => {
   return (
-    <div className="flex justify-center gap-4">
+    <div className="timer-controls">
       <Button
         onClick={() => {
           setIsRunning(!isRunning);
@@ -40,7 +40,7 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
             playSound(isBreak ? 'break' : 'task');
           }
         }}
-        className="hover-lift"
+        className="hover-lift w-[44px] h-[44px] p-0"
         variant="outline"
       >
         {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -48,14 +48,14 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
       <Button
         onClick={handleReset}
         variant="outline"
-        className="hover-lift"
+        className="hover-lift w-[44px] h-[44px] p-0"
       >
         <RotateCcw className="h-4 w-4" />
       </Button>
       <Button
         onClick={() => setIsMuted(!isMuted)}
         variant="outline"
-        className="hover-lift"
+        className="hover-lift w-[44px] h-[44px] p-0"
       >
         {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </Button>

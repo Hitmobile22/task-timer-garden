@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
@@ -192,8 +191,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   if (!isVisible) return null;
 
   return (
-    <div className="glass p-6 rounded-lg shadow-lg space-y-6 animate-slideIn">
-      <div className="space-y-2">
+    <div className="glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-3xl mx-auto">
+      <div className="space-y-2 w-full">
         <h2 className="text-2xl font-semibold text-primary">
           {isBreak ? 'Break Time' : 'Work Session'}
         </h2>
@@ -210,19 +209,19 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       </div>
 
       <div 
-        className="relative p-8 rounded-xl transition-all duration-300 shadow-lg"
+        className="relative p-6 md:p-8 rounded-xl transition-all duration-300 shadow-lg mx-auto w-full"
         style={{
           background: getTimerColor(),
         }}
       >
-        <span className="text-5xl font-mono font-bold text-primary text-center block">
+        <span className="text-4xl md:text-5xl font-mono font-bold text-primary text-center block">
           {timeLeft !== null ? formatTime(timeLeft) : '25:00'}
         </span>
       </div>
 
       <Progress 
         value={progress} 
-        className="h-2"
+        className="h-2 w-full"
       />
 
       <TimerControls

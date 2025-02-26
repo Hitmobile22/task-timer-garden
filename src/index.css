@@ -82,3 +82,35 @@
 .hover-lift:hover {
   transform: translateY(-2px);
 }
+
+/* Mobile Optimization */
+@media (max-width: 768px) {
+  .glass {
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+
+  /* Ensure dropdowns are always on top and fully visible */
+  [data-radix-popper-content-wrapper] {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 1000 !important;
+    max-width: 90vw !important;
+    width: 100% !important;
+  }
+
+  /* Ensure popovers stay within viewport */
+  .popover-content {
+    max-width: 90vw !important;
+    width: 100% !important;
+  }
+}
+
+/* Ensure no horizontal scroll on any device */
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}

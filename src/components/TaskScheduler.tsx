@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Task, Subtask } from '@/types/task.types';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SubTask {
   name: string;
@@ -35,6 +36,7 @@ export const TaskScheduler = () => {
   const [activeTaskId, setActiveTaskId] = useState<number>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
@@ -176,12 +178,12 @@ export const TaskScheduler = () => {
 
   return (
     <div 
-      className="min-h-screen p-6 space-y-8 animate-fadeIn"
+      className="min-h-screen p-4 md:p-6 space-y-6 md:space-y-8 overflow-x-hidden"
       style={{
         background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
       }}
     >
-      <div className="container mx-auto max-w-4xl flex justify-between items-center">
+      <div className="container mx-auto max-w-[95%] md:max-w-4xl flex justify-between items-center">
         <MenuBar />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -189,7 +191,7 @@ export const TaskScheduler = () => {
               <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={() => navigate('/tasks')}>
               Task View
             </DropdownMenuItem>
@@ -197,18 +199,18 @@ export const TaskScheduler = () => {
         </DropdownMenu>
       </div>
       
-      <main className="container mx-auto max-w-4xl space-y-8">
+      <main className="container mx-auto max-w-[95%] md:max-w-4xl space-y-6 md:space-y-8">
         <header className="text-center space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight text-white">Pomouroboros Timer</h1>
-          <p className="text-white/80">It really whips the ollama's ass</p>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">Pomouroboros Timer</h1>
+          <p className="text-sm md:text-base text-white/80">It really whips the ollama's ass</p>
         </header>
 
-        <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
-          <div className="grid gap-8 md:grid-cols-[1fr,auto] items-start">
-            <div className="space-y-6">
+        <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-4 md:p-8 shadow-lg w-full">
+          <div className="grid gap-6 md:gap-8 md:grid-cols-[1fr,auto] items-start">
+            <div className="space-y-4 md:space-y-6 w-full">
               {showTimer && (
                 <div 
-                  className="w-full animate-slideIn"
+                  className="w-full animate-slideIn rounded-lg overflow-hidden"
                   style={{
                     background: activeTaskListColor || undefined
                   }}

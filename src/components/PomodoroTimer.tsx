@@ -191,7 +191,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   if (!isVisible) return null;
 
   return (
-    <div className="glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-3xl mx-auto">
+    <div className="glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-5xl mx-auto">
       <div className="space-y-2 w-full">
         <h2 className="text-2xl font-semibold text-primary">
           {isBreak ? 'Break Time' : 'Work Session'}

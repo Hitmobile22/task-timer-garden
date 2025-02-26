@@ -84,11 +84,11 @@
 
 /* Custom component styles */
 .task-number-select {
-  @apply w-24 md:w-32 text-center mx-auto;
+  @apply w-20 md:w-24 text-center mx-auto;
 }
 
 .task-form-container {
-  @apply w-full max-w-4xl mx-auto;
+  @apply w-full max-w-5xl mx-auto;
 }
 
 .timer-controls {
@@ -103,16 +103,9 @@
     padding: 1rem;
   }
 
-  /* Make form inputs and buttons full width on mobile */
-  .mobile-full-width {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
   /* Timer container specific styles */
   .timer-container {
     width: 100% !important;
-    max-width: none !important;
     margin: 0 auto !important;
     padding: 1rem !important;
   }
@@ -123,56 +116,28 @@
     padding: 0.5rem !important;
   }
 
-  /* Task name column width */
+  /* Task name cell width */
   .task-name-cell {
-    min-width: 200px !important;
-    max-width: none !important;
-  }
-
-  /* Make buttons more touch-friendly */
-  button, 
-  [role="button"] {
-    min-height: 44px !important;
-    padding: 0.5rem 1rem !important;
-  }
-
-  /* Adjust form controls for mobile */
-  select,
-  input,
-  .select-trigger,
-  .popover-trigger {
-    height: 44px !important;
-    font-size: 16px !important;
-  }
-
-  /* Number of tasks select specific mobile style */
-  .task-number-select {
-    width: 100% !important;
-    max-width: none !important;
+    min-width: 280px !important;
   }
 }
 
 /* Desktop specific styles */
 @media (min-width: 769px) {
   .glass {
-    max-width: 95%;
+    max-width: 100%;
     margin: 0 auto;
     padding: 2rem;
   }
 
   .timer-container {
-    max-width: 800px !important;
+    max-width: 90% !important;
     margin: 0 auto !important;
   }
 
   .task-list {
-    max-width: 900px !important;
+    max-width: 90% !important;
     margin: 0 auto !important;
-  }
-
-  /* Ensure dropdowns have a nice desktop appearance */
-  [data-radix-popper-content-wrapper] {
-    min-width: auto !important;
   }
 }
 

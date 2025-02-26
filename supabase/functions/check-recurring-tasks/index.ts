@@ -31,11 +31,24 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get current day of week
+    // Get current time and check if it's after 7am
     const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(7, 0, 0, 0);
+
+    // If it's before 7am, don't generate tasks
+    if (today < startOfDay) {
+      console.log('Before 7am, skipping task generation');
+      return new Response(JSON.stringify({ success: true, message: 'Before 7am, no tasks generated' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+    
+    // Get current day of week
     const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
     
-    // Get all enabled recurring task settings
+    // Get all enabled recurring task settings for today
     const { data: settings, error: settingsError } = await supabaseClient
       .from('recurring_task_settings')
       .select(`
@@ -52,7 +65,7 @@ Deno.serve(async (req) => {
 
     // Process each task list that needs recurring tasks
     for (const setting of (settings as RecurringTaskSettings[] || [])) {
-      // Get task list info
+      // Get task list info and check last_tasks_added_at
       const { data: taskList } = await supabaseClient
         .from('TaskLists')
         .select('*')
@@ -61,9 +74,17 @@ Deno.serve(async (req) => {
 
       if (!taskList) continue;
 
-      // Check if we already added tasks today
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
+      // Check if tasks have already been added today
+      const lastAddedDate = taskList.last_tasks_added_at ? new Date(taskList.last_tasks_added_at) : null;
+      const hasAddedToday = lastAddedDate && 
+        lastAddedDate.getDate() === today.getDate() &&
+        lastAddedDate.getMonth() === today.getMonth() &&
+        lastAddedDate.getFullYear() === today.getFullYear();
+
+      if (hasAddedToday) {
+        console.log(`Tasks already added today for list ${taskList.id}`);
+        continue;
+      }
 
       // Count existing active tasks for today
       const { data: existingTasks, error: countError } = await supabaseClient
@@ -96,10 +117,12 @@ Deno.serve(async (req) => {
         if (insertError) throw insertError;
 
         // Update last_tasks_added_at
-        await supabaseClient
+        const { error: updateError } = await supabaseClient
           .from('TaskLists')
           .update({ last_tasks_added_at: new Date().toISOString() })
           .eq('id', setting.task_list_id);
+
+        if (updateError) throw updateError;
       }
     }
 

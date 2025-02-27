@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,12 +16,14 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
+
 interface SubtaskData {
   id: number;
   "Task Name": string;
   Progress: "Not started" | "In progress" | "Completed" | "Backlog";
   "Parent Task ID": number;
 }
+
 interface TaskListProps {
   tasks: Task[];
   onTaskStart?: (taskId: number) => void;
@@ -28,6 +31,7 @@ interface TaskListProps {
   taskLists?: any[];
   activeTaskId?: number;
 }
+
 interface TaskItemProps {
   task: Task;
   subtasks?: Subtask[];
@@ -36,6 +40,7 @@ interface TaskItemProps {
   onTaskStart?: (taskId: number) => void;
   isCurrentTask?: boolean;
 }
+
 const EditTaskModal = ({
   isOpen,
   onClose,
@@ -52,10 +57,12 @@ const EditTaskModal = ({
   const [taskName, setTaskName] = useState(task["Task Name"]);
   const [editingSubtasks, setEditingSubtasks] = useState<Subtask[]>(subtasks?.filter(st => st["Parent Task ID"] === task.id) || []);
   const [newSubtask, setNewSubtask] = useState("");
+
   const handleSave = () => {
     onSave(taskName, editingSubtasks);
     onClose();
   };
+
   const addSubtask = () => {
     if (!newSubtask.trim()) return;
     setEditingSubtasks([...editingSubtasks, {
@@ -67,9 +74,11 @@ const EditTaskModal = ({
     }]);
     setNewSubtask("");
   };
+
   const removeSubtask = (subtaskId: number) => {
     setEditingSubtasks(editingSubtasks.filter(st => st.id !== subtaskId));
   };
+
   return <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -114,6 +123,7 @@ const EditTaskModal = ({
       </DialogContent>
     </Dialog>;
 };
+
 const TaskItem: React.FC<TaskItemProps> = ({
   task,
   subtasks,
@@ -128,6 +138,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const hasSubtasks = subtasks?.some(st => st["Parent Task ID"] === task.id);
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
+
   const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[]) => {
     try {
       if (newTaskName !== task["Task Name"]) {
@@ -135,10 +146,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
           "Task Name": newTaskName
         }).eq('id', task.id);
       }
+
       const existingSubtasks = subtasks?.filter(st => st["Parent Task ID"] === task.id) || [];
       const subtasksToAdd = newSubtasks.filter(st => !st.id || st.id > Date.now() - 1000000);
       const subtasksToUpdate = newSubtasks.filter(st => st.id && st.id < Date.now() - 1000000);
       const subtasksToDelete = existingSubtasks.filter(est => !newSubtasks.some(nst => nst.id === est.id));
+
       if (subtasksToAdd.length > 0) {
         const newSubtasksData = subtasksToAdd.map(st => ({
           "Task Name": st["Task Name"],
@@ -147,14 +160,17 @@ const TaskItem: React.FC<TaskItemProps> = ({
         }));
         await supabase.from('subtasks').insert(newSubtasksData);
       }
+
       for (const subtask of subtasksToUpdate) {
         await supabase.from('subtasks').update({
           "Task Name": subtask["Task Name"]
         }).eq('id', subtask.id);
       }
+
       if (subtasksToDelete.length > 0) {
         await supabase.from('subtasks').delete().in('id', subtasksToDelete.map(st => st.id));
       }
+
       queryClient.invalidateQueries({
         queryKey: ['tasks']
       });
@@ -167,6 +183,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
       toast.error('Failed to update task');
     }
   };
+
   return <li className="space-y-2">
       <div className={cn("flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80")}>
         <div className="flex gap-2 flex-shrink-0">
@@ -222,6 +239,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         </ul>}
     </li>;
 };
+
 const SortableTaskItem = ({
   task,
   children
@@ -235,10 +253,12 @@ const SortableTaskItem = ({
   } = useSortable({
     id: task.id
   });
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition
   };
+
   return <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, {
       dragHandleProps: {
@@ -248,6 +268,7 @@ const SortableTaskItem = ({
     })}
     </div>;
 };
+
 export const TaskList = ({
   tasks: initialTasks,
   onTaskStart,
@@ -260,6 +281,7 @@ export const TaskList = ({
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const isTaskView = location.pathname === '/tasks';
+  
   const sensors = useSensors(useSensor(MouseSensor, {
     activationConstraint: {
       distance: 10
@@ -270,6 +292,7 @@ export const TaskList = ({
       tolerance: 5
     }
   }));
+
   const {
     data: dbTasks
   } = useQuery({
@@ -303,6 +326,7 @@ export const TaskList = ({
       return data;
     }
   });
+
   const {
     data: todaySubtasks
   } = useQuery({
@@ -318,6 +342,7 @@ export const TaskList = ({
       return data;
     }
   });
+
   const updateTaskOrder = useMutation({
     mutationFn: async ({
       tasks,
@@ -408,6 +433,7 @@ export const TaskList = ({
       toast.error('Failed to update task schedule');
     }
   });
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const {
       active,
@@ -428,6 +454,7 @@ export const TaskList = ({
       movedTaskId: movedTask.id
     });
   };
+
   const updateTaskProgress = useMutation({
     mutationFn: async ({
       id,
@@ -459,7 +486,7 @@ export const TaskList = ({
 
   const shuffleTasks = useMutation({
     mutationFn: async () => {
-      const notCompletedTasks = activeTasks?.filter(t => t.Progress !== 'Completed') || [];
+      const notCompletedTasks = dbTasks?.filter(t => t.Progress !== 'Completed') || [];
       if (notCompletedTasks.length === 0) {
         toast.error('No active tasks to shuffle');
         return;
@@ -727,4 +754,23 @@ export const TaskList = ({
                     if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
                     if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
                     return 0;
-                  }).map(subtask => <li key={subtask.id} className
+                  }).map(subtask => <li key={subtask.id} className={cn("flex items-center gap-3 p-2 rounded-lg", subtask.Progress === 'Completed' ? "text-gray-500" : "")}>
+                            <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-6 w-6 rounded-full", subtask.Progress === 'Completed' ? "bg-green-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
+                        id: subtask.id,
+                        isSubtask: true
+                      })}>
+                              <Check className="h-3 w-3" />
+                            </Button>
+                            <span className={cn("text-sm", subtask.Progress === 'Completed' && "line-through")}>
+                              {subtask["Task Name"]}
+                            </span>
+                          </li>)}
+                      </ul>}
+                  </li>
+                </SortableTaskItem>)}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      </div>
+    </div>;
+};

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -15,7 +14,6 @@ import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Task, Subtask } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
-
 interface SubTask {
   name: string;
 }
@@ -63,29 +61,13 @@ export const TaskScheduler = () => {
       }) as Task[];
     }
   });
-
-  const { data: subtasks } = useQuery({
-    queryKey: ['today-subtasks'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('subtasks').select('*').order('created_at', {
-        ascending: true
-      });
-      if (error) throw error;
-      return data;
-    }
-  });
-
   useEffect(() => {
     if (activeTasks && activeTasks.length > 0) {
       setShowTimer(true);
       setTimerStarted(true);
-      // Only set the first task as active if no current task is already active
-      if (!activeTaskId || !activeTasks.some(task => task.id === activeTaskId)) {
-        setActiveTaskId(activeTasks[0].id);
-      }
+      setActiveTaskId(activeTasks[0].id);
     }
-  }, [activeTasks, activeTaskId]);
-
+  }, [activeTasks]);
   const handleTasksCreate = async (newTasks: NewTask[]) => {
     try {
       setTasks(newTasks);
@@ -109,7 +91,6 @@ export const TaskScheduler = () => {
       toast.error('Failed to create tasks');
     }
   };
-
   const handleTaskStart = async (taskId: number) => {
     try {
       const today = new Date();
@@ -130,20 +111,14 @@ export const TaskScheduler = () => {
       if (!selectedTask) return;
       const currentTime = new Date();
       if (!currentTask || selectedTask.id === currentTask.id) {
-        // Explicitly set the selected task as the active one
-        setActiveTaskId(taskId);
-
-        // Update the task's progress and start/end times
-        const { error: updateError } = await supabase.from('Tasks').update({
+        const {
+          error: updateError
+        } = await supabase.from('Tasks').update({
           Progress: 'In progress',
           date_started: currentTime.toISOString(),
           date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
         }).eq('id', taskId);
-
-        // Handle any errors during the update
-        if (updateError) {
-          throw updateError;
-        }
+        if (updateError) throw updateError;
       }
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       for (const task of notStartedTasks) {
@@ -215,13 +190,7 @@ export const TaskScheduler = () => {
                 <TaskForm onTasksCreate={handleTasksCreate} />
               </div>
               <div className="task-list">
-                <TaskList 
-                  tasks={activeTasks || []} 
-                  onTaskStart={handleTaskStart} 
-                  subtasks={subtasks || []} 
-                  taskLists={taskLists} 
-                  activeTaskId={activeTaskId} 
-                />
+                <TaskList tasks={activeTasks || []} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
               </div>
             </div>
           </div>

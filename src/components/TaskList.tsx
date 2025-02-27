@@ -1,12 +1,10 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
-import { format, addMinutes } from 'date-fns';
+import { format, addDays, isAfter } from 'date-fns';
 import { Button } from './ui/button';
-import { Shuffle } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "./ui/input";
@@ -16,14 +14,12 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
-
 interface SubtaskData {
   id: number;
   "Task Name": string;
   Progress: "Not started" | "In progress" | "Completed" | "Backlog";
   "Parent Task ID": number;
 }
-
 interface TaskListProps {
   tasks: Task[];
   onTaskStart?: (taskId: number) => void;
@@ -31,7 +27,6 @@ interface TaskListProps {
   taskLists?: any[];
   activeTaskId?: number;
 }
-
 interface TaskItemProps {
   task: Task;
   subtasks?: Subtask[];
@@ -40,7 +35,6 @@ interface TaskItemProps {
   onTaskStart?: (taskId: number) => void;
   isCurrentTask?: boolean;
 }
-
 const EditTaskModal = ({
   isOpen,
   onClose,
@@ -57,12 +51,10 @@ const EditTaskModal = ({
   const [taskName, setTaskName] = useState(task["Task Name"]);
   const [editingSubtasks, setEditingSubtasks] = useState<Subtask[]>(subtasks?.filter(st => st["Parent Task ID"] === task.id) || []);
   const [newSubtask, setNewSubtask] = useState("");
-
   const handleSave = () => {
     onSave(taskName, editingSubtasks);
     onClose();
   };
-
   const addSubtask = () => {
     if (!newSubtask.trim()) return;
     setEditingSubtasks([...editingSubtasks, {
@@ -74,11 +66,9 @@ const EditTaskModal = ({
     }]);
     setNewSubtask("");
   };
-
   const removeSubtask = (subtaskId: number) => {
     setEditingSubtasks(editingSubtasks.filter(st => st.id !== subtaskId));
   };
-
   return <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -123,7 +113,6 @@ const EditTaskModal = ({
       </DialogContent>
     </Dialog>;
 };
-
 const TaskItem: React.FC<TaskItemProps> = ({
   task,
   subtasks,
@@ -138,7 +127,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const hasSubtasks = subtasks?.some(st => st["Parent Task ID"] === task.id);
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
-
   const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[]) => {
     try {
       if (newTaskName !== task["Task Name"]) {
@@ -146,12 +134,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
           "Task Name": newTaskName
         }).eq('id', task.id);
       }
-
       const existingSubtasks = subtasks?.filter(st => st["Parent Task ID"] === task.id) || [];
       const subtasksToAdd = newSubtasks.filter(st => !st.id || st.id > Date.now() - 1000000);
       const subtasksToUpdate = newSubtasks.filter(st => st.id && st.id < Date.now() - 1000000);
       const subtasksToDelete = existingSubtasks.filter(est => !newSubtasks.some(nst => nst.id === est.id));
-
       if (subtasksToAdd.length > 0) {
         const newSubtasksData = subtasksToAdd.map(st => ({
           "Task Name": st["Task Name"],
@@ -160,17 +146,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
         }));
         await supabase.from('subtasks').insert(newSubtasksData);
       }
-
       for (const subtask of subtasksToUpdate) {
         await supabase.from('subtasks').update({
           "Task Name": subtask["Task Name"]
         }).eq('id', subtask.id);
       }
-
       if (subtasksToDelete.length > 0) {
         await supabase.from('subtasks').delete().in('id', subtasksToDelete.map(st => st.id));
       }
-
       queryClient.invalidateQueries({
         queryKey: ['tasks']
       });
@@ -183,7 +166,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
       toast.error('Failed to update task');
     }
   };
-
   return <li className="space-y-2">
       <div className={cn("flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80")}>
         <div className="flex gap-2 flex-shrink-0">
@@ -239,7 +221,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
         </ul>}
     </li>;
 };
-
 const SortableTaskItem = ({
   task,
   children
@@ -253,12 +234,10 @@ const SortableTaskItem = ({
   } = useSortable({
     id: task.id
   });
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition
   };
-
   return <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, {
       dragHandleProps: {
@@ -268,20 +247,18 @@ const SortableTaskItem = ({
     })}
     </div>;
 };
-
-export const TaskList = ({
+export const TaskList: React.FC<TaskListProps> = ({
   tasks: initialTasks,
   onTaskStart,
   subtasks,
   taskLists,
   activeTaskId
-}: TaskListProps) => {
+}) => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const isTaskView = location.pathname === '/tasks';
-  
   const sensors = useSensors(useSensor(MouseSensor, {
     activationConstraint: {
       distance: 10
@@ -292,14 +269,13 @@ export const TaskList = ({
       tolerance: 5
     }
   }));
-
   const {
     data: dbTasks
   } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const today = new Date();
-      const tomorrow5AM = addMinutes(today, 1);
+      const tomorrow5AM = addDays(today, 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
       const {
         data,
@@ -326,7 +302,6 @@ export const TaskList = ({
       return data;
     }
   });
-
   const {
     data: todaySubtasks
   } = useQuery({
@@ -342,7 +317,6 @@ export const TaskList = ({
       return data;
     }
   });
-
   const updateTaskOrder = useMutation({
     mutationFn: async ({
       tasks,
@@ -367,8 +341,7 @@ export const TaskList = ({
         isMovingToFirst,
         isMovingCurrentTask
       });
-      const isAffectingCurrentTask = (isMovingToFirst && !isMovingCurrentTask) || (isMovingCurrentTask && newIndex !== 0);
-      const shouldUpdateCurrentTask = isAffectingCurrentTask;
+      const shouldUpdateCurrentTask = isMovingCurrentTask || isMovingToFirst;
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
       if (!shouldUpdateCurrentTask && currentTask) {
@@ -386,25 +359,13 @@ export const TaskList = ({
           taskEndTime = new Date(currentTask.date_due);
           console.log('Preserving current task time:', taskStartTime);
         } else {
-          if (isCurrentTask && !isAffectingCurrentTask) {
-            // Preserve current task's time if it's not affected
-            taskStartTime = new Date(currentTask.date_started);
-            taskEndTime = new Date(currentTask.date_due);
-          } else if (isFirst && isAffectingCurrentTask) {
-            // Reset only if the new task becomes first or the current task moves out of first
+          if (isFirst && shouldUpdateCurrentTask) {
             taskStartTime = currentTime;
-            taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-            nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
-          } else if (isCurrentTask && !isAffectingCurrentTask) {
-            // Preserve current task's time if it's not affected
-            taskStartTime = new Date(currentTask.date_started);
-            taskEndTime = new Date(currentTask.date_due);
-            // Do not update nextStartTime to prevent unnecessary reset
           } else {
             taskStartTime = new Date(nextStartTime);
-            taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-            nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
           }
+          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
         const updateData: any = {
           id: task.id,
@@ -446,7 +407,6 @@ export const TaskList = ({
       toast.error('Failed to update task schedule');
     }
   });
-
   const handleDragEnd = async (event: DragEndEvent) => {
     const {
       active,
@@ -461,14 +421,12 @@ export const TaskList = ({
     const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
     const isMovingToFirst = newIndex === 0;
     const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
-    const isAffectingCurrentTask = (isMovingToFirst && !isMovingCurrentTask) || (isMovingCurrentTask && newIndex !== 0);
     await updateTaskOrder.mutate({
       tasks: reorderedTasks,
-      shouldResetTimer: isAffectingCurrentTask,
+      shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
       movedTaskId: movedTask.id
     });
   };
-
   const updateTaskProgress = useMutation({
     mutationFn: async ({
       id,
@@ -497,122 +455,20 @@ export const TaskList = ({
       toast.success('Task completed');
     }
   });
-
-  const shuffleTasks = useMutation({
-    mutationFn: async () => {
-      const notCompletedTasks = initialTasks?.filter(t => t.Progress !== 'Completed') || [];
-      if (notCompletedTasks.length === 0) {
-        toast.error('No active tasks to shuffle');
-        return;
-      }
-
-      // Shuffle array
-      const shuffledTasks = [...notCompletedTasks].sort(() => Math.random() - 0.5);
-      
-      // Calculate new times starting from current time
-      const currentTime = new Date();
-      let nextStartTime = currentTime;
-
-      // Update each task with new times
-      for (const task of shuffledTasks) {
-        const taskStartTime = new Date(nextStartTime);
-        const taskEndTime = addMinutes(taskStartTime, 25);
-        
-        const { error } = await supabase
-          .from('Tasks')
-          .update({
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString(),
-            Progress: task.Progress === 'In progress' ? 'Not started' : task.Progress
-          })
-          .eq('id', task.id);
-
-        if (error) throw error;
-        
-        // Add 5 minutes break before next task
-        nextStartTime = addMinutes(taskEndTime, 5);
-      }
-
-      // Set first task as in progress
-      if (shuffledTasks.length > 0) {
-        const { error } = await supabase
-          .from('Tasks')
-          .update({
-            Progress: 'In progress'
-          })
-          .eq('id', shuffledTasks[0].id);
-
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-      toast.success('Tasks shuffled successfully');
-    },
-    onError: (error) => {
-      console.error('Error shuffling tasks:', error);
-      toast.error('Failed to shuffle tasks');
-    }
-  });
-
   if (!isTaskView) {
-    // For debugging
-    console.log('Rendering Today\'s Tasks view with:', {
-      initialTasks: initialTasks?.length || 0,
-      activeTaskId
-    });
-    
-    // Use initialTasks directly for the display since they already come filtered from the parent
-    const tasksToShow = initialTasks?.filter(task => ['Not started', 'In progress'].includes(task.Progress)) || [];
-    
-    console.log('Filtered tasks to show:', tasksToShow.length);
-    
-    return (
-      <div className="w-full max-w-3xl mx-auto space-y-4 animate-slideIn px-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Today's Tasks</h2>
-          <Button
-            onClick={() => shuffleTasks.mutate()}
-            variant="ghost"
-            size="icon"
-            className="hover:bg-white/20 transition-colors"
-          >
-            <Shuffle className="h-5 w-5" />
-          </Button>
-        </div>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={tasksToShow.map(t => t.id)}
-            strategy={verticalListSortingStrategy}
-          >
+    return <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn px-0">
+        <h2 className="text-xl font-semibold">Today's Tasks</h2>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
             <ul className="space-y-4">
-              {tasksToShow.length > 0 ? (
-                tasksToShow.map(task => (
-                  <SortableTaskItem key={task.id} task={task}>
-                    <TaskItem
-                      task={task}
-                      subtasks={todaySubtasks}
-                      updateTaskProgress={updateTaskProgress}
-                      onTaskStart={onTaskStart}
-                      isCurrentTask={task.id === activeTaskId}
-                    />
-                  </SortableTaskItem>
-                ))
-              ) : (
-                <li className="text-center py-4 text-gray-500">No active tasks for today</li>
-              )}
+              {(dbTasks || []).filter(task => ['Not started', 'In progress'].includes(task.Progress)).map(task => <SortableTaskItem key={task.id} task={task}>
+                    <TaskItem task={task} subtasks={todaySubtasks} updateTaskProgress={updateTaskProgress} onTaskStart={onTaskStart} isCurrentTask={task.id === activeTaskId} />
+                  </SortableTaskItem>)}
             </ul>
           </SortableContext>
         </DndContext>
-      </div>
-    );
+      </div>;
   }
-
   const updateTaskTimes = useMutation({
     mutationFn: async ({
       taskId,
@@ -686,7 +542,7 @@ export const TaskList = ({
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60000); // Start 30 minutes after current task
 
       for (const task of otherTasks) {
-        if (currentTime.getHours() >= 21 && tomorrow5AM && nextStartTime >= tomorrow5AM) {
+        if (currentTime.getHours() >= 21 && isAfter(nextStartTime, tomorrow5AM)) {
           break;
         }
         const taskStartTime = new Date(nextStartTime);
@@ -781,17 +637,17 @@ export const TaskList = ({
                     if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
                     if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
                     return 0;
-                  }).map(subtask => <li key={subtask.id} className={cn("flex items-center gap-3 p-2 rounded-lg", subtask.Progress === 'Completed' ? "text-gray-500" : "")}>
-                            <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-6 w-6 rounded-full", subtask.Progress === 'Completed' ? "bg-green-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
-                        id: subtask.id,
-                        isSubtask: true
-                      })}>
-                              <Check className="h-3 w-3" />
-                            </Button>
-                            <span className={cn("text-sm", subtask.Progress === 'Completed' && "line-through")}>
-                              {subtask["Task Name"]}
-                            </span>
-                          </li>)}
+                  }).map(subtask => <li key={subtask.id} className={cn("flex items-center gap-3 p-2.5 rounded-lg transition-colors border border-gray-100", subtask.Progress === 'Completed' ? "bg-gray-50/80" : "bg-white hover:bg-gray-50")}>
+                              <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-6 w-6 rounded-full", subtask.Progress === 'Completed' ? "bg-green-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
+                      id: subtask.id,
+                      isSubtask: true
+                    })}>
+                                <Check className="h-3 w-3" />
+                              </Button>
+                              <span className={cn("text-sm truncate", subtask.Progress === 'Completed' && "line-through text-gray-500")}>
+                                {subtask["Task Name"]}
+                              </span>
+                            </li>)}
                       </ul>}
                   </li>
                 </SortableTaskItem>)}

@@ -31,14 +31,11 @@ enabled = true
 [analytics]
 enabled = false
 
-[[functions]]
-name = "check-recurring-tasks"
+[functions.check-recurring-tasks]
 verify_jwt = false
 
-[[functions]]
-name = "google-calendar"
+[functions.google-calendar]
 verify_jwt = false
 
-[[functions]]
-name = "check-recurring-projects"
+[functions.check-recurring-projects]
 verify_jwt = false

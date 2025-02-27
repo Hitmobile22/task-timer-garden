@@ -14,7 +14,7 @@ export const useRecurringProjectsCheck = () => {
         .neq('progress', 'Completed');
       
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 

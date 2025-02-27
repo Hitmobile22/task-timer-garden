@@ -2,9 +2,13 @@
 import { useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from '@tanstack/react-query';
+import { Database } from '@/integrations/supabase/types';
+
+// Define a specific type for the project data
+type Project = Database['public']['Tables']['Projects']['Row'];
 
 export const useRecurringProjectsCheck = () => {
-  const { data: projects } = useQuery({
+  const { data: projects } = useQuery<Project[]>({
     queryKey: ['recurring-projects'],
     queryFn: async () => {
       const { data, error } = await supabase

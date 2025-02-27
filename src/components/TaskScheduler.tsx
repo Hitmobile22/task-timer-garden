@@ -65,9 +65,12 @@ export const TaskScheduler = () => {
     if (activeTasks && activeTasks.length > 0) {
       setShowTimer(true);
       setTimerStarted(true);
-      setActiveTaskId(activeTasks[0].id);
+      // Only set the first task as active if no current task is already active
+      if (!activeTaskId || !activeTasks.some(task => task.id === activeTaskId)) {
+        setActiveTaskId(activeTasks[0].id);
+      }
     }
-  }, [activeTasks]);
+  }, [activeTasks, activeTaskId]);
   const handleTasksCreate = async (newTasks: NewTask[]) => {
     try {
       setTasks(newTasks);
@@ -111,14 +114,20 @@ export const TaskScheduler = () => {
       if (!selectedTask) return;
       const currentTime = new Date();
       if (!currentTask || selectedTask.id === currentTask.id) {
-        const {
-          error: updateError
-        } = await supabase.from('Tasks').update({
+        // Explicitly set the selected task as the active one
+        setActiveTaskId(taskId);
+
+        // Update the task's progress and start/end times
+        const { error: updateError } = await supabase.from('Tasks').update({
           Progress: 'In progress',
           date_started: currentTime.toISOString(),
           date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
         }).eq('id', taskId);
-        if (updateError) throw updateError;
+
+        // Handle any errors during the update
+        if (updateError) {
+          throw updateError;
+        }
       }
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       for (const task of notStartedTasks) {

@@ -341,7 +341,8 @@ export const TaskList: React.FC<TaskListProps> = ({
         isMovingToFirst,
         isMovingCurrentTask
       });
-      const shouldUpdateCurrentTask = isMovingCurrentTask || isMovingToFirst;
+      const isAffectingCurrentTask = (isMovingToFirst && !isMovingCurrentTask) || (isMovingCurrentTask && newIndex !== 0);
+      const shouldUpdateCurrentTask = isAffectingCurrentTask;
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
       if (!shouldUpdateCurrentTask && currentTask) {
@@ -359,13 +360,25 @@ export const TaskList: React.FC<TaskListProps> = ({
           taskEndTime = new Date(currentTask.date_due);
           console.log('Preserving current task time:', taskStartTime);
         } else {
-          if (isFirst && shouldUpdateCurrentTask) {
+          if (isCurrentTask && !isAffectingCurrentTask) {
+            // Preserve current task's time if it's not affected
+            taskStartTime = new Date(currentTask.date_started);
+            taskEndTime = new Date(currentTask.date_due);
+          } else if (isFirst && isAffectingCurrentTask) {
+            // Reset only if the new task becomes first or the current task moves out of first
             taskStartTime = currentTime;
+            taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+            nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+          } else if (isCurrentTask && !isAffectingCurrentTask) {
+            // Preserve current task's time if it's not affected
+            taskStartTime = new Date(currentTask.date_started);
+            taskEndTime = new Date(currentTask.date_due);
+            // Do not update nextStartTime to prevent unnecessary reset
           } else {
             taskStartTime = new Date(nextStartTime);
+            taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+            nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
           }
-          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
         const updateData: any = {
           id: task.id,
@@ -421,9 +434,10 @@ export const TaskList: React.FC<TaskListProps> = ({
     const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
     const isMovingToFirst = newIndex === 0;
     const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
+    const isAffectingCurrentTask = (isMovingToFirst && !isMovingCurrentTask) || (isMovingCurrentTask && newIndex !== 0);
     await updateTaskOrder.mutate({
       tasks: reorderedTasks,
-      shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
+      shouldResetTimer: isAffectingCurrentTask,
       movedTaskId: movedTask.id
     });
   };

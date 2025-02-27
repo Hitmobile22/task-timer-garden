@@ -1,8 +1,44 @@
 
 project_id = "yjngziesjqltethpvogp"
 
-[functions.google-calendar]
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://localhost"
+
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[storage]
+enabled = true
+
+[realtime]
+enabled = true
+
+[analytics]
+enabled = false
+
+[[functions]]
+name = "check-recurring-tasks"
 verify_jwt = false
 
-[functions.check-recurring-tasks]
+[[functions]]
+name = "google-calendar"
+verify_jwt = false
+
+[[functions]]
+name = "check-recurring-projects"
 verify_jwt = false

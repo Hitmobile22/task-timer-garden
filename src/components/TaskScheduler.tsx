@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -14,6 +15,7 @@ import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Task, Subtask } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
+
 interface SubTask {
   name: string;
 }
@@ -61,6 +63,18 @@ export const TaskScheduler = () => {
       }) as Task[];
     }
   });
+
+  const { data: subtasks } = useQuery({
+    queryKey: ['today-subtasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('subtasks').select('*').order('created_at', {
+        ascending: true
+      });
+      if (error) throw error;
+      return data;
+    }
+  });
+
   useEffect(() => {
     if (activeTasks && activeTasks.length > 0) {
       setShowTimer(true);
@@ -71,6 +85,7 @@ export const TaskScheduler = () => {
       }
     }
   }, [activeTasks, activeTaskId]);
+
   const handleTasksCreate = async (newTasks: NewTask[]) => {
     try {
       setTasks(newTasks);
@@ -94,6 +109,7 @@ export const TaskScheduler = () => {
       toast.error('Failed to create tasks');
     }
   };
+
   const handleTaskStart = async (taskId: number) => {
     try {
       const today = new Date();
@@ -199,7 +215,13 @@ export const TaskScheduler = () => {
                 <TaskForm onTasksCreate={handleTasksCreate} />
               </div>
               <div className="task-list">
-                <TaskList tasks={activeTasks || []} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
+                <TaskList 
+                  tasks={activeTasks || []} 
+                  onTaskStart={handleTaskStart} 
+                  subtasks={subtasks || []} 
+                  taskLists={taskLists} 
+                  activeTaskId={activeTaskId} 
+                />
               </div>
             </div>
           </div>

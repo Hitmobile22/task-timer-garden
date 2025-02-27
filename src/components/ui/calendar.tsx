@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayPicker } from "react-day-picker";
@@ -13,6 +14,14 @@ function Calendar({
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
+  // Ensure day selection doesn't propagate click events to parent popover
+  const handleDaySelect = (day: Date | undefined, modifiers: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (props.onSelect) {
+      props.onSelect(day, modifiers, e);
+    }
+  };
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -52,9 +61,10 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
+        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" onClick={(e) => e.stopPropagation()} />,
+        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" onClick={(e) => e.stopPropagation()} />,
       }}
+      onSelect={handleDaySelect}
       {...props}
     />
   );

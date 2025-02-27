@@ -106,14 +106,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   };
 
+  // Ensure dialog doesn't close when interacting with date pickers
+  const handleDatePickerClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={() => {
-      handleReset();
-      onClose();
+    <Dialog open={open} onOpenChange={(open) => {
+      if (!open) {
+        handleReset();
+        onClose();
+      }
     }}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
-          <DialogTitle>{initialData ? 'Edit Project' : 'Create New Project'}</DialogTitle>
+          <DialogTitle>{initialData?.id ? 'Edit Project' : 'Create New Project'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -162,12 +169,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !startDate && "text-muted-foreground"
                     )}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" onClick={handleDatePickerClick}>
                   <Calendar
                     mode="single"
                     selected={startDate}
@@ -192,12 +200,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !dueDate && "text-muted-foreground"
                     )}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" onClick={handleDatePickerClick}>
                   <Calendar
                     mode="single"
                     selected={dueDate}
@@ -274,7 +283,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">{initialData ? 'Update' : 'Create'} Project</Button>
+            <Button type="submit">{initialData?.id ? 'Update' : 'Create'} Project</Button>
           </DialogFooter>
         </form>
       </DialogContent>

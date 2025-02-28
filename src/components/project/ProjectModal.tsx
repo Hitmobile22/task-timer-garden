@@ -122,8 +122,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     setRecurringTaskCount(1);
   };
 
-  // Prevent events from bubbling up to the dialog
-  const stopPropagation = (e: React.MouseEvent) => {
+  // Prevent event propagation completely for the calendar and its container
+  const preventPropagation = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
   };
 
@@ -133,7 +133,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         onClose();
       }
     }}>
-      <DialogContent className="sm:max-w-[500px]" onClick={stopPropagation}>
+      <DialogContent className="sm:max-w-[500px]" onClick={preventPropagation}>
         <DialogHeader>
           <DialogTitle>{initialData?.id ? 'Edit Project' : 'Create New Project'}</DialogTitle>
         </DialogHeader>
@@ -145,7 +145,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter project name"
               required
-              onClick={stopPropagation}
             />
           </div>
 
@@ -164,7 +163,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         setSelectedTasks(selectedTasks.filter(id => id !== task.id));
                       }
                     }}
-                    onClick={stopPropagation}
                   />
                   <label htmlFor={`task-${task.id}`} className="text-sm">
                     {task["Task Name"]}
@@ -186,22 +184,30 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !startDate && "text-muted-foreground"
                     )}
-                    onClick={stopPropagation}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" onClick={stopPropagation}>
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={(date) => {
-                      setStartDate(date);
-                      setStartDateOpen(false);
-                    }}
-                    initialFocus
-                  />
+                <PopoverContent 
+                  className="w-auto p-0" 
+                  align="start"
+                  onInteractOutside={(e) => e.preventDefault()}
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  onFocusOutside={(e) => e.preventDefault()}
+                  onPointerDownOutside={(e) => e.preventDefault()}
+                >
+                  <div onKeyDown={preventPropagation} onClick={preventPropagation}>
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={(date) => {
+                        setStartDate(date);
+                        setTimeout(() => setStartDateOpen(false), 100);
+                      }}
+                      initialFocus
+                    />
+                  </div>
                 </PopoverContent>
               </Popover>
             </div>
@@ -217,22 +223,30 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !dueDate && "text-muted-foreground"
                     )}
-                    onClick={stopPropagation}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" onClick={stopPropagation}>
-                  <Calendar
-                    mode="single"
-                    selected={dueDate}
-                    onSelect={(date) => {
-                      setDueDate(date);
-                      setDueDateOpen(false);
-                    }}
-                    initialFocus
-                  />
+                <PopoverContent 
+                  className="w-auto p-0" 
+                  align="start"
+                  onInteractOutside={(e) => e.preventDefault()}
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  onFocusOutside={(e) => e.preventDefault()}
+                  onPointerDownOutside={(e) => e.preventDefault()}
+                >
+                  <div onKeyDown={preventPropagation} onClick={preventPropagation}>
+                    <Calendar
+                      mode="single"
+                      selected={dueDate}
+                      onSelect={(date) => {
+                        setDueDate(date);
+                        setTimeout(() => setDueDateOpen(false), 100);
+                      }}
+                      initialFocus
+                    />
+                  </div>
                 </PopoverContent>
               </Popover>
             </div>
@@ -245,7 +259,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 id="recurring-project"
                 checked={isRecurring}
                 onCheckedChange={setIsRecurring}
-                onClick={stopPropagation}
               />
             </div>
             
@@ -259,7 +272,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   max="10"
                   value={recurringTaskCount}
                   onChange={(e) => setRecurringTaskCount(Number(e.target.value) || 1)}
-                  onClick={stopPropagation}
                 />
                 <p className="text-xs text-muted-foreground">
                   Tasks will be generated daily between start and due dates.
@@ -271,10 +283,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div className="space-y-2">
             <label className="text-sm font-medium">Status</label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger onClick={stopPropagation}>
+              <SelectTrigger>
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
-              <SelectContent onClick={stopPropagation}>
+              <SelectContent>
                 <SelectItem value="Not started">Not started</SelectItem>
                 <SelectItem value="In progress">In progress</SelectItem>
                 <SelectItem value="Completed">Completed</SelectItem>
@@ -285,10 +297,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div className="space-y-2">
             <label className="text-sm font-medium">Task List</label>
             <Select value={taskListId} onValueChange={setTaskListId}>
-              <SelectTrigger onClick={stopPropagation}>
+              <SelectTrigger>
                 <SelectValue placeholder="Select task list" />
               </SelectTrigger>
-              <SelectContent onClick={stopPropagation}>
+              <SelectContent>
                 {taskLists.map((list) => (
                   <SelectItem key={list.id} value={list.id.toString()}>
                     {list.name}

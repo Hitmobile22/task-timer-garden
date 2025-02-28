@@ -96,13 +96,14 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     return format(date, 'M/d h:mm a');
   };
 
-  const handleDatePickerClick = (e: React.MouseEvent) => {
+  // Prevent event propagation completely for the calendar and its container
+  const preventPropagation = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px]">
+      <DialogContent className="sm:max-w-[700px]" onClick={preventPropagation}>
         <DialogHeader>
           <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
@@ -166,31 +167,39 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !selectedStartDate && "text-muted-foreground"
                     )}
-                    onClick={(e) => e.stopPropagation()}
                   >
                     <Clock className="mr-2 h-4 w-4" />
                     {selectedStartDate ? formatDateTime(selectedStartDate) : <span>Start time</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" onClick={handleDatePickerClick}>
-                  <Calendar
-                    mode="single"
-                    selected={selectedStartDate}
-                    onSelect={(date) => date && setSelectedStartDate(date)}
-                    initialFocus
-                  />
-                  <div className="border-t p-3">
-                    <Input
-                      type="time"
-                      value={format(selectedStartDate, "HH:mm")}
-                      onChange={(e) => {
-                        const [hours, minutes] = e.target.value.split(':');
-                        const newDate = new Date(selectedStartDate);
-                        newDate.setHours(parseInt(hours));
-                        newDate.setMinutes(parseInt(minutes));
-                        setSelectedStartDate(newDate);
-                      }}
+                <PopoverContent 
+                  className="w-auto p-0" 
+                  align="start"
+                  onInteractOutside={(e) => e.preventDefault()}
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  onFocusOutside={(e) => e.preventDefault()}
+                  onPointerDownOutside={(e) => e.preventDefault()}
+                >
+                  <div onKeyDown={preventPropagation} onClick={preventPropagation}>
+                    <Calendar
+                      mode="single"
+                      selected={selectedStartDate}
+                      onSelect={(date) => date && setSelectedStartDate(date)}
+                      initialFocus
                     />
+                    <div className="border-t p-3">
+                      <Input
+                        type="time"
+                        value={format(selectedStartDate, "HH:mm")}
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const newDate = new Date(selectedStartDate);
+                          newDate.setHours(parseInt(hours));
+                          newDate.setMinutes(parseInt(minutes));
+                          setSelectedStartDate(newDate);
+                        }}
+                      />
+                    </div>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -203,31 +212,39 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !selectedEndDate && "text-muted-foreground"
                     )}
-                    onClick={(e) => e.stopPropagation()}
                   >
                     <Clock className="mr-2 h-4 w-4" />
                     {selectedEndDate ? formatDateTime(selectedEndDate) : <span>End time</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" onClick={handleDatePickerClick}>
-                  <Calendar
-                    mode="single"
-                    selected={selectedEndDate}
-                    onSelect={(date) => date && setSelectedEndDate(date)}
-                    initialFocus
-                  />
-                  <div className="border-t p-3">
-                    <Input
-                      type="time"
-                      value={format(selectedEndDate, "HH:mm")}
-                      onChange={(e) => {
-                        const [hours, minutes] = e.target.value.split(':');
-                        const newDate = new Date(selectedEndDate);
-                        newDate.setHours(parseInt(hours));
-                        newDate.setMinutes(parseInt(minutes));
-                        setSelectedEndDate(newDate);
-                      }}
+                <PopoverContent 
+                  className="w-auto p-0" 
+                  align="start"
+                  onInteractOutside={(e) => e.preventDefault()}
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  onFocusOutside={(e) => e.preventDefault()}
+                  onPointerDownOutside={(e) => e.preventDefault()}
+                >
+                  <div onKeyDown={preventPropagation} onClick={preventPropagation}>
+                    <Calendar
+                      mode="single"
+                      selected={selectedEndDate}
+                      onSelect={(date) => date && setSelectedEndDate(date)}
+                      initialFocus
                     />
+                    <div className="border-t p-3">
+                      <Input
+                        type="time"
+                        value={format(selectedEndDate, "HH:mm")}
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const newDate = new Date(selectedEndDate);
+                          newDate.setHours(parseInt(hours));
+                          newDate.setMinutes(parseInt(minutes));
+                          setSelectedEndDate(newDate);
+                        }}
+                      />
+                    </div>
                   </div>
                 </PopoverContent>
               </Popover>

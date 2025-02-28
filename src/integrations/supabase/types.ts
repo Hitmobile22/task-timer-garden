@@ -48,10 +48,12 @@ export type Database = {
           date_due: string | null
           date_started: string | null
           id: number
+          isRecurring: boolean | null
           position: number | null
           progress: Database["public"]["Enums"]["status"] | null
           "Project Name": string
           project_order: number | null
+          recurringTaskCount: number | null
           sort_order: number
           task_list_id: number | null
         }
@@ -60,10 +62,12 @@ export type Database = {
           date_due?: string | null
           date_started?: string | null
           id?: number
+          isRecurring?: boolean | null
           position?: number | null
           progress?: Database["public"]["Enums"]["status"] | null
           "Project Name": string
           project_order?: number | null
+          recurringTaskCount?: number | null
           sort_order?: number
           task_list_id?: number | null
         }
@@ -72,10 +76,12 @@ export type Database = {
           date_due?: string | null
           date_started?: string | null
           id?: number
+          isRecurring?: boolean | null
           position?: number | null
           progress?: Database["public"]["Enums"]["status"] | null
           "Project Name"?: string
           project_order?: number | null
+          recurringTaskCount?: number | null
           sort_order?: number
           task_list_id?: number | null
         }

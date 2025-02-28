@@ -80,7 +80,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       // Reset form for new project
       handleReset();
     }
-  }, [initialData]);
+  }, [initialData, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,21 +125,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   // Prevent events from bubbling up to the dialog
   const stopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
-  };
-
-  // Handle date selection and prevent dialog closing
-  const handleStartDateSelect = (date: Date | undefined) => {
-    setStartDate(date);
-    if (date) {
-      setStartDateOpen(false);
-    }
-  };
-
-  const handleDueDateSelect = (date: Date | undefined) => {
-    setDueDate(date);
-    if (date) {
-      setDueDateOpen(false);
-    }
   };
 
   return (
@@ -211,7 +196,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <Calendar
                     mode="single"
                     selected={startDate}
-                    onSelect={handleStartDateSelect}
+                    onSelect={(date) => {
+                      setStartDate(date);
+                      setStartDateOpen(false);
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -239,7 +227,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <Calendar
                     mode="single"
                     selected={dueDate}
-                    onSelect={handleDueDateSelect}
+                    onSelect={(date) => {
+                      setDueDate(date);
+                      setDueDateOpen(false);
+                    }}
                     initialFocus
                   />
                 </PopoverContent>

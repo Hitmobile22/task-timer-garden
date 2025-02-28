@@ -6,9 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 // Define explicit type for project data to avoid deep type instantiation
 type RecurringProject = {
   id: number;
-  name: string;
-  startDate?: string;
-  dueDate?: string;
+  "Project Name": string;
+  date_started?: string;
+  date_due?: string;
   progress: string;
   isRecurring: boolean;
   recurringTaskCount?: number;
@@ -16,7 +16,7 @@ type RecurringProject = {
 };
 
 export const useRecurringProjectsCheck = () => {
-  const { data: projects } = useQuery<RecurringProject[]>({
+  const { data: projects } = useQuery({
     queryKey: ['recurring-projects'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -26,7 +26,9 @@ export const useRecurringProjectsCheck = () => {
         .neq('progress', 'Completed');
       
       if (error) throw error;
-      return data || [];
+      
+      // Map the data to match our RecurringProject type
+      return (data || []) as RecurringProject[];
     },
   });
 

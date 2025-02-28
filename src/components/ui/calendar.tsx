@@ -1,7 +1,7 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { DayPicker, SelectSingleEventHandler } from "react-day-picker";
+import { DayPicker, DayClickEventHandler } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -14,10 +14,13 @@ function Calendar({
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
-  // Use proper typing for the day selection handler
-  const handleDaySelect: SelectSingleEventHandler = (day, modifiers, e) => {
-    if (e) e.stopPropagation();
-    // Handle the existing onSelect if provided using the proper property name
+  // Create a day click handler that stops propagation
+  const handleDayClick: DayClickEventHandler = (day, modifiers, e) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    
+    // Call the original onDayClick if provided
     if (props.onDayClick) {
       props.onDayClick(day, modifiers, e);
     }
@@ -65,7 +68,7 @@ function Calendar({
         IconLeft: () => <ChevronLeft className="h-4 w-4" onClick={(e) => e.stopPropagation()} />,
         IconRight: () => <ChevronRight className="h-4 w-4" onClick={(e) => e.stopPropagation()} />,
       }}
-      onDayClick={handleDaySelect}
+      onDayClick={handleDayClick}
       {...props}
     />
   );

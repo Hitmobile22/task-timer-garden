@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -64,21 +64,40 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [startDateOpen, setStartDateOpen] = React.useState(false);
   const [dueDateOpen, setDueDateOpen] = React.useState(false);
 
-  React.useEffect(() => {
+  // Update form state when initialData changes
+  useEffect(() => {
     if (initialData) {
-      setName(initialData.name);
+      console.log("ProjectModal: Updating form with initialData:", initialData);
+      setName(initialData.name || "");
       setSelectedTasks(initialData.selectedTasks || []);
       setStartDate(initialData.startDate);
       setDueDate(initialData.dueDate);
-      setStatus(initialData.status);
+      setStatus(initialData.status || "Not started");
       setTaskListId(initialData.taskListId?.toString() || "");
       setIsRecurring(initialData.isRecurring || false);
       setRecurringTaskCount(initialData.recurringTaskCount || 1);
+    } else {
+      // Reset form for new project
+      handleReset();
     }
   }, [initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    console.log("ProjectModal: Submitting form with data:", {
+      id: initialData?.id,
+      name,
+      selectedTasks,
+      startDate,
+      dueDate,
+      status,
+      taskListId: taskListId ? parseInt(taskListId) : undefined,
+      isRecurring,
+      recurringTaskCount,
+    });
+    
     onSubmit({
       id: initialData?.id,
       name,
@@ -90,35 +109,46 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       isRecurring,
       recurringTaskCount,
     });
-    handleReset();
   };
 
   const handleReset = () => {
-    if (!initialData) {
-      setName("");
-      setSelectedTasks([]);
-      setStartDate(undefined);
-      setDueDate(undefined);
-      setStatus("Not started");
-      setTaskListId("");
-      setIsRecurring(false);
-      setRecurringTaskCount(1);
+    setName("");
+    setSelectedTasks([]);
+    setStartDate(undefined);
+    setDueDate(undefined);
+    setStatus("Not started");
+    setTaskListId("");
+    setIsRecurring(false);
+    setRecurringTaskCount(1);
+  };
+
+  // Prevent events from bubbling up to the dialog
+  const stopPropagation = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
+  // Handle date selection and prevent dialog closing
+  const handleStartDateSelect = (date: Date | undefined) => {
+    setStartDate(date);
+    if (date) {
+      setStartDateOpen(false);
     }
   };
 
-  // Ensure dialog doesn't close when interacting with date pickers
-  const handleDatePickerClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDueDateSelect = (date: Date | undefined) => {
+    setDueDate(date);
+    if (date) {
+      setDueDateOpen(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={(open) => {
       if (!open) {
-        handleReset();
         onClose();
       }
     }}>
-      <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
+      <DialogContent className="sm:max-w-[500px]" onClick={stopPropagation}>
         <DialogHeader>
           <DialogTitle>{initialData?.id ? 'Edit Project' : 'Create New Project'}</DialogTitle>
         </DialogHeader>
@@ -130,6 +160,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter project name"
               required
+              onClick={stopPropagation}
             />
           </div>
 
@@ -148,6 +179,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         setSelectedTasks(selectedTasks.filter(id => id !== task.id));
                       }
                     }}
+                    onClick={stopPropagation}
                   />
                   <label htmlFor={`task-${task.id}`} className="text-sm">
                     {task["Task Name"]}
@@ -169,20 +201,17 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !startDate && "text-muted-foreground"
                     )}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={stopPropagation}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" onClick={handleDatePickerClick}>
+                <PopoverContent className="w-auto p-0" align="start" onClick={stopPropagation}>
                   <Calendar
                     mode="single"
                     selected={startDate}
-                    onSelect={(date) => {
-                      setStartDate(date);
-                      setStartDateOpen(false);
-                    }}
+                    onSelect={handleStartDateSelect}
                     initialFocus
                   />
                 </PopoverContent>
@@ -200,20 +229,17 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !dueDate && "text-muted-foreground"
                     )}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={stopPropagation}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" onClick={handleDatePickerClick}>
+                <PopoverContent className="w-auto p-0" align="start" onClick={stopPropagation}>
                   <Calendar
                     mode="single"
                     selected={dueDate}
-                    onSelect={(date) => {
-                      setDueDate(date);
-                      setDueDateOpen(false);
-                    }}
+                    onSelect={handleDueDateSelect}
                     initialFocus
                   />
                 </PopoverContent>
@@ -228,6 +254,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 id="recurring-project"
                 checked={isRecurring}
                 onCheckedChange={setIsRecurring}
+                onClick={stopPropagation}
               />
             </div>
             
@@ -241,6 +268,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   max="10"
                   value={recurringTaskCount}
                   onChange={(e) => setRecurringTaskCount(Number(e.target.value) || 1)}
+                  onClick={stopPropagation}
                 />
                 <p className="text-xs text-muted-foreground">
                   Tasks will be generated daily between start and due dates.
@@ -252,10 +280,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div className="space-y-2">
             <label className="text-sm font-medium">Status</label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
+              <SelectTrigger onClick={stopPropagation}>
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent onClick={stopPropagation}>
                 <SelectItem value="Not started">Not started</SelectItem>
                 <SelectItem value="In progress">In progress</SelectItem>
                 <SelectItem value="Completed">Completed</SelectItem>
@@ -266,10 +294,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <div className="space-y-2">
             <label className="text-sm font-medium">Task List</label>
             <Select value={taskListId} onValueChange={setTaskListId}>
-              <SelectTrigger>
+              <SelectTrigger onClick={stopPropagation}>
                 <SelectValue placeholder="Select task list" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent onClick={stopPropagation}>
                 {taskLists.map((list) => (
                   <SelectItem key={list.id} value={list.id.toString()}>
                     {list.name}

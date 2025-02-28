@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -290,7 +291,7 @@ export function TaskView() {
 
   const createProjectMutation = useMutation({
     mutationFn: async (projectData: any) => {
-      const { name, selectedTasks, startDate, dueDate, status, taskListId } = projectData;
+      const { name, selectedTasks, startDate, dueDate, status, taskListId, isRecurring, recurringTaskCount } = projectData;
       
       const { data: newProject, error: projectError } = await supabase
         .from('Projects')
@@ -300,7 +301,9 @@ export function TaskView() {
           date_started: startDate?.toISOString(),
           date_due: dueDate?.toISOString(),
           task_list_id: taskListId,
-          sort_order: 0
+          sort_order: 0,
+          isRecurring: isRecurring || false,
+          recurringTaskCount: recurringTaskCount || 1
         }])
         .select()
         .single();
@@ -322,14 +325,18 @@ export function TaskView() {
 
   const updateProjectMutation = useMutation({
     mutationFn: async (projectData: any) => {
+      console.log("Updating project with data:", projectData);
+      
       const { data: updatedProject, error: projectError } = await supabase
         .from('Projects')
         .update({
           "Project Name": projectData.name,
           progress: projectData.status,
-          date_started: projectData.startDate,
-          date_due: projectData.dueDate,
+          date_started: projectData.startDate?.toISOString(),
+          date_due: projectData.dueDate?.toISOString(),
           task_list_id: projectData.taskListId,
+          isRecurring: projectData.isRecurring || false,
+          recurringTaskCount: projectData.recurringTaskCount || 1
         })
         .eq('id', projectData.id)
         .select()
@@ -424,6 +431,11 @@ export function TaskView() {
     return format(new Date(date), 'MMM d, h:mm a');
   };
 
+  const formatDateShort = (date: string | null | undefined) => {
+    if (!date) return '';
+    return format(new Date(date), 'M/d');
+  };
+
   const isLoading = tasksLoading || subtasksLoading;
 
   const getSortedAndFilteredTasks = React.useCallback((tasks: Task[] | undefined) => {
@@ -509,6 +521,7 @@ export function TaskView() {
   };
 
   const handleProjectSubmit = (projectData: any) => {
+    console.log("Project data submitted:", projectData);
     if (projectData.id) {
       updateProjectMutation.mutate(projectData);
     } else {
@@ -673,21 +686,42 @@ export function TaskView() {
                             <ChevronRight className="h-4 w-4 cursor-pointer" onClick={() => toggleTaskExpansion(project.id)} />
                           )}
                           <span className="font-medium">{project["Project Name"]}</span>
+                          {project.isRecurring && (
+                            <span className="text-xs text-blue-500 px-1 py-0.5 rounded-full bg-blue-100">Recurring</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
+                          {project.date_started && project.date_due && (
+                            <span className="text-xs text-gray-500">
+                              {formatDateShort(project.date_started)} - {formatDateShort(project.date_due)}
+                            </span>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => {
                               const projectTasks = listTasks?.filter(t => t.project_id === project.id);
+                              console.log("Editing project with data:", {
+                                id: project.id,
+                                name: project["Project Name"],
+                                startDate: project.date_started ? new Date(project.date_started) : undefined,
+                                dueDate: project.date_due ? new Date(project.date_due) : undefined,
+                                status: project.progress,
+                                taskListId: project.task_list_id,
+                                selectedTasks: projectTasks?.map(t => t.id) || [],
+                                isRecurring: project.isRecurring || false,
+                                recurringTaskCount: project.recurringTaskCount || 1,
+                              });
                               setEditingProject({
                                 id: project.id,
                                 name: project["Project Name"],
-                                status: project.progress,
                                 startDate: project.date_started ? new Date(project.date_started) : undefined,
                                 dueDate: project.date_due ? new Date(project.date_due) : undefined,
+                                status: project.progress,
                                 taskListId: project.task_list_id,
                                 selectedTasks: projectTasks?.map(t => t.id) || [],
+                                isRecurring: project.isRecurring || false,
+                                recurringTaskCount: project.recurringTaskCount || 1,
                               });
                               setShowProjectModal(true);
                             }}

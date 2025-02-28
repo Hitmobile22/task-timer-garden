@@ -43,11 +43,6 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
     return format(date, 'M/d h:mm a');
   };
 
-  // Prevent event bubbling to dialog
-  const handlePopoverClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  };
-
   if (!isEditing) {
     return (
       <TableCell>
@@ -76,7 +71,6 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                   "w-[140px] justify-start text-left font-normal",
                   !tempStartDate && "text-muted-foreground"
                 )}
-                onClick={(e) => e.stopPropagation()}
               >
                 <Clock className="mr-2 h-4 w-4" />
                 {tempStartDate ? formatDateTime(tempStartDate) : (
@@ -84,7 +78,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start" onClick={handlePopoverClick}>
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={tempStartDate}
@@ -104,7 +98,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                 }}
                 initialFocus
               />
-              <div className="border-t p-3" onClick={(e) => e.stopPropagation()}>
+              <div className="border-t p-3">
                 <Input
                   type="time"
                   value={tempStartDate ? format(tempStartDate, "HH:mm") : ""}
@@ -131,7 +125,6 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                   "w-[140px] justify-start text-left font-normal",
                   !tempEndDate && "text-muted-foreground"
                 )}
-                onClick={(e) => e.stopPropagation()}
               >
                 <Clock className="mr-2 h-4 w-4" />
                 {tempEndDate ? formatDateTime(tempEndDate) : (
@@ -139,7 +132,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start" onClick={handlePopoverClick}>
+            <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={tempEndDate}
@@ -159,7 +152,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                 }}
                 initialFocus
               />
-              <div className="border-t p-3" onClick={(e) => e.stopPropagation()}>
+              <div className="border-t p-3">
                 <Input
                   type="time"
                   value={tempEndDate ? format(tempEndDate, "HH:mm") : ""}

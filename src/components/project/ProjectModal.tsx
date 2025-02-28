@@ -84,7 +84,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     
     console.log("ProjectModal: Submitting form with data:", {
       id: initialData?.id,
@@ -122,11 +121,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     setRecurringTaskCount(1);
   };
 
-  // Prevent event propagation completely for the calendar and its container
-  const preventPropagation = (e: React.MouseEvent | React.KeyboardEvent) => {
-    e.stopPropagation();
-  };
-
   // Set default dates when opening date pickers
   const handleStartDateOpenChange = (open: boolean) => {
     setStartDateOpen(open);
@@ -144,22 +138,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   };
 
-  // Handle date selection with proper closing behavior
-  const handleDateSelect = (date: Date | undefined, setter: React.Dispatch<React.SetStateAction<Date | undefined>>, closePopover: () => void) => {
-    if (date) {
-      setter(date);
-      // Use a short delay to ensure the date is set before closing
-      setTimeout(closePopover, 150);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={(open) => {
       if (!open) {
         onClose();
       }
     }}>
-      <DialogContent className="sm:max-w-[500px]" onClick={preventPropagation}>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{initialData?.id ? 'Edit Project' : 'Create New Project'}</DialogTitle>
         </DialogHeader>
@@ -215,22 +200,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0" 
-                  align="start"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDownOutside={(e) => e.preventDefault()}
-                  onInteractOutside={(e) => e.preventDefault()}
-                >
-                  <div className="calendar-container" onClick={(e) => e.stopPropagation()}>
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                      onSelect={(date) => handleDateSelect(date, setStartDate, () => setStartDateOpen(false))}
-                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                      initialFocus
-                    />
-                  </div>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      setStartDate(date);
+                      setStartDateOpen(false);
+                    }}
+                    initialFocus
+                  />
                 </PopoverContent>
               </Popover>
             </div>
@@ -251,22 +230,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0" 
-                  align="start"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDownOutside={(e) => e.preventDefault()}
-                  onInteractOutside={(e) => e.preventDefault()}
-                >
-                  <div className="calendar-container" onClick={(e) => e.stopPropagation()}>
-                    <Calendar
-                      mode="single"
-                      selected={dueDate}
-                      onSelect={(date) => handleDateSelect(date, setDueDate, () => setDueDateOpen(false))}
-                      disabled={(date) => startDate ? date < startDate : date < new Date(new Date().setHours(0, 0, 0, 0))}
-                      initialFocus
-                    />
-                  </div>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    onSelect={(date) => {
+                      setDueDate(date);
+                      setDueDateOpen(false);
+                    }}
+                    initialFocus
+                  />
                 </PopoverContent>
               </Popover>
             </div>

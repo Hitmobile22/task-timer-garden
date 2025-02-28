@@ -26,11 +26,6 @@ function Calendar({
     }
   };
 
-  const handleMonthChange = (event: React.MouseEvent) => {
-    // Stop propagation to prevent closing the popover
-    event.stopPropagation();
-  };
-
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -70,16 +65,8 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: () => (
-          <div onClick={handleMonthChange}>
-            <ChevronLeft className="h-4 w-4" />
-          </div>
-        ),
-        IconRight: () => (
-          <div onClick={handleMonthChange}>
-            <ChevronRight className="h-4 w-4" />
-          </div>
-        ),
+        IconLeft: () => <ChevronLeft className="h-4 w-4" />,
+        IconRight: () => <ChevronRight className="h-4 w-4" />,
       }}
       onDayClick={handleDayClick}
       {...props}

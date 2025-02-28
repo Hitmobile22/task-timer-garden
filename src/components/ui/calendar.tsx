@@ -70,25 +70,15 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ...props }) => (
-          <ChevronLeft 
-            className="h-4 w-4" 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleMonthChange(e);
-              props.onClick && props.onClick(e);
-            }} 
-          />
+        IconLeft: () => (
+          <div onClick={handleMonthChange}>
+            <ChevronLeft className="h-4 w-4" />
+          </div>
         ),
-        IconRight: ({ ...props }) => (
-          <ChevronRight 
-            className="h-4 w-4" 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleMonthChange(e);
-              props.onClick && props.onClick(e);
-            }} 
-          />
+        IconRight: () => (
+          <div onClick={handleMonthChange}>
+            <ChevronRight className="h-4 w-4" />
+          </div>
         ),
       }}
       onDayClick={handleDayClick}

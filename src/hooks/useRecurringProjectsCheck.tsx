@@ -2,13 +2,21 @@
 import { useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from '@tanstack/react-query';
-import { Database } from '@/integrations/supabase/types';
 
-// Define a specific type for the project data
-type Project = Database['public']['Tables']['Projects']['Row'];
+// Define explicit type for project data to avoid deep type instantiation
+type RecurringProject = {
+  id: number;
+  name: string;
+  startDate?: string;
+  dueDate?: string;
+  progress: string;
+  isRecurring: boolean;
+  recurringTaskCount?: number;
+  task_list_id?: number;
+};
 
 export const useRecurringProjectsCheck = () => {
-  const { data: projects } = useQuery<Project[]>({
+  const { data: projects } = useQuery<RecurringProject[]>({
     queryKey: ['recurring-projects'],
     queryFn: async () => {
       const { data, error } = await supabase

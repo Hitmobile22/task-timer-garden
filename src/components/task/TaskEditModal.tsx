@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,8 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     type: 'doc',
     content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
   });
+  const [startDateOpen, setStartDateOpen] = React.useState(false);
+  const [endDateOpen, setEndDateOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (isOpen && task) {
@@ -91,6 +94,10 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
   const formatDateTime = (date: Date) => {
     return format(date, 'M/d h:mm a');
+  };
+
+  const handleDatePickerClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
   };
 
   return (
@@ -151,7 +158,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
           <div className="space-y-2">
             <label className="text-sm font-medium">Timeline</label>
             <div className="flex gap-2">
-              <Popover>
+              <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -159,12 +166,13 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !selectedStartDate && "text-muted-foreground"
                     )}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <Clock className="mr-2 h-4 w-4" />
                     {selectedStartDate ? formatDateTime(selectedStartDate) : <span>Start time</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" onClick={handleDatePickerClick}>
                   <Calendar
                     mode="single"
                     selected={selectedStartDate}
@@ -187,7 +195,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 </PopoverContent>
               </Popover>
 
-              <Popover>
+              <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
@@ -195,12 +203,13 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !selectedEndDate && "text-muted-foreground"
                     )}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <Clock className="mr-2 h-4 w-4" />
                     {selectedEndDate ? formatDateTime(selectedEndDate) : <span>End time</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" onClick={handleDatePickerClick}>
                   <Calendar
                     mode="single"
                     selected={selectedEndDate}

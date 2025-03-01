@@ -96,6 +96,61 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     },
   });
 
+  const resetTaskSchedule = useMutation({
+    mutationFn: async () => {
+      if (!activeTasks || activeTasks.length === 0 || !currentTask) {
+        return;
+      }
+      
+      const currentTime = new Date();
+      const currentTaskEndTime = new Date(currentTime.getTime() + 25 * 60 * 1000);
+      
+      // Update current task first
+      await supabase
+        .from('Tasks')
+        .update({
+          Progress: 'In progress',
+          date_started: currentTime.toISOString(),
+          date_due: currentTaskEndTime.toISOString()
+        })
+        .eq('id', currentTask.id);
+      
+      // Get remaining tasks (not completed, not current task)
+      const remainingTasks = activeTasks
+        .filter(t => t.Progress !== 'Completed' && t.id !== currentTask.id)
+        .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
+      
+      // Set up start time for next task (after current task + 5 min break)
+      let nextStartTime = new Date(currentTaskEndTime.getTime() + 5 * 60 * 1000);
+      
+      // Update all remaining tasks
+      for (const task of remainingTasks) {
+        const taskEndTime = new Date(nextStartTime.getTime() + 25 * 60 * 1000);
+        
+        await supabase
+          .from('Tasks')
+          .update({
+            Progress: 'Not started',
+            date_started: nextStartTime.toISOString(),
+            date_due: taskEndTime.toISOString()
+          })
+          .eq('id', task.id);
+        
+        // Next task starts after this task + 5 min break
+        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      toast.success('Timer and task schedule reset');
+    },
+    onError: (error) => {
+      console.error('Error resetting schedule:', error);
+      toast.error('Failed to reset task schedule');
+    }
+  });
+
   const isVisible = useTimerVisibility(currentTask, getNextTask);
   const { 
     isMuted, 
@@ -144,14 +199,24 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   }, [isRunning, currentTask, isBreak, timeLeft, playSound]);
 
   const handleReset = () => {
-    if (currentTask && !isBreak) {
-      setTimeLeft(calculateTimeLeft(currentTask));
-    } else {
-      setTimeLeft(isBreak ? 5 * 60 : 25 * 60);
+    if (!currentTask) {
+      toast.error("No active task to reset");
+      return;
     }
-    setIsBreak(false);
-    setIsRunning(false);
-    toast.info("Timer reset");
+    
+    // Reset the timer state
+    if (!isBreak) {
+      setTimeLeft(25 * 60); // Reset to full 25 minutes
+    } else {
+      setTimeLeft(5 * 60); // Reset to full 5 minutes
+      setIsBreak(false); // Go back to work mode if in break
+    }
+    
+    // Reset the task schedule in the database
+    resetTaskSchedule.mutate();
+    
+    // Reset running state
+    setIsRunning(true);
   };
 
   const formatTime = (seconds: number) => {

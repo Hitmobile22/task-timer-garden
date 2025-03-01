@@ -133,6 +133,15 @@
   .timer-container {
     max-width: 90% !important;
     margin: 0 auto !important;
+    padding: 12px !important;
+    position: relative !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+  }
+  
+  .timer-container > div {
+    border-radius: 12px !important;
+    overflow: hidden !important;
   }
 
   .task-list {

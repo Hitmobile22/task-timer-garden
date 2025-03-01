@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings, Shuffle } from "lucide-react";
@@ -11,8 +12,8 @@ interface TimerControlsProps {
   setIsMuted: React.Dispatch<React.SetStateAction<boolean>>;
   handleReset: () => void;
   playSound: (type: 'tick' | 'break' | 'task') => void;
-  soundSettings: Record<string, string>;
-  setSoundSettings: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  soundSettings: Record<'tick' | 'break' | 'task', string>;
+  setSoundSettings: React.Dispatch<React.SetStateAction<Record<'tick' | 'break' | 'task', string>>>;
   availableSounds: Record<string, string[]>;
   onShuffleTasks?: () => void;
 }
@@ -82,15 +83,19 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
       )}
 
       {showSoundSettings && (
-        <SoundSettingsMenu
-          isMuted={isMuted}
-          setIsMuted={setIsMuted}
-          soundSettings={soundSettings}
-          setSoundSettings={setSoundSettings}
-          availableSounds={availableSounds}
-          playSound={playSound}
-          onClose={() => setShowSoundSettings(false)}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setShowSoundSettings(false)}>
+          <div className="bg-background p-4 rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <SoundSettingsMenu
+              isMuted={isMuted}
+              setIsMuted={setIsMuted}
+              soundSettings={soundSettings}
+              setSoundSettings={setSoundSettings}
+              availableSounds={availableSounds}
+              playSound={playSound}
+              onClose={() => setShowSoundSettings(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

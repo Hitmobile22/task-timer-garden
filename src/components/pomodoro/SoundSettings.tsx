@@ -18,8 +18,11 @@ type SoundSettings = Record<SoundType, string>;
 interface SoundSettingsProps {
   soundSettings: SoundSettings;
   setSoundSettings: (settings: SoundSettings) => void;
-  availableSounds: Record<SoundType, string[]>;
+  availableSounds: Record<string, string[]>;
   isMuted: boolean;
+  setIsMuted: React.Dispatch<React.SetStateAction<boolean>>;
+  playSound: (type: SoundType) => void;
+  onClose: () => void;
 }
 
 export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
@@ -27,68 +30,82 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
   setSoundSettings,
   availableSounds,
   isMuted,
+  setIsMuted,
+  playSound,
+  onClose,
 }) => {
   const getDisplayName = (soundPath: string) => {
-    if (soundPath === 'none') return 'No Tick';
+    if (soundPath === 'none') return 'No Sound';
     const fileName = soundPath.split('/').pop() || '';
     return fileName.replace('.wav', '');
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          className={`hover-lift ${isMuted ? 'opacity-50' : ''}`}
-        >
-          <Settings className="h-4 w-4" />
+    <div className="w-full max-w-md">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">Sound Settings</h3>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          ✕
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56 bg-background border shadow-lg">
-        <DropdownMenuLabel>Sound Settings</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 py-1.5 text-sm font-semibold">Tick Sound</DropdownMenuLabel>
-          {availableSounds.tick.map((sound) => (
-            <DropdownMenuItem
-              key={sound}
-              onClick={() => setSoundSettings({ ...soundSettings, tick: sound })}
-              className={`px-2 py-1.5 ${isMuted ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}`}
-            >
-              {getDisplayName(sound)}
-              {soundSettings.tick === sound && <span className="ml-2">✓</span>}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 py-1.5 text-sm font-semibold">Task Sound</DropdownMenuLabel>
-          {availableSounds.task.map((sound) => (
-            <DropdownMenuItem
-              key={sound}
-              onClick={() => setSoundSettings({ ...soundSettings, task: sound })}
-              className={`px-2 py-1.5 ${isMuted ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}`}
-            >
-              {getDisplayName(sound)}
-              {soundSettings.task === sound && <span className="ml-2">✓</span>}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 py-1.5 text-sm font-semibold">Break Sound</DropdownMenuLabel>
-          {availableSounds.break.map((sound) => (
-            <DropdownMenuItem
-              key={sound}
-              onClick={() => setSoundSettings({ ...soundSettings, break: sound })}
-              className={`px-2 py-1.5 ${isMuted ? 'opacity-50' : 'cursor-pointer hover:bg-accent'}`}
-            >
-              {getDisplayName(sound)}
-              {soundSettings.break === sound && <span className="ml-2">✓</span>}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </div>
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-sm font-semibold mb-2">Tick Sound</h4>
+          <div className="grid grid-cols-2 gap-2">
+            {availableSounds.tick.map((sound) => (
+              <Button
+                key={sound}
+                variant={soundSettings.tick === sound ? "default" : "outline"}
+                className={`${isMuted ? 'opacity-50' : ''} justify-start`}
+                onClick={() => {
+                  setSoundSettings({ ...soundSettings, tick: sound });
+                  if (sound !== 'none') playSound('tick');
+                }}
+              >
+                {getDisplayName(sound)}
+              </Button>
+            ))}
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="text-sm font-semibold mb-2">Task Sound</h4>
+          <div className="grid grid-cols-2 gap-2">
+            {availableSounds.task.map((sound) => (
+              <Button
+                key={sound}
+                variant={soundSettings.task === sound ? "default" : "outline"}
+                className={`${isMuted ? 'opacity-50' : ''} justify-start`}
+                onClick={() => {
+                  setSoundSettings({ ...soundSettings, task: sound });
+                  playSound('task');
+                }}
+              >
+                {getDisplayName(sound)}
+              </Button>
+            ))}
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="text-sm font-semibold mb-2">Break Sound</h4>
+          <div className="grid grid-cols-2 gap-2">
+            {availableSounds.break.map((sound) => (
+              <Button
+                key={sound}
+                variant={soundSettings.break === sound ? "default" : "outline"}
+                className={`${isMuted ? 'opacity-50' : ''} justify-start`}
+                onClick={() => {
+                  setSoundSettings({ ...soundSettings, break: sound });
+                  playSound('break');
+                }}
+              >
+                {getDisplayName(sound)}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };

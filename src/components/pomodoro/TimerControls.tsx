@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings, Shuffle } from "lucide-react";
-import { SoundSettings } from './SoundSettings';
+import { SoundSettingsMenu } from './SoundSettings';
 
 interface TimerControlsProps {
   isRunning: boolean;
@@ -83,7 +82,7 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
       )}
 
       {showSoundSettings && (
-        <SoundSettings
+        <SoundSettingsMenu
           isMuted={isMuted}
           setIsMuted={setIsMuted}
           soundSettings={soundSettings}

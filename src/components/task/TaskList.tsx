@@ -41,6 +41,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onTimelineEdit,
 }) => {
   console.log('TaskListComponent: Received onMoveTask function:', !!onMoveTask);
+  console.log('TaskListComponent: Received tasks:', tasks.length, 'items');
   
   return (
     <Table>

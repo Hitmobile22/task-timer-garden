@@ -42,7 +42,7 @@ export function TaskView() {
   const [showNewTaskListDialog, setShowNewTaskListDialog] = React.useState(false);
   const [editingListId, setEditingListId] = useState<number | null>(null);
   const [editingListName, setEditingListName] = useState("");
-  const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('list');
+  const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('project'); // Change default sort to 'project'
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProject, setEditingProject] = React.useState<any>(null);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
@@ -483,6 +483,7 @@ export function TaskView() {
     
     if (sortBy === 'list') {
       taskLists?.forEach(list => {
+        // Include all tasks for this list, regardless of project association
         const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
         if (listTasks.length > 0) {
           grouped.set(list.id, {
@@ -505,6 +506,7 @@ export function TaskView() {
         }
       });
     } else {
+      // For date view, just group all tasks together
       grouped.set('all', {
         tasks: filteredTasks
       });
@@ -612,70 +614,74 @@ export function TaskView() {
           <DndContext collisionDetection={closestCenter}>
             {Array.from(filteredAndGroupedTasks.entries()).map(([listId, { list, tasks: listTasks, projects: listProjects }]) => (
               <div key={listId} className="mb-8">
-                <div 
-                  className="mb-4 p-2 rounded flex items-center justify-between"
-                  style={{
-                    background: list?.color || DEFAULT_LIST_COLOR,
-                    color: 'white'
-                  }}
-                >
-                  {editingListId === list?.id ? (
-                    <Input
-                      value={editingListName}
-                      onChange={(e) => setEditingListName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          updateListNameMutation.mutate({ 
-                            listId: list.id, 
-                            name: editingListName 
-                          });
-                        }
-                      }}
-                      className="bg-white/10 border-none text-white placeholder:text-white/60"
-                      autoFocus
-                    />
-                  ) : (
-                    <h3 className="text-lg font-semibold text-white">{list?.name}</h3>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/20"
-                      onClick={() => {
-                        setSelectedListId(list?.id || null);
-                        setShowRecurringModal(true);
-                      }}
-                    >
-                      <Repeat className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/20"
-                      onClick={() => {
-                        setEditingListId(list?.id || null);
-                        setEditingListName(list?.name || "");
-                      }}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-white/20"
-                      onClick={() => {
-                        if (window.confirm('Are you sure you want to delete this list?')) {
-                          deleteListMutation.mutate(list?.id);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                {/* If we have a list (i.e., not the 'all' group from date view), show the list header */}
+                {list && (
+                  <div 
+                    className="mb-4 p-2 rounded flex items-center justify-between"
+                    style={{
+                      background: list?.color || DEFAULT_LIST_COLOR,
+                      color: 'white'
+                    }}
+                  >
+                    {editingListId === list?.id ? (
+                      <Input
+                        value={editingListName}
+                        onChange={(e) => setEditingListName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            updateListNameMutation.mutate({ 
+                              listId: list.id, 
+                              name: editingListName 
+                            });
+                          }
+                        }}
+                        className="bg-white/10 border-none text-white placeholder:text-white/60"
+                        autoFocus
+                      />
+                    ) : (
+                      <h3 className="text-lg font-semibold text-white">{list?.name}</h3>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white hover:bg-white/20"
+                        onClick={() => {
+                          setSelectedListId(list?.id || null);
+                          setShowRecurringModal(true);
+                        }}
+                      >
+                        <Repeat className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white hover:bg-white/20"
+                        onClick={() => {
+                          setEditingListId(list?.id || null);
+                          setEditingListName(list?.name || "");
+                        }}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white hover:bg-white/20"
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to delete this list?')) {
+                            deleteListMutation.mutate(list?.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 <div className="space-y-4">
+                  {/* Project sections - only show for project view or if there are projects in other views */}
                   {listProjects?.map(project => (
                     <div key={project.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between gap-2 mb-2">
@@ -700,7 +706,7 @@ export function TaskView() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              const projectTasks = listTasks?.filter(t => t.project_id === project.id);
+                              const projectTasks = tasks?.filter(t => t.project_id === project.id);
                               console.log("Editing project with data:", {
                                 id: project.id,
                                 name: project["Project Name"],
@@ -740,9 +746,9 @@ export function TaskView() {
                       
                       {expandedTasks.includes(project.id) && (
                         <div className="pl-6">
-                          <SortableContext items={listTasks?.filter(t => t.project_id === project.id).map(t => t.id) || []} strategy={verticalListSortingStrategy}>
+                          <SortableContext items={tasks?.filter(t => t.project_id === project.id).map(t => t.id) || []} strategy={verticalListSortingStrategy}>
                             <TaskListComponent
-                              tasks={listTasks?.filter(t => t.project_id === project.id) || []}
+                              tasks={tasks?.filter(t => t.project_id === project.id) || []}
                               subtasks={subtasks}
                               expandedTasks={expandedTasks}
                               editingTaskId={editingTaskId}
@@ -772,10 +778,11 @@ export function TaskView() {
                     </div>
                   ))}
                   
-                  {listTasks?.filter(t => !t.project_id).length > 0 && (
-                    <SortableContext items={listTasks?.filter(t => !t.project_id).map(t => t.id) || []} strategy={verticalListSortingStrategy}>
+                  {/* Non-project tasks */}
+                  {(listTasks && listTasks.filter(t => sortBy === 'project' ? !t.project_id : true).length > 0) && (
+                    <SortableContext items={listTasks.filter(t => sortBy === 'project' ? !t.project_id : true).map(t => t.id)} strategy={verticalListSortingStrategy}>
                       <TaskListComponent
-                        tasks={listTasks?.filter(t => !t.project_id) || []}
+                        tasks={listTasks.filter(t => sortBy === 'project' ? !t.project_id : true)}
                         subtasks={subtasks}
                         expandedTasks={expandedTasks}
                         editingTaskId={editingTaskId}

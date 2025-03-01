@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
@@ -11,12 +12,14 @@ interface PomodoroTimerProps {
   tasks: string[];
   autoStart?: boolean;
   activeTaskId?: number;
+  onShuffleTasks?: () => void;
 }
 
 export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({ 
   tasks: initialTasks, 
   autoStart = false,
-  activeTaskId 
+  activeTaskId,
+  onShuffleTasks 
 }) => {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isBreak, setIsBreak] = useState(false);
@@ -235,6 +238,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         soundSettings={soundSettings}
         setSoundSettings={setSoundSettings}
         availableSounds={availableSounds}
+        onShuffleTasks={onShuffleTasks}
       />
     </div>
   );

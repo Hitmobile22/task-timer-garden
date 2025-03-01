@@ -36,8 +36,10 @@ export const useRecurringProjectsCheck = () => {
     const checkRecurringProjects = async () => {
       if (projects && projects.length > 0) {
         try {
-          const { error } = await supabase.functions.invoke('check-recurring-projects');
-          if (error) throw error;
+          // For each recurring project, check if tasks need to be created
+          for (const project of projects) {
+            await ensureProjectHasTasks(project);
+          }
         } catch (error) {
           console.error('Error checking recurring projects:', error);
         }
@@ -53,4 +55,68 @@ export const useRecurringProjectsCheck = () => {
 
     return () => clearInterval(interval);
   }, [projects]);
+
+  const ensureProjectHasTasks = async (project: RecurringProject) => {
+    try {
+      // Get today's date boundaries
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Check if tasks exist for today
+      const { data: existingTasks, error: countError } = await supabase
+        .from('Tasks')
+        .select('id')
+        .eq('project_id', project.id)
+        .gte('date_started', today.toISOString())
+        .lt('date_started', tomorrow.toISOString());
+
+      if (countError) throw countError;
+
+      // Calculate how many tasks to add
+      const taskCount = project.recurringTaskCount || 1;
+      const existingCount = existingTasks?.length || 0;
+      const neededTasks = Math.max(0, taskCount - existingCount);
+
+      // If we need to create tasks
+      if (neededTasks > 0) {
+        console.log(`Creating ${neededTasks} recurring tasks for project: ${project["Project Name"]}`);
+        
+        // Create tasks starting at 9am today with 30 min intervals
+        const startingTime = new Date(today);
+        startingTime.setHours(9, 0, 0, 0);
+
+        const newTasks = [];
+        for (let i = 0; i < neededTasks; i++) {
+          const taskStartTime = new Date(startingTime);
+          taskStartTime.setMinutes(startingTime.getMinutes() + (i * 30));
+          
+          const taskEndTime = new Date(taskStartTime);
+          taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
+
+          newTasks.push({
+            "Task Name": `${project["Project Name"]} Task ${existingCount + i + 1}`,
+            Progress: "Not started" as const,
+            project_id: project.id,
+            task_list_id: project.task_list_id || 1,
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString(),
+            order: existingCount + i,
+            archived: false,
+          });
+        }
+
+        if (newTasks.length > 0) {
+          const { error: insertError } = await supabase
+            .from('Tasks')
+            .insert(newTasks);
+
+          if (insertError) throw insertError;
+        }
+      }
+    } catch (error) {
+      console.error('Error ensuring project has tasks:', error);
+    }
+  };
 };

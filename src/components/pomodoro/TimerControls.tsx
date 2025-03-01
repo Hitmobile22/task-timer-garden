@@ -1,21 +1,21 @@
 
-import React from 'react';
-import { Play, Pause, RotateCcw, Volume2, VolumeX } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { SoundSettingsMenu } from './SoundSettings';
-import { toast } from 'sonner';
+import React, { useState } from 'react';
+import { Button } from "@/components/ui/button";
+import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings, Shuffle } from "lucide-react";
+import { SoundSettings } from './SoundSettings';
 
 interface TimerControlsProps {
   isRunning: boolean;
-  setIsRunning: (running: boolean) => void;
+  setIsRunning: React.Dispatch<React.SetStateAction<boolean>>;
   isBreak: boolean;
   isMuted: boolean;
-  setIsMuted: (muted: boolean) => void;
+  setIsMuted: React.Dispatch<React.SetStateAction<boolean>>;
   handleReset: () => void;
-  playSound: (type: 'tick' | 'task' | 'break') => void;
-  soundSettings: Record<'tick' | 'task' | 'break', string>;
-  setSoundSettings: (settings: Record<'tick' | 'task' | 'break', string>) => void;
-  availableSounds: Record<'tick' | 'task' | 'break', string[]>;
+  playSound: (type: 'tick' | 'break' | 'task') => void;
+  soundSettings: Record<string, string>;
+  setSoundSettings: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  availableSounds: Record<string, string[]>;
+  onShuffleTasks?: () => void;
 }
 
 export const TimerControls: React.FC<TimerControlsProps> = ({
@@ -29,42 +29,70 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
   soundSettings,
   setSoundSettings,
   availableSounds,
+  onShuffleTasks
 }) => {
+  const [showSoundSettings, setShowSoundSettings] = useState(false);
+
   return (
-    <div className="timer-controls">
+    <div className="flex flex-wrap justify-center gap-2">
       <Button
-        onClick={() => {
-          setIsRunning(!isRunning);
-          if (!isRunning) {
-            toast.info(isBreak ? "Break started" : "Work session started");
-            playSound(isBreak ? 'break' : 'task');
-          }
-        }}
-        className="hover-lift w-[44px] h-[44px] p-0"
         variant="outline"
+        size="icon"
+        className="w-12 h-12 rounded-full"
+        onClick={() => setIsRunning(!isRunning)}
       >
-        {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        {isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
       </Button>
+
       <Button
+        variant="outline"
+        size="icon"
+        className="w-12 h-12 rounded-full"
         onClick={handleReset}
-        variant="outline"
-        className="hover-lift w-[44px] h-[44px] p-0"
       >
-        <RotateCcw className="h-4 w-4" />
+        <RotateCcw className="h-5 w-5" />
       </Button>
+
       <Button
-        onClick={() => setIsMuted(!isMuted)}
         variant="outline"
-        className="hover-lift w-[44px] h-[44px] p-0"
+        size="icon"
+        className="w-12 h-12 rounded-full"
+        onClick={() => setIsMuted(!isMuted)}
       >
-        {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
       </Button>
-      <SoundSettingsMenu
-        soundSettings={soundSettings}
-        setSoundSettings={setSoundSettings}
-        availableSounds={availableSounds}
-        isMuted={isMuted}
-      />
+
+      <Button
+        variant="outline"
+        size="icon"
+        className="w-12 h-12 rounded-full"
+        onClick={() => setShowSoundSettings(!showSoundSettings)}
+      >
+        <Settings className="h-5 w-5" />
+      </Button>
+      
+      {onShuffleTasks && (
+        <Button
+          variant="outline"
+          size="icon"
+          className="w-12 h-12 rounded-full"
+          onClick={onShuffleTasks}
+        >
+          <Shuffle className="h-5 w-5" />
+        </Button>
+      )}
+
+      {showSoundSettings && (
+        <SoundSettings
+          isMuted={isMuted}
+          setIsMuted={setIsMuted}
+          soundSettings={soundSettings}
+          setSoundSettings={setSoundSettings}
+          availableSounds={availableSounds}
+          playSound={playSound}
+          onClose={() => setShowSoundSettings(false)}
+        />
+      )}
     </div>
   );
 };

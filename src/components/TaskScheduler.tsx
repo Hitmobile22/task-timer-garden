@@ -5,7 +5,7 @@ import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
 import { Circle } from 'lucide-react';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Shuffle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import { TASK_LIST_COLORS, DEFAULT_LIST_COLOR } from '@/constants/taskColors';
@@ -14,6 +14,8 @@ import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Task, Subtask } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
+
 interface SubTask {
   name: string;
 }
@@ -29,6 +31,9 @@ export const TaskScheduler = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  
+  useRecurringProjectsCheck();
+  
   const {
     data: taskLists
   } = useQuery({
@@ -44,6 +49,7 @@ export const TaskScheduler = () => {
       return data;
     }
   });
+  
   const {
     data: activeTasks
   } = useQuery({
@@ -61,6 +67,7 @@ export const TaskScheduler = () => {
       }) as Task[];
     }
   });
+  
   useEffect(() => {
     if (activeTasks && activeTasks.length > 0) {
       setShowTimer(true);
@@ -68,6 +75,7 @@ export const TaskScheduler = () => {
       setActiveTaskId(activeTasks[0].id);
     }
   }, [activeTasks]);
+  
   const handleTasksCreate = async (newTasks: NewTask[]) => {
     try {
       setTasks(newTasks);
@@ -91,6 +99,7 @@ export const TaskScheduler = () => {
       toast.error('Failed to create tasks');
     }
   };
+  
   const handleTaskStart = async (taskId: number) => {
     try {
       const today = new Date();
@@ -147,12 +156,75 @@ export const TaskScheduler = () => {
       toast.error('Failed to start task');
     }
   };
+  
+  const handleShuffleTasks = async () => {
+    try {
+      const { data: tasks, error } = await supabase
+        .from('Tasks')
+        .select('*')
+        .in('Progress', ['Not started', 'In progress'])
+        .order('date_started', { ascending: true });
+      
+      if (error) throw error;
+      if (!tasks || tasks.length < 2) {
+        toast.info('Not enough tasks to shuffle');
+        return;
+      }
+      
+      const currentTask = tasks.find(t => t.Progress === 'In progress');
+      const tasksToShuffle = currentTask 
+        ? tasks.filter(t => t.id !== currentTask.id)
+        : tasks.slice(1);
+      
+      for (let i = tasksToShuffle.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tasksToShuffle[i], tasksToShuffle[j]] = [tasksToShuffle[j], tasksToShuffle[i]];
+      }
+      
+      const shuffledTasks = currentTask 
+        ? [currentTask, ...tasksToShuffle]
+        : [...tasks.slice(0, 1), ...tasksToShuffle];
+      
+      const currentTime = new Date();
+      let startTime = currentTime;
+      
+      if (currentTask) {
+        startTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
+      }
+      
+      for (let i = currentTask ? 1 : 0; i < shuffledTasks.length; i++) {
+        const task = shuffledTasks[i];
+        const taskStartTime = new Date(startTime);
+        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        
+        await supabase
+          .from('Tasks')
+          .update({
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString(),
+            Progress: 'Not started'
+          })
+          .eq('id', task.id);
+        
+        startTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      toast.success('Tasks shuffled successfully');
+    } catch (error) {
+      console.error('Error shuffling tasks:', error);
+      toast.error('Failed to shuffle tasks');
+    }
+  };
+  
   const activeTaskListColor = activeTaskId && activeTasks && taskLists ? (() => {
     const activeTask = activeTasks.find(t => t.id === activeTaskId);
     if (!activeTask || activeTask.task_list_id === 1) return null;
     const taskList = taskLists.find(l => l.id === activeTask.task_list_id);
     return taskList?.color || null;
   })() : null;
+  
   return <div className="min-h-screen p-0 space-y-4 md:space-y-8 overflow-x-hidden" style={{
     background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)'
   }}>
@@ -184,7 +256,12 @@ export const TaskScheduler = () => {
               {showTimer && <div className="timer-container animate-slideIn rounded-lg overflow-hidden" style={{
               background: activeTaskListColor || undefined
             }}>
-                  <PomodoroTimer tasks={tasks.map(t => t.name)} autoStart={timerStarted} activeTaskId={activeTaskId} />
+                  <PomodoroTimer
+                    tasks={tasks.map(t => t.name)}
+                    autoStart={timerStarted}
+                    activeTaskId={activeTaskId} 
+                    onShuffleTasks={handleShuffleTasks}
+                  />
                 </div>}
               <div className="form-control">
                 <TaskForm onTasksCreate={handleTasksCreate} />

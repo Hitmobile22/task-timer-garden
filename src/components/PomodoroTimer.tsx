@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,6 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { TimerControls } from './pomodoro/TimerControls';
 import { usePomodoroSounds } from '@/hooks/usePomodoroSounds';
 import { useTimerVisibility } from '@/hooks/useTimerVisibility';
+import { Check, Maximize2 } from 'lucide-react';
+import { Button } from './ui/button';
+import { Subtask } from '@/types/task.types';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -23,6 +26,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [currentSubtaskIndex, setCurrentSubtaskIndex] = useState(0);
+  const timerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const { data: activeTasks } = useQuery({
@@ -43,6 +49,49 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     ? activeTasks?.find(t => t.id === activeTaskId)
     : activeTasks?.find(t => t.Progress === 'In progress' || t.Progress === 'Not started');
 
+  const { data: subtasks } = useQuery({
+    queryKey: ['subtasks', currentTask?.id],
+    queryFn: async () => {
+      if (!currentTask?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('Subtasks')
+        .select('*')
+        .eq('Parent Task ID', currentTask.id)
+        .neq('Progress', 'Completed')
+        .order('id', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentTask?.id,
+  });
+
+  useEffect(() => {
+    if (subtasks && subtasks.length > 0) {
+      const interval = setInterval(() => {
+        setCurrentSubtaskIndex(prev => (prev + 1) % subtasks.length);
+      }, 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [subtasks]);
+
+  const completeSubtask = useMutation({
+    mutationFn: async (subtaskId: number) => {
+      const { error } = await supabase
+        .from('Subtasks')
+        .update({ Progress: 'Completed' })
+        .eq('id', subtaskId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      toast.success('Subtask completed');
+    },
+  });
+
   const getNextTask = () => {
     if (!activeTasks || activeTasks.length === 0) return null;
     
@@ -61,7 +110,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     const dueTime = new Date(task.date_due);
     const diffInSeconds = Math.floor((dueTime.getTime() - now.getTime()) / 1000);
     
-    // If less than 0 seconds left or more than 25 minutes, default to 25 minutes
     if (diffInSeconds <= 0 || diffInSeconds > 25 * 60) {
       return 25 * 60;
     }
@@ -82,16 +130,13 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     const tomorrow5AM = new Date(tomorrow);
     tomorrow5AM.setHours(5, 0, 0, 0); // 5AM tomorrow
     
-    // If we're in late night hours (after 9PM)
     if (now.getHours() >= 21) {
-      // Include tasks from midnight today to 5AM tomorrow
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
         return taskDate >= today && taskDate <= tomorrow5AM;
       });
     } else {
-      // Include tasks from midnight today to midnight tomorrow (full day)
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
@@ -140,7 +185,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       const currentTime = new Date();
       const currentTaskEndTime = new Date(currentTime.getTime() + 25 * 60 * 1000);
       
-      // Update current task first
       await supabase
         .from('Tasks')
         .update({
@@ -150,15 +194,12 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         })
         .eq('id', currentTask.id);
       
-      // Get remaining tasks (not completed, not current task) - only for today
       const remainingTasks = todayTasks
         .filter(t => t.Progress !== 'Completed' && t.id !== currentTask.id)
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
       
-      // Set up start time for next task (after current task + 5 min break)
       let nextStartTime = new Date(currentTaskEndTime.getTime() + 5 * 60 * 1000);
       
-      // Update all remaining tasks
       for (const task of remainingTasks) {
         const taskEndTime = new Date(nextStartTime.getTime() + 25 * 60 * 1000);
         
@@ -171,7 +212,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
           })
           .eq('id', task.id);
         
-        // Next task starts after this task + 5 min break
         nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
       }
     },
@@ -239,7 +279,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       return;
     }
     
-    // Reset the timer state
     if (!isBreak) {
       setTimeLeft(25 * 60); // Reset to full 25 minutes
     } else {
@@ -247,10 +286,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       setIsBreak(false); // Go back to work mode if in break
     }
     
-    // Reset the task schedule in the database
     resetTaskSchedule.mutate();
     
-    // Reset running state
     setIsRunning(true);
   };
 
@@ -260,7 +297,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Only calculate progress if timeLeft is not null
   const progress = timeLeft === null ? 0 : isBreak
     ? ((5 * 60 - timeLeft) / (5 * 60)) * 100
     : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
@@ -291,10 +327,40 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     return `linear-gradient(109.6deg, hsl(${currentHue}, ${currentSaturation}%, ${currentLightness}%) 11.2%, hsl(${currentHue + 10}, ${currentSaturation - 10}%, ${currentLightness + 5}%) 91.1%)`;
   };
 
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (timerRef.current?.requestFullscreen) {
+        timerRef.current.requestFullscreen()
+          .then(() => setIsFullscreen(true))
+          .catch(err => console.error(`Error attempting to enable fullscreen: ${err.message}`));
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen()
+          .then(() => setIsFullscreen(false))
+          .catch(err => console.error(`Error attempting to exit fullscreen: ${err.message}`));
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   if (!isVisible) return null;
 
+  const currentSubtask = subtasks && subtasks.length > 0 ? subtasks[currentSubtaskIndex] : null;
+
   return (
-    <div className="glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-5xl mx-auto">
+    <div 
+      ref={timerRef}
+      className={`glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-5xl mx-auto ${isFullscreen ? 'fixed inset-0 flex flex-col justify-center items-center z-50 max-w-none' : ''}`}
+    >
       <div className="space-y-2 w-full">
         <h2 className="text-2xl font-semibold text-primary">
           {isBreak ? 'Break Time' : 'Work Session'}
@@ -310,6 +376,22 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
           </p>
         )}
       </div>
+
+      {currentSubtask && (
+        <div className="fixed top-4 right-4 max-w-xs p-3 rounded-lg bg-primary/10 shadow-md animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20 flex-shrink-0"
+              onClick={() => completeSubtask.mutate(currentSubtask.id)}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium">{currentSubtask["Task Name"]}</span>
+          </div>
+        </div>
+      )}
 
       <div 
         className="relative p-6 md:p-8 rounded-xl transition-all duration-300 shadow-lg mx-auto w-full"
@@ -339,6 +421,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         setSoundSettings={setSoundSettings}
         availableSounds={availableSounds}
         onShuffleTasks={onShuffleTasks}
+        onToggleFullscreen={toggleFullscreen}
+        isFullscreen={isFullscreen}
       />
     </div>
   );

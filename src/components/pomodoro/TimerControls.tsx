@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings, Shuffle } from "lucide-react";
+import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings, Shuffle, Maximize2, Minimize2 } from "lucide-react";
 import { SoundSettingsMenu } from './SoundSettings';
 
 interface TimerControlsProps {
@@ -16,6 +16,8 @@ interface TimerControlsProps {
   setSoundSettings: React.Dispatch<React.SetStateAction<Record<'tick' | 'break' | 'task', string>>>;
   availableSounds: Record<string, string[]>;
   onShuffleTasks?: () => void;
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
 }
 
 export const TimerControls: React.FC<TimerControlsProps> = ({
@@ -29,7 +31,9 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
   soundSettings,
   setSoundSettings,
   availableSounds,
-  onShuffleTasks
+  onShuffleTasks,
+  onToggleFullscreen,
+  isFullscreen
 }) => {
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
@@ -79,6 +83,17 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
           onClick={onShuffleTasks}
         >
           <Shuffle className="h-5 w-5" />
+        </Button>
+      )}
+      
+      {onToggleFullscreen && (
+        <Button
+          variant="outline"
+          size="icon"
+          className="w-12 h-12 rounded-full"
+          onClick={onToggleFullscreen}
+        >
+          {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
         </Button>
       )}
 

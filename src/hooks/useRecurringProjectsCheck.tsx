@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from '@tanstack/react-query';
 
@@ -16,6 +16,8 @@ type RecurringProject = {
 };
 
 export const useRecurringProjectsCheck = () => {
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  
   const { data: projects } = useQuery({
     queryKey: ['recurring-projects'],
     queryFn: async () => {
@@ -34,12 +36,22 @@ export const useRecurringProjectsCheck = () => {
 
   useEffect(() => {
     const checkRecurringProjects = async () => {
+      // Early morning check (before 7am don't generate tasks)
+      const currentHour = new Date().getHours();
+      if (currentHour < 7) {
+        console.log('Before 7am, skipping recurring project task generation');
+        return;
+      }
+      
       if (projects && projects.length > 0) {
         try {
           // For each recurring project, check if tasks need to be created
           for (const project of projects) {
             await ensureProjectHasTasks(project);
           }
+          
+          // Update last checked time
+          setLastChecked(new Date());
         } catch (error) {
           console.error('Error checking recurring projects:', error);
         }
@@ -47,14 +59,24 @@ export const useRecurringProjectsCheck = () => {
     };
 
     // Check on mount if there are any enabled recurring projects
-    checkRecurringProjects();
+    // Only check once when component mounts or projects change
+    if (!lastChecked) {
+      checkRecurringProjects();
+    }
 
     // Also set up an interval to check once per day (at app load)
+    // But only once per app session
     const oneDay = 24 * 60 * 60 * 1000;
-    const interval = setInterval(checkRecurringProjects, oneDay);
+    const interval = setInterval(() => {
+      const currentHour = new Date().getHours();
+      // Only check during daytime hours (7am-10pm)
+      if (currentHour >= 7 && currentHour < 22) {
+        checkRecurringProjects();
+      }
+    }, oneDay);
 
     return () => clearInterval(interval);
-  }, [projects]);
+  }, [projects, lastChecked]);
 
   const ensureProjectHasTasks = async (project: RecurringProject) => {
     try {

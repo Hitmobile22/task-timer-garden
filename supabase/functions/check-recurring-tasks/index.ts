@@ -63,6 +63,8 @@ Deno.serve(async (req) => {
 
     if (settingsError) throw settingsError;
 
+    console.log(`Found ${settings?.length || 0} recurring task settings for ${dayOfWeek}`);
+
     // Process each task list that needs recurring tasks
     for (const setting of (settings as RecurringTaskSettings[] || [])) {
       // Get task list info and check last_tasks_added_at
@@ -72,7 +74,10 @@ Deno.serve(async (req) => {
         .eq('id', setting.task_list_id)
         .single();
 
-      if (!taskList) continue;
+      if (!taskList) {
+        console.log(`TaskList ${setting.task_list_id} not found, skipping`);
+        continue;
+      }
 
       // Check if tasks have already been added today
       const lastAddedDate = taskList.last_tasks_added_at ? new Date(taskList.last_tasks_added_at) : null;
@@ -82,7 +87,7 @@ Deno.serve(async (req) => {
         lastAddedDate.getFullYear() === today.getFullYear();
 
       if (hasAddedToday) {
-        console.log(`Tasks already added today for list ${taskList.id}`);
+        console.log(`Tasks already added today for list ${taskList.id} (${taskList.name})`);
         continue;
       }
 
@@ -99,34 +104,68 @@ Deno.serve(async (req) => {
       const existingCount = existingTasks?.length || 0;
       const neededTasks = Math.max(0, setting.daily_task_count - existingCount);
 
+      console.log(`List ${taskList.id} (${taskList.name}): Has ${existingCount} tasks, needs ${neededTasks} more`);
+
       if (neededTasks > 0) {
-        const newTasks = Array.from({ length: neededTasks }, (_, i) => ({
-          "Task Name": `${taskList.name} ${existingCount + i + 1}`,
-          Progress: "Not started",
-          task_list_id: setting.task_list_id,
-          date_started: new Date().toISOString(),
-          date_due: new Date(new Date().setHours(new Date().getHours() + 1)).toISOString(),
-          order: existingCount + i,
-          archived: false,
-        }));
+        // Create tasks starting at current time with 30 min intervals
+        const startingTime = new Date();
+        // If it's early morning, start at 9am
+        if (startingTime.getHours() < 9) {
+          startingTime.setHours(9, 0, 0, 0);
+        }
 
-        const { error: insertError } = await supabaseClient
-          .from('Tasks')
-          .insert(newTasks);
+        const newTasks = Array.from({ length: neededTasks }, (_, i) => {
+          const taskStartTime = new Date(startingTime);
+          taskStartTime.setMinutes(startingTime.getMinutes() + (i * 30));
+          
+          const taskEndTime = new Date(taskStartTime);
+          taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
 
-        if (insertError) throw insertError;
+          return {
+            "Task Name": `${taskList.name} ${existingCount + i + 1}`,
+            Progress: "Not started",
+            task_list_id: setting.task_list_id,
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString(),
+            order: existingCount + i,
+            archived: false,
+          };
+        });
 
-        // Update last_tasks_added_at
-        const { error: updateError } = await supabaseClient
-          .from('TaskLists')
-          .update({ last_tasks_added_at: new Date().toISOString() })
-          .eq('id', setting.task_list_id);
+        console.log(`Creating ${newTasks.length} new tasks for list ${taskList.id} (${taskList.name})`);
 
-        if (updateError) throw updateError;
+        if (newTasks.length > 0) {
+          const { error: insertError } = await supabaseClient
+            .from('Tasks')
+            .insert(newTasks);
+
+          if (insertError) {
+            console.error('Error inserting tasks:', insertError);
+            throw insertError;
+          }
+
+          // Update last_tasks_added_at
+          const { error: updateError } = await supabaseClient
+            .from('TaskLists')
+            .update({ last_tasks_added_at: new Date().toISOString() })
+            .eq('id', setting.task_list_id);
+
+          if (updateError) {
+            console.error('Error updating TaskList last_tasks_added_at:', updateError);
+            throw updateError;
+          }
+          
+          console.log(`Successfully created tasks and updated last_tasks_added_at for list ${taskList.id}`);
+        }
+      } else {
+        console.log(`No new tasks needed for list ${taskList.id} (${taskList.name})`);
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ 
+      success: true,
+      message: `Processed ${settings?.length || 0} recurring task settings`
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });

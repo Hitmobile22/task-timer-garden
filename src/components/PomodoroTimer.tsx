@@ -55,7 +55,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       if (!currentTask?.id) return [];
       
       const { data, error } = await supabase
-        .from('Subtasks')
+        .from('subtasks')
         .select('*')
         .eq('Parent Task ID', currentTask.id)
         .neq('Progress', 'Completed')
@@ -80,7 +80,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const completeSubtask = useMutation({
     mutationFn: async (subtaskId: number) => {
       const { error } = await supabase
-        .from('Subtasks')
+        .from('subtasks')
         .update({ Progress: 'Completed' })
         .eq('id', subtaskId);
       
@@ -384,7 +384,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
               variant="ghost"
               size="icon"
               className="h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20 flex-shrink-0"
-              onClick={() => completeSubtask.mutate(currentSubtask.id)}
+              onClick={() => completeSubtask.mutate(Number(currentSubtask.id))}
             >
               <Check className="h-4 w-4" />
             </Button>

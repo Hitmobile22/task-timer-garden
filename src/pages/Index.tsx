@@ -1,4 +1,3 @@
-
 import { TaskScheduler } from '@/components/TaskScheduler';
 import { useRecurringTasksCheck } from '@/hooks/useRecurringTasksCheck';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
@@ -32,26 +31,34 @@ const Index = () => {
         return;
       }
       
-      // Filter to only include today's tasks
-      const today = new Date();
+      // Filter to only include today's tasks using the updated logic
+      const now = new Date();
+      const today = new Date(now);
+      today.setHours(0, 0, 0, 0); // Start of today (midnight)
+      
       const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(5, 0, 0, 0); // 5am tomorrow cutoff
+      tomorrow.setDate(tomorrow.getDate() + 1); // Start of tomorrow
       
-      // If it's before 5am, include tasks from 9pm yesterday
-      const startTime = new Date(today);
-      if (today.getHours() < 5) {
-        startTime.setDate(startTime.getDate() - 1);
-        startTime.setHours(21, 0, 0, 0); // 9pm yesterday
+      const tomorrow5AM = new Date(tomorrow);
+      tomorrow5AM.setHours(5, 0, 0, 0); // 5AM tomorrow
+      
+      let todayTasks;
+      // If we're in late night hours (after 9PM)
+      if (now.getHours() >= 21) {
+        // Include tasks from midnight today to 5AM tomorrow
+        todayTasks = activeTasks.filter(task => {
+          const taskDate = task.date_started ? new Date(task.date_started) : null;
+          if (!taskDate) return false;
+          return taskDate >= today && taskDate <= tomorrow5AM;
+        });
       } else {
-        startTime.setHours(5, 0, 0, 0); // 5am today
+        // Include tasks from midnight today to midnight tomorrow (full day)
+        todayTasks = activeTasks.filter(task => {
+          const taskDate = task.date_started ? new Date(task.date_started) : null;
+          if (!taskDate) return false;
+          return taskDate >= today && taskDate < tomorrow;
+        });
       }
-      
-      const todayTasks = activeTasks.filter(task => {
-        const taskDate = task.date_started ? new Date(task.date_started) : null;
-        if (!taskDate) return false;
-        return taskDate >= startTime && taskDate <= tomorrow;
-      });
       
       if (todayTasks.length <= 1) {
         toast.error("Not enough tasks to shuffle");

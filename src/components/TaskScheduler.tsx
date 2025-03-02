@@ -63,7 +63,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const {
         data,
         error
-      } = await supabase.from('Tasks').select('*').in('Progress', ['In progress', 'Not started']).order('date_started', {
+      } = await supabase.from('Tasks').select('*').in('Progress', ['Not started', 'In progress']).order('date_started', {
         ascending: true
       });
       if (error) throw error;
@@ -162,6 +162,34 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     }
   };
   
+  const getTodayTasks = (tasks: any[]) => {
+    if (!tasks || tasks.length === 0) return [];
+    
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const tomorrow5AM = new Date(tomorrow);
+    tomorrow5AM.setHours(5, 0, 0, 0);
+    
+    if (now.getHours() >= 21) {
+      return tasks.filter(task => {
+        const taskDate = task.date_started ? new Date(task.date_started) : null;
+        if (!taskDate) return false;
+        return taskDate >= today && taskDate <= tomorrow5AM;
+      });
+    } else {
+      return tasks.filter(task => {
+        const taskDate = task.date_started ? new Date(task.date_started) : null;
+        if (!taskDate) return false;
+        return taskDate >= today && taskDate < tomorrow;
+      });
+    }
+  };
+  
   const handleShuffleTasks = async () => {
     if (onShuffleTasks) {
       return onShuffleTasks();
@@ -180,10 +208,16 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         return;
       }
       
-      const currentTask = tasks.find(t => t.Progress === 'In progress');
+      const todayTasks = getTodayTasks(tasks);
+      if (todayTasks.length < 2) {
+        toast.info('Not enough tasks to shuffle today');
+        return;
+      }
+      
+      const currentTask = todayTasks.find(t => t.Progress === 'In progress');
       const tasksToShuffle = currentTask 
-        ? tasks.filter(t => t.id !== currentTask.id)
-        : tasks.slice(1);
+        ? todayTasks.filter(t => t.id !== currentTask.id)
+        : todayTasks.slice(1);
       
       for (let i = tasksToShuffle.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -192,7 +226,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       const shuffledTasks = currentTask 
         ? [currentTask, ...tasksToShuffle]
-        : [...tasks.slice(0, 1), ...tasksToShuffle];
+        : [...todayTasks.slice(0, 1), ...tasksToShuffle];
       
       const currentTime = new Date();
       let startTime = currentTime;

@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TimerControls } from './pomodoro/TimerControls';
 import { usePomodoroSounds } from '@/hooks/usePomodoroSounds';
 import { useTimerVisibility } from '@/hooks/useTimerVisibility';
-import { Check, Maximize2 } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
 
@@ -30,6 +30,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const [currentSubtaskIndex, setCurrentSubtaskIndex] = useState(0);
   const timerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const subtaskTextRef = useRef<HTMLDivElement>(null);
 
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
@@ -77,6 +78,33 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
   }, [subtasks]);
 
+  useEffect(() => {
+    if (subtaskTextRef.current) {
+      const textElement = subtaskTextRef.current;
+      textElement.scrollLeft = 0;
+      
+      if (textElement.scrollWidth > textElement.clientWidth) {
+        const scrollDuration = 8000;
+        const scrollStep = textElement.scrollWidth / (scrollDuration / 20);
+        let scrollPosition = 0;
+        
+        const scrollAnimation = setInterval(() => {
+          scrollPosition += scrollStep;
+          if (scrollPosition >= textElement.scrollWidth - textElement.clientWidth) {
+            clearInterval(scrollAnimation);
+            setTimeout(() => {
+              textElement.scrollLeft = 0;
+            }, 2000);
+          } else {
+            textElement.scrollLeft = scrollPosition;
+          }
+        }, 20);
+        
+        return () => clearInterval(scrollAnimation);
+      }
+    }
+  }, [currentSubtaskIndex, subtasks]);
+
   const completeSubtask = useMutation({
     mutationFn: async (subtaskId: number) => {
       const { error } = await supabase
@@ -104,7 +132,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   };
 
   const calculateTimeLeft = (task: any) => {
-    if (!task || !task.date_due) return 25 * 60; // Default to 25 minutes if no due date
+    if (!task || !task.date_due) return 25 * 60;
     
     const now = new Date();
     const dueTime = new Date(task.date_due);
@@ -122,13 +150,13 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     
     const now = new Date();
     const today = new Date(now);
-    today.setHours(0, 0, 0, 0); // Start of today (midnight)
+    today.setHours(0, 0, 0, 0);
     
     const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1); // Start of tomorrow
+    tomorrow.setDate(tomorrow.getDate() + 1);
     
     const tomorrow5AM = new Date(tomorrow);
-    tomorrow5AM.setHours(5, 0, 0, 0); // 5AM tomorrow
+    tomorrow5AM.setHours(5, 0, 0, 0);
     
     if (now.getHours() >= 21) {
       return tasks.filter(task => {
@@ -150,7 +178,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       const remaining = calculateTimeLeft(currentTask);
       setTimeLeft(remaining);
     } else if (isBreak) {
-      setTimeLeft(5 * 60); // 5 minutes for break
+      setTimeLeft(5 * 60);
     }
   }, [currentTask, isBreak]);
 
@@ -262,7 +290,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
               toast.success("Work session complete! Time for a break.");
               return 5 * 60;
             }
-          } else if (!isBreak) { // Only play tick during work sessions
+          } else if (!isBreak) {
             playSound('tick');
           }
           return prev - 1;
@@ -280,10 +308,10 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
     
     if (!isBreak) {
-      setTimeLeft(25 * 60); // Reset to full 25 minutes
+      setTimeLeft(25 * 60);
     } else {
-      setTimeLeft(5 * 60); // Reset to full 5 minutes
-      setIsBreak(false); // Go back to work mode if in break
+      setTimeLeft(5 * 60);
+      setIsBreak(false);
     }
     
     resetTaskSchedule.mutate();
@@ -356,6 +384,19 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   const currentSubtask = subtasks && subtasks.length > 0 ? subtasks[currentSubtaskIndex] : null;
 
+  const getSubtaskColor = () => {
+    const colors = [
+      "text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500",
+      "text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-teal-500",
+      "text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-yellow-500",
+      "text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-emerald-500",
+      "text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-pink-600"
+    ];
+    
+    const index = currentSubtask ? currentSubtask.id % colors.length : 0;
+    return colors[index];
+  };
+
   return (
     <div 
       ref={timerRef}
@@ -378,17 +419,14 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       </div>
 
       {currentSubtask && (
-        <div className="fixed top-4 right-4 max-w-xs p-3 rounded-lg bg-primary/10 shadow-md animate-fadeIn">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20 flex-shrink-0"
-              onClick={() => completeSubtask.mutate(Number(currentSubtask.id))}
-            >
-              <Check className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-medium">{currentSubtask["Task Name"]}</span>
+        <div className="absolute top-4 right-4 animate-fadeIn max-w-[300px] sm:max-w-xs mx-auto">
+          <div 
+            ref={subtaskTextRef}
+            className={`font-medium text-right whitespace-nowrap overflow-hidden cursor-pointer ${getSubtaskColor()} hover:opacity-80 transition-opacity`}
+            onClick={() => completeSubtask.mutate(Number(currentSubtask.id))}
+            title="Click to mark as completed"
+          >
+            {currentSubtask["Task Name"]}
           </div>
         </div>
       )}

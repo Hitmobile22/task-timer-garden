@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
@@ -70,6 +69,30 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     return diffInSeconds;
   };
 
+  const getTodayTasks = (tasks: any[]) => {
+    if (!tasks || tasks.length === 0) return [];
+    
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(5, 0, 0, 0); // 5am tomorrow cutoff
+    
+    // If it's before 5am, include tasks from 9pm yesterday
+    const startTime = new Date(today);
+    if (today.getHours() < 5) {
+      startTime.setDate(startTime.getDate() - 1);
+      startTime.setHours(21, 0, 0, 0); // 9pm yesterday
+    } else {
+      startTime.setHours(5, 0, 0, 0); // 5am today
+    }
+    
+    return tasks.filter(task => {
+      const taskDate = task.date_started ? new Date(task.date_started) : null;
+      if (!taskDate) return false;
+      return taskDate >= startTime && taskDate <= tomorrow;
+    });
+  };
+
   useEffect(() => {
     if (currentTask && !isBreak) {
       const remaining = calculateTimeLeft(currentTask);
@@ -102,6 +125,11 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         return;
       }
       
+      const todayTasks = getTodayTasks(activeTasks);
+      if (todayTasks.length === 0) {
+        return;
+      }
+      
       const currentTime = new Date();
       const currentTaskEndTime = new Date(currentTime.getTime() + 25 * 60 * 1000);
       
@@ -115,8 +143,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         })
         .eq('id', currentTask.id);
       
-      // Get remaining tasks (not completed, not current task)
-      const remainingTasks = activeTasks
+      // Get remaining tasks (not completed, not current task) - only for today
+      const remainingTasks = todayTasks
         .filter(t => t.Progress !== 'Completed' && t.id !== currentTask.id)
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
       

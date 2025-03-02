@@ -14,12 +14,14 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
+
 interface SubtaskData {
   id: number;
   "Task Name": string;
   Progress: "Not started" | "In progress" | "Completed" | "Backlog";
   "Parent Task ID": number;
 }
+
 interface TaskListProps {
   tasks: Task[];
   onTaskStart?: (taskId: number) => void;
@@ -27,6 +29,7 @@ interface TaskListProps {
   taskLists?: any[];
   activeTaskId?: number;
 }
+
 interface TaskItemProps {
   task: Task;
   subtasks?: Subtask[];
@@ -35,6 +38,7 @@ interface TaskItemProps {
   onTaskStart?: (taskId: number) => void;
   isCurrentTask?: boolean;
 }
+
 const EditTaskModal = ({
   isOpen,
   onClose,
@@ -59,7 +63,6 @@ const EditTaskModal = ({
     if (!newSubtask.trim()) return;
     setEditingSubtasks([...editingSubtasks, {
       id: Date.now(),
-      // Temporary ID for new subtasks
       "Task Name": newSubtask,
       Progress: "Not started",
       "Parent Task ID": task.id
@@ -113,6 +116,7 @@ const EditTaskModal = ({
       </DialogContent>
     </Dialog>;
 };
+
 const TaskItem: React.FC<TaskItemProps> = ({
   task,
   subtasks,
@@ -127,6 +131,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const hasSubtasks = subtasks?.some(st => st["Parent Task ID"] === task.id);
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
+
   const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[]) => {
     try {
       if (newTaskName !== task["Task Name"]) {
@@ -166,6 +171,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
       toast.error('Failed to update task');
     }
   };
+
   return <li className="space-y-2">
       <div className={cn("flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80")}>
         <div className="flex gap-2 flex-shrink-0">
@@ -221,6 +227,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         </ul>}
     </li>;
 };
+
 const SortableTaskItem = ({
   task,
   children
@@ -247,6 +254,7 @@ const SortableTaskItem = ({
     })}
     </div>;
 };
+
 export const TaskList: React.FC<TaskListProps> = ({
   tasks: initialTasks,
   onTaskStart,
@@ -269,6 +277,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       tolerance: 5
     }
   }));
+
   const {
     data: dbTasks
   } = useQuery({
@@ -302,6 +311,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       return data;
     }
   });
+
   const {
     data: todaySubtasks
   } = useQuery({
@@ -317,6 +327,30 @@ export const TaskList: React.FC<TaskListProps> = ({
       return data;
     }
   });
+
+  const getTodayTasks = (tasks: any[]) => {
+    if (!tasks || tasks.length === 0) return [];
+    
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(5, 0, 0, 0);
+    
+    const startTime = new Date(today);
+    if (today.getHours() < 5) {
+      startTime.setDate(startTime.getDate() - 1);
+      startTime.setHours(21, 0, 0, 0);
+    } else {
+      startTime.setHours(5, 0, 0, 0);
+    }
+    
+    return tasks.filter(task => {
+      const taskDate = task.date_started ? new Date(task.date_started) : null;
+      if (!taskDate) return false;
+      return taskDate >= startTime && taskDate <= tomorrow;
+    });
+  };
+
   const updateTaskOrder = useMutation({
     mutationFn: async ({
       tasks,
@@ -327,12 +361,16 @@ export const TaskList: React.FC<TaskListProps> = ({
       shouldResetTimer: boolean;
       movedTaskId: number;
     }) => {
-      const currentTask = tasks.find(t => t.Progress === 'In progress');
-      const movedTask = tasks.find(t => t.id === movedTaskId);
-      const oldIndex = tasks.findIndex(t => t.id === movedTaskId);
-      const newIndex = tasks.findIndex(t => t.id === movedTaskId);
+      const todayTasks = getTodayTasks(tasks);
+      if (todayTasks.length === 0) return;
+      
+      const currentTask = todayTasks.find(t => t.Progress === 'In progress');
+      const movedTask = todayTasks.find(t => t.id === movedTaskId);
+      const oldIndex = todayTasks.findIndex(t => t.id === movedTaskId);
+      const newIndex = todayTasks.findIndex(t => t.id === movedTaskId);
       const isMovingToFirst = newIndex === 0;
       const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
+      
       console.log('Task update operation:', {
         currentTaskId: currentTask?.id,
         movedTaskId,
@@ -341,19 +379,25 @@ export const TaskList: React.FC<TaskListProps> = ({
         isMovingToFirst,
         isMovingCurrentTask
       });
+      
       const shouldUpdateCurrentTask = isMovingCurrentTask || isMovingToFirst;
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
+      
       if (!shouldUpdateCurrentTask && currentTask) {
         nextStartTime = new Date(new Date(currentTask.date_started).getTime() + 30 * 60 * 1000);
       }
+      
       const updates = [];
-      for (const task of tasks) {
+      
+      for (const task of todayTasks) {
         if (task.Progress === 'Completed') continue;
+        
         const isCurrentTask = currentTask && task.id === currentTask.id;
-        const isFirst = tasks.indexOf(task) === 0;
+        const isFirst = todayTasks.indexOf(task) === 0;
         let taskStartTime: Date;
         let taskEndTime: Date;
+        
         if (isCurrentTask && !shouldUpdateCurrentTask) {
           taskStartTime = new Date(currentTask.date_started);
           taskEndTime = new Date(currentTask.date_due);
@@ -367,16 +411,19 @@ export const TaskList: React.FC<TaskListProps> = ({
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
           nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
+        
         const updateData: any = {
           id: task.id,
           date_started: taskStartTime.toISOString(),
           date_due: taskEndTime.toISOString()
         };
+        
         if (isCurrentTask && !isFirst && shouldUpdateCurrentTask) {
           updateData.Progress = 'Not started';
         } else if (isFirst && shouldUpdateCurrentTask && !isCurrentTask) {
           updateData.Progress = 'In progress';
         }
+        
         console.log('Updating task:', {
           taskName: task["Task Name"],
           startTime: taskStartTime,
@@ -384,12 +431,16 @@ export const TaskList: React.FC<TaskListProps> = ({
           isCurrentTask,
           progress: updateData.Progress || task.Progress
         });
+        
         updates.push(updateData);
       }
+      
       for (const update of updates) {
-        const {
-          error
-        } = await supabase.from('Tasks').update(update).eq('id', update.id);
+        const { error } = await supabase
+          .from('Tasks')
+          .update(update)
+          .eq('id', update.id);
+          
         if (error) throw error;
       }
     },
@@ -407,26 +458,32 @@ export const TaskList: React.FC<TaskListProps> = ({
       toast.error('Failed to update task schedule');
     }
   });
+
   const handleDragEnd = async (event: DragEndEvent) => {
-    const {
-      active,
-      over
-    } = event;
+    const { active, over } = event;
     if (!over || active.id === over.id || !dbTasks) return;
-    const oldIndex = dbTasks.findIndex(t => t.id === active.id);
-    const newIndex = dbTasks.findIndex(t => t.id === over.id);
-    const reorderedTasks = [...dbTasks];
+    
+    const todayTasks = getTodayTasks(dbTasks);
+    if (todayTasks.length === 0) return;
+    
+    const oldIndex = todayTasks.findIndex(t => t.id === active.id);
+    const newIndex = todayTasks.findIndex(t => t.id === over.id);
+    
+    const reorderedTasks = [...todayTasks];
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
+    
     const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
     const isMovingToFirst = newIndex === 0;
     const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
+    
     await updateTaskOrder.mutate({
       tasks: reorderedTasks,
       shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
       movedTaskId: movedTask.id
     });
   };
+
   const updateTaskProgress = useMutation({
     mutationFn: async ({
       id,
@@ -455,6 +512,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       toast.success('Task completed');
     }
   });
+
   if (!isTaskView) {
     return <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn px-0">
         <h2 className="text-xl font-semibold">Today's Tasks</h2>
@@ -469,6 +527,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         </DndContext>
       </div>;
   }
+
   const updateTaskTimes = useMutation({
     mutationFn: async ({
       taskId,
@@ -494,18 +553,18 @@ export const TaskList: React.FC<TaskListProps> = ({
       toast.success('Task times updated');
     }
   });
+
   const updateRemainingTaskTimes = async () => {
     try {
       const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started') || [];
       if (notStartedTasks.length === 0) return;
       const currentTime = new Date();
-      currentTime.setMinutes(currentTime.getMinutes() + 30); // Start with 30-minute offset
-
+      currentTime.setMinutes(currentTime.getMinutes() + 30);
+      
       for (let i = 0; i < notStartedTasks.length; i++) {
         const task = notStartedTasks[i];
         const taskStartTime = new Date(currentTime);
-        taskStartTime.setMinutes(taskStartTime.getMinutes() + i * 30); // 25 min task + 5 min break
-
+        taskStartTime.setMinutes(taskStartTime.getMinutes() + i * 30);
         const taskDueTime = new Date(taskStartTime);
         taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
         const {
@@ -521,59 +580,75 @@ export const TaskList: React.FC<TaskListProps> = ({
       toast.error('Failed to update task times');
     }
   };
+
   const handleTaskStart = async (taskId: number) => {
     try {
-      const allTasks = dbTasks?.filter(t => t.Progress === 'Not started' || t.Progress === 'In progress') || [];
-      const selectedTask = allTasks.find(t => t.id === taskId);
+      const todayTasks = getTodayTasks(dbTasks?.filter(t => t.Progress === 'Not started' || t.Progress === 'In progress') || []);
+      if (todayTasks.length === 0) return;
+      
+      const selectedTask = todayTasks.find(t => t.id === taskId);
       if (!selectedTask) return;
+      
       const currentTime = new Date();
       const tomorrow5AM = new Date(currentTime);
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
-      const {
-        error: startError
-      } = await supabase.from('Tasks').update({
-        Progress: 'In progress',
-        date_started: currentTime.toISOString(),
-        date_due: new Date(currentTime.getTime() + 25 * 60000).toISOString()
-      }).eq('id', taskId);
+      
+      const { error: startError } = await supabase
+        .from('Tasks')
+        .update({
+          Progress: 'In progress',
+          date_started: currentTime.toISOString(),
+          date_due: new Date(currentTime.getTime() + 25 * 60000).toISOString()
+        })
+        .eq('id', taskId);
+        
       if (startError) throw startError;
-      const otherTasks = allTasks.filter(t => t.id !== taskId).sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
-      let nextStartTime = new Date(currentTime.getTime() + 30 * 60000); // Start 30 minutes after current task
-
+      
+      const otherTasks = todayTasks
+        .filter(t => t.id !== taskId)
+        .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
+        
+      let nextStartTime = new Date(currentTime.getTime() + 30 * 60000);
+      
       for (const task of otherTasks) {
         if (currentTime.getHours() >= 21 && isAfter(nextStartTime, tomorrow5AM)) {
           break;
         }
+        
         const taskStartTime = new Date(nextStartTime);
         const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60000);
-        const {
-          error
-        } = await supabase.from('Tasks').update({
-          date_started: taskStartTime.toISOString(),
-          date_due: taskEndTime.toISOString(),
-          Progress: 'Not started'
-        }).eq('id', task.id);
+        
+        const { error } = await supabase
+          .from('Tasks')
+          .update({
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString(),
+            Progress: 'Not started'
+          })
+          .eq('id', task.id);
+          
         if (error) throw error;
+        
         nextStartTime = new Date(taskStartTime.getTime() + 30 * 60000);
       }
+      
       onTaskStart?.(taskId);
-      queryClient.invalidateQueries({
-        queryKey: ['tasks']
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['active-tasks']
-      });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Timer started and schedule adjusted');
     } catch (error) {
       console.error('Error starting task:', error);
       toast.error('Failed to start task');
     }
   };
+
   const formatTaskDateTime = (date: string) => {
     return format(new Date(date), 'M/d h:mm a');
   };
+
   if (!dbTasks || dbTasks.length === 0) return null;
+
   const filteredTasks = dbTasks.filter(task => {
     const matchesSearch = searchQuery ? task["Task Name"].toLowerCase().includes(searchQuery.toLowerCase()) : true;
     if (!isTaskView) {
@@ -586,9 +661,11 @@ export const TaskList: React.FC<TaskListProps> = ({
     if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
     return new Date(a.date_started).getTime() - new Date(b.date_started).getTime();
   });
+
   const formatTaskTime = (date: string) => {
     return format(new Date(date), 'h:mm a');
   };
+
   return <div className="w-full max-w-3xl mx-auto space-y-6 p-4 sm:p-6 animate-slideIn">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-xl font-semibold">Your Tasks</h2>

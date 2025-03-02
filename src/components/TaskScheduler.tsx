@@ -23,7 +23,12 @@ interface NewTask {
   name: string;
   subtasks: SubTask[];
 }
-export const TaskScheduler = () => {
+
+interface TaskSchedulerProps {
+  onShuffleTasks?: () => Promise<void>;
+}
+
+export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) => {
   const [tasks, setTasks] = useState<NewTask[]>([]);
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
@@ -158,6 +163,10 @@ export const TaskScheduler = () => {
   };
   
   const handleShuffleTasks = async () => {
+    if (onShuffleTasks) {
+      return onShuffleTasks();
+    }
+    
     try {
       const { data: tasks, error } = await supabase
         .from('Tasks')
@@ -260,7 +269,7 @@ export const TaskScheduler = () => {
                     tasks={tasks.map(t => t.name)}
                     autoStart={timerStarted}
                     activeTaskId={activeTaskId} 
-                    onShuffleTasks={handleShuffleTasks}
+                    onShuffleTasks={onShuffleTasks || handleShuffleTasks}
                   />
                 </div>}
               <div className="form-control">

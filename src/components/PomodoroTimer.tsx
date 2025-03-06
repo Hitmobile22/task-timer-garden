@@ -10,6 +10,7 @@ import { Maximize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
 import { LavaLampBackground } from './pomodoro/LavaLampBackground';
+import { getSubtaskColor } from '@/utils/taskUtils';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -175,7 +176,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   };
 
   const getTaskListColor = () => {
-    if (!currentTask || !activeTasks) return null;
+    if (!currentTask || !currentTask.task_list_id) return null;
     
     const { data: taskLists } = useQuery({
       queryKey: ['task-lists'],

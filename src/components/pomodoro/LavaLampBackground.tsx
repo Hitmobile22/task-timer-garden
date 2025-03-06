@@ -1,18 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { TASK_LIST_COLORS } from '@/constants/taskColors';
-import { generateRandomColor } from '@/utils/taskUtils';
-
-interface Blob {
-  x: number;
-  y: number;
-  z: number;
-  xSpeed: number;
-  ySpeed: number;
-  zSpeed: number;
-  size: number;
-  color: string;
-}
+import { generateRandomColor, generateMeshGradientColors, normalizeColor } from '@/utils/taskUtils';
 
 interface LavaLampBackgroundProps {
   taskListColor?: string;
@@ -20,181 +9,362 @@ interface LavaLampBackgroundProps {
 
 export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskListColor }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const contextRef = useRef<WebGLRenderingContext | null>(null);
   const animationRef = useRef<number>(0);
-
+  const timeRef = useRef<number>(0);
+  const colorRef = useRef<string[]>([]);
+  
+  // Initialize the mesh gradient
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Create colors from the TASK_LIST_COLORS or generate random ones
-    const getColorsFromGradient = (gradient: string) => {
-      // Extract colors from linear-gradient
-      const colorMatches = gradient.match(/hsla?\([^)]+\)|rgba?\([^)]+\)|#[0-9a-f]+/gi);
-      if (colorMatches && colorMatches.length >= 1) {
-        return colorMatches;
-      }
-      
-      // Default colors if no matches
-      return [
-        'rgba(147, 39, 143, 0.8)',
-        'rgba(234, 172, 232, 0.8)',
-      ];
-    };
-
-    // Get colors based on taskListColor or use random colors
-    const baseColors = taskListColor 
-      ? getColorsFromGradient(taskListColor)
-      : Object.values(TASK_LIST_COLORS).slice(0, 5);
-      
-    // Color palette with opacity for the blobs
-    const colors = baseColors.map(color => {
-      // If it's already rgba, modify the opacity
-      if (color.startsWith('rgba')) {
-        return color.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^)]+\)/, 'rgba($1,$2,$3,0.7)');
-      }
-      // If it's hsla, modify the opacity
-      else if (color.startsWith('hsla')) {
-        return color.replace(/hsla\(([^,]+),([^,]+),([^,]+),[^)]+\)/, 'hsla($1,$2,$3,0.7)');
-      }
-      // If it's rgb, convert to rgba
-      else if (color.startsWith('rgb')) {
-        return color.replace(/rgb\(([^)]+)\)/, 'rgba($1,0.7)');
-      }
-      // If it's hsl, convert to hsla
-      else if (color.startsWith('hsl')) {
-        return color.replace(/hsl\(([^)]+)\)/, 'hsla($1,0.7)');
-      }
-      // If it's hex, convert to rgba (simple conversion)
-      else {
-        return 'rgba(147, 39, 143, 0.7)'; // fallback color
-      }
-    });
-
-    // Add some vibrant colors if we have few colors
-    if (colors.length < 4) {
-      colors.push(
-        'rgba(118, 74, 241, 0.7)',
-        'rgba(79, 179, 236, 0.7)',
-        'rgba(252, 107, 107, 0.7)'
-      );
-    }
-
-    let blobs: Blob[] = [];
-    const blobCount = 12; // More blobs for a denser effect
     
+    // Set canvas to full screen
     const resizeCanvas = () => {
       if (canvas) {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+        if (contextRef.current) {
+          contextRef.current.viewport(0, 0, canvas.width, canvas.height);
+        }
       }
-    };
-
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    // Initialize blobs with 3D positions
-    for (let i = 0; i < blobCount; i++) {
-      blobs.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        z: Math.random() * 200 - 100, // z position for 3D effect
-        xSpeed: (Math.random() - 0.5) * 1.2, // Faster movement
-        ySpeed: (Math.random() - 0.5) * 1.2,
-        zSpeed: (Math.random() - 0.5) * 0.8,
-        size: 80 + Math.random() * 120,
-        color: colors[Math.floor(Math.random() * colors.length)]
-      });
-    }
-
-    const drawBlob = (blob: Blob) => {
-      // Scale based on z-position to create depth
-      const scale = (blob.z + 100) / 200; // normalize to 0-1 range
-      const scaledSize = blob.size * (0.5 + scale * 0.7);
-      
-      // Adjust opacity based on z-position
-      const opacity = 0.5 + scale * 0.5;
-      
-      ctx.beginPath();
-      
-      // Use blob's color but adjust opacity
-      const colorBase = blob.color.startsWith('rgba') 
-        ? blob.color.replace(/rgba\(([^,]+),([^,]+),([^,]+),[^)]+\)/, `rgba($1,$2,$3,${opacity})`)
-        : blob.color;
-      
-      ctx.fillStyle = colorBase;
-      
-      // Draw an oval to create more organic shapes
-      ctx.ellipse(
-        blob.x, 
-        blob.y, 
-        scaledSize * (0.8 + Math.random() * 0.4), 
-        scaledSize * (0.8 + Math.random() * 0.4), 
-        Math.random() * Math.PI, 
-        0, 
-        Math.PI * 2
-      );
-      
-      ctx.fill();
-    };
-
-    const updateBlob = (blob: Blob) => {
-      // Update position
-      blob.x += blob.xSpeed;
-      blob.y += blob.ySpeed;
-      blob.z += blob.zSpeed;
-      
-      // Bounce off edges
-      if (blob.x - blob.size < 0 || blob.x + blob.size > canvas.width) {
-        blob.xSpeed *= -1;
-      }
-      if (blob.y - blob.size < 0 || blob.y + blob.size > canvas.height) {
-        blob.ySpeed *= -1;
-      }
-      
-      // Bounce in z-direction too
-      if (blob.z < -100 || blob.z > 100) {
-        blob.zSpeed *= -1;
-      }
-    };
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Apply blur for a softer effect
-      ctx.filter = 'blur(30px)';
-      
-      // Sort blobs by z-index for proper rendering
-      blobs.sort((a, b) => a.z - b.z);
-      
-      // Draw and update each blob
-      blobs.forEach(blob => {
-        drawBlob(blob);
-        updateBlob(blob);
-      });
-      
-      // Add subtle glow/bloom effect
-      ctx.filter = 'blur(5px)';
-      ctx.globalCompositeOperation = 'lighter';
-      blobs.forEach(blob => {
-        drawBlob(blob);
-      });
-      
-      // Reset composite operation
-      ctx.globalCompositeOperation = 'source-over';
-      
-      animationRef.current = requestAnimationFrame(animate);
     };
     
-    animate();
-
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    // Extract colors from gradient string or use default palette
+    if (taskListColor) {
+      const extractColorsFromGradient = (gradient: string) => {
+        const matches = gradient.match(/(hsla?\([^)]+\)|rgba?\([^)]+\)|#[0-9a-f]{3,8})/gi);
+        if (matches && matches.length >= 2) {
+          return matches;
+        }
+        return generateMeshGradientColors();
+      };
+      
+      colorRef.current = extractColorsFromGradient(taskListColor);
+    } else {
+      colorRef.current = generateMeshGradientColors();
+    }
+    
+    // Initialize WebGL context
+    try {
+      const gl = canvas.getContext('webgl', { 
+        alpha: true,
+        antialias: true,
+        premultipliedAlpha: true
+      });
+      
+      if (!gl) {
+        throw new Error('WebGL not supported');
+      }
+      
+      contextRef.current = gl;
+      
+      // Create shader program
+      const vertexShader = createShader(gl, gl.VERTEX_SHADER, `
+        precision highp float;
+        attribute vec2 a_position;
+        attribute vec2 a_texCoord;
+        varying vec2 v_texCoord;
+        
+        void main() {
+          gl_Position = vec4(a_position, 0, 1);
+          v_texCoord = a_texCoord;
+        }
+      `);
+      
+      const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, `
+        precision highp float;
+        uniform float u_time;
+        uniform vec2 u_resolution;
+        uniform vec3 u_color1;
+        uniform vec3 u_color2;
+        uniform vec3 u_color3;
+        uniform vec3 u_color4;
+        varying vec2 v_texCoord;
+        
+        // Simplex noise function
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+        
+        float snoise(vec2 v) {
+          const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+          vec2 i  = floor(v + dot(v, C.yy));
+          vec2 x0 = v - i + dot(i, C.xx);
+          vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+          vec4 x12 = x0.xyxy + C.xxzz;
+          x12.xy -= i1;
+          i = mod289(i);
+          vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+          vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+          m = m*m;
+          m = m*m;
+          vec3 x = 2.0 * fract(p * C.www) - 1.0;
+          vec3 h = abs(x) - 0.5;
+          vec3 ox = floor(x + 0.5);
+          vec3 a0 = x - ox;
+          m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+          vec3 g;
+          g.x = a0.x * x0.x + h.x * x0.y;
+          g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+          return 130.0 * dot(m, g);
+        }
+        
+        // Blend two colors based on mask
+        vec3 blend(vec3 a, vec3 b, float mask) {
+          return mix(a, b, mask);
+        }
+        
+        void main() {
+          vec2 uv = v_texCoord;
+          vec2 pos = gl_FragCoord.xy / u_resolution.xy;
+          float ratio = u_resolution.x / u_resolution.y;
+          uv.x *= ratio;
+          
+          // Time variables
+          float t = u_time * 0.2;
+          
+          // Create flowing noise
+          float noise1 = snoise(vec2(uv.x * 1.4 + t * 0.15, uv.y * 1.4 - t * 0.13)) * 0.5 + 0.5;
+          float noise2 = snoise(vec2(uv.x * 2.3 - t * 0.11, uv.y * 2.7 + t * 0.17)) * 0.5 + 0.5;
+          float noise3 = snoise(vec2(uv.x * 3.7 + t * 0.19, uv.y * 3.1 - t * 0.23)) * 0.5 + 0.5;
+          float noise4 = snoise(vec2(uv.x * 0.9 - t * 0.21, uv.y * 1.3 + t * 0.27)) * 0.5 + 0.5;
+          
+          // Create dynamic mask
+          float shape1 = smoothstep(0.3, 0.7, noise1);
+          float shape2 = smoothstep(0.3, 0.8, noise2);
+          float shape3 = smoothstep(0.2, 0.8, noise3);
+          float shape4 = smoothstep(0.3, 0.9, noise4);
+          
+          // More interesting patterns with overlapping shapes
+          float mask1 = shape1 * shape2;
+          float mask2 = shape3 * (1.0 - shape1);
+          float mask3 = shape4 * (1.0 - shape3);
+          float mask4 = (1.0 - shape4) * (1.0 - shape2);
+          
+          // Normalize masks
+          float total = mask1 + mask2 + mask3 + mask4;
+          mask1 /= total;
+          mask2 /= total;
+          mask3 /= total;
+          mask4 /= total;
+          
+          // Mix colors
+          vec3 color = 
+            u_color1 * mask1 + 
+            u_color2 * mask2 + 
+            u_color3 * mask3 + 
+            u_color4 * mask4;
+            
+          // Add subtle vignette
+          float vignette = smoothstep(0.0, 0.9, 1.0 - length((pos - 0.5) * 1.5));
+          color *= 0.8 + vignette * 0.2;
+          
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `);
+      
+      if (!vertexShader || !fragmentShader) {
+        throw new Error('Could not compile shaders');
+      }
+      
+      // Create program and link shaders
+      const program = gl.createProgram();
+      if (!program) {
+        throw new Error('Could not create program');
+      }
+      
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        throw new Error('Could not link program: ' + gl.getProgramInfoLog(program));
+      }
+      
+      gl.useProgram(program);
+      
+      // Define geometry (a simple quad covering the entire canvas)
+      const positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1,  // bottom left
+         1, -1,  // bottom right
+        -1,  1,  // top left
+         1,  1,  // top right
+      ]), gl.STATIC_DRAW);
+      
+      const texCoordBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        0, 0,  // bottom left
+        1, 0,  // bottom right
+        0, 1,  // top left
+        1, 1,  // top right
+      ]), gl.STATIC_DRAW);
+      
+      // Get attribute locations
+      const positionLocation = gl.getAttribLocation(program, 'a_position');
+      const texCoordLocation = gl.getAttribLocation(program, 'a_texCoord');
+      
+      // Get uniform locations
+      const timeLocation = gl.getUniformLocation(program, 'u_time');
+      const resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+      const color1Location = gl.getUniformLocation(program, 'u_color1');
+      const color2Location = gl.getUniformLocation(program, 'u_color2');
+      const color3Location = gl.getUniformLocation(program, 'u_color3');
+      const color4Location = gl.getUniformLocation(program, 'u_color4');
+      
+      // Parse colors from CSS colors to RGB values
+      const parseColor = (color: string): number[] => {
+        // Handle hex colors
+        if (color.startsWith('#')) {
+          return normalizeColor(color);
+        }
+        
+        // Handle rgb(a) colors
+        if (color.startsWith('rgb')) {
+          const match = color.match(/\d+/g);
+          if (match && match.length >= 3) {
+            return [
+              parseInt(match[0]) / 255,
+              parseInt(match[1]) / 255,
+              parseInt(match[2]) / 255
+            ];
+          }
+        }
+        
+        // Handle hsl(a) colors
+        if (color.startsWith('hsl')) {
+          const match = color.match(/\d+/g);
+          if (match && match.length >= 3) {
+            const h = parseInt(match[0]) / 360;
+            const s = parseInt(match[1]) / 100;
+            const l = parseInt(match[2]) / 100;
+            return hslToRgb(h, s, l);
+          }
+        }
+        
+        // Default fallback
+        return [0.5, 0.5, 0.8];
+      };
+      
+      // Animation function
+      const render = (timestamp: number) => {
+        if (!contextRef.current) return;
+        const gl = contextRef.current;
+        
+        timeRef.current += 0.01;
+        
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        
+        gl.useProgram(program);
+        
+        // Set uniforms
+        gl.uniform1f(timeLocation, timeRef.current);
+        gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
+        
+        // Set colors from our array
+        const colors = colorRef.current;
+        if (colors.length >= 4) {
+          gl.uniform3fv(color1Location, parseColor(colors[0]));
+          gl.uniform3fv(color2Location, parseColor(colors[1]));
+          gl.uniform3fv(color3Location, parseColor(colors[2]));
+          gl.uniform3fv(color4Location, parseColor(colors[3]));
+        } else {
+          // Default colors if we don't have enough
+          gl.uniform3fv(color1Location, [0.5, 0.2, 0.9]);
+          gl.uniform3fv(color2Location, [0.9, 0.3, 0.6]);
+          gl.uniform3fv(color3Location, [0.3, 0.7, 0.9]);
+          gl.uniform3fv(color4Location, [0.8, 0.5, 0.2]);
+        }
+        
+        // Set position attribute
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.enableVertexAttribArray(positionLocation);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+        
+        // Set texCoord attribute
+        gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+        gl.enableVertexAttribArray(texCoordLocation);
+        gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+        
+        // Draw
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        
+        animationRef.current = requestAnimationFrame(render);
+      };
+      
+      // Start animation
+      animationRef.current = requestAnimationFrame(render);
+      
+    } catch (error) {
+      console.error('WebGL initialization error:', error);
+      // Fallback to regular background if WebGL fails
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = taskListColor || 'linear-gradient(135deg, #001f3f 0%, #004080 100%)';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+    }
+    
     return () => {
-      cancelAnimationFrame(animationRef.current);
       window.removeEventListener('resize', resizeCanvas);
+      cancelAnimationFrame(animationRef.current);
     };
   }, [taskListColor]);
+
+  // Helper function to create and compile a shader
+  const createShader = (gl: WebGLRenderingContext, type: number, source: string) => {
+    const shader = gl.createShader(type);
+    if (!shader) return null;
+    
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.error('Shader compilation error:', gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    
+    return shader;
+  };
+  
+  // HSL to RGB conversion
+  const hslToRgb = (h: number, s: number, l: number): number[] => {
+    let r, g, b;
+    
+    if (s === 0) {
+      r = g = b = l; // achromatic
+    } else {
+      const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+    }
+    
+    return [r, g, b];
+  };
 
   // Create a background gradient based on the task list color
   const getBackgroundStyle = () => {

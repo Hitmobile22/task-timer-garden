@@ -33,20 +33,8 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     
-    // Extract colors from gradient string or use default palette
-    if (taskListColor) {
-      const extractColorsFromGradient = (gradient: string) => {
-        const matches = gradient.match(/(hsla?\([^)]+\)|rgba?\([^)]+\)|#[0-9a-f]{3,8})/gi);
-        if (matches && matches.length >= 2) {
-          return matches;
-        }
-        return generateMeshGradientColors();
-      };
-      
-      colorRef.current = extractColorsFromGradient(taskListColor);
-    } else {
-      colorRef.current = generateMeshGradientColors();
-    }
+    // Generate harmonious colors based on task list color or select a tasteful palette
+    colorRef.current = generateMeshGradientColors(taskListColor);
     
     // Initialize WebGL context
     try {
@@ -113,9 +101,9 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
           return 130.0 * dot(m, g);
         }
         
-        // Blend two colors based on mask
-        vec3 blend(vec3 a, vec3 b, float mask) {
-          return mix(a, b, mask);
+        // Soft blending between colors
+        vec3 blend(vec3 a, vec3 b, float t) {
+          return mix(a, b, smoothstep(0.0, 1.0, t));
         }
         
         void main() {
@@ -124,26 +112,26 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
           float ratio = u_resolution.x / u_resolution.y;
           uv.x *= ratio;
           
-          // Time variables
-          float t = u_time * 0.2;
+          // Use slower time variables for gentler animation
+          float t = u_time * 0.15;
           
-          // Create flowing noise
-          float noise1 = snoise(vec2(uv.x * 1.4 + t * 0.15, uv.y * 1.4 - t * 0.13)) * 0.5 + 0.5;
-          float noise2 = snoise(vec2(uv.x * 2.3 - t * 0.11, uv.y * 2.7 + t * 0.17)) * 0.5 + 0.5;
-          float noise3 = snoise(vec2(uv.x * 3.7 + t * 0.19, uv.y * 3.1 - t * 0.23)) * 0.5 + 0.5;
-          float noise4 = snoise(vec2(uv.x * 0.9 - t * 0.21, uv.y * 1.3 + t * 0.27)) * 0.5 + 0.5;
+          // Create smoother flowing noise
+          float noise1 = snoise(vec2(uv.x * 1.2 + t * 0.1, uv.y * 1.2 - t * 0.07)) * 0.5 + 0.5;
+          float noise2 = snoise(vec2(uv.x * 1.8 - t * 0.05, uv.y * 1.9 + t * 0.09)) * 0.5 + 0.5;
+          float noise3 = snoise(vec2(uv.x * 2.5 + t * 0.11, uv.y * 2.0 - t * 0.13)) * 0.5 + 0.5;
+          float noise4 = snoise(vec2(uv.x * 0.7 - t * 0.15, uv.y * 0.9 + t * 0.17)) * 0.5 + 0.5;
           
-          // Create dynamic mask
-          float shape1 = smoothstep(0.3, 0.7, noise1);
-          float shape2 = smoothstep(0.3, 0.8, noise2);
-          float shape3 = smoothstep(0.2, 0.8, noise3);
-          float shape4 = smoothstep(0.3, 0.9, noise4);
+          // Create smoother transitions between shapes
+          float shape1 = smoothstep(0.35, 0.65, noise1);
+          float shape2 = smoothstep(0.35, 0.65, noise2);
+          float shape3 = smoothstep(0.35, 0.65, noise3);
+          float shape4 = smoothstep(0.35, 0.65, noise4);
           
-          // More interesting patterns with overlapping shapes
-          float mask1 = shape1 * shape2;
-          float mask2 = shape3 * (1.0 - shape1);
-          float mask3 = shape4 * (1.0 - shape3);
-          float mask4 = (1.0 - shape4) * (1.0 - shape2);
+          // Use gentler blending between shapes
+          float mask1 = shape1 * (1.0 - shape2 * 0.5);
+          float mask2 = shape2 * (1.0 - shape3 * 0.5);
+          float mask3 = shape3 * (1.0 - shape4 * 0.5);
+          float mask4 = shape4 * (1.0 - shape1 * 0.5);
           
           // Normalize masks
           float total = mask1 + mask2 + mask3 + mask4;
@@ -152,16 +140,16 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
           mask3 /= total;
           mask4 /= total;
           
-          // Mix colors
+          // Mix colors with smoother transitions
           vec3 color = 
             u_color1 * mask1 + 
             u_color2 * mask2 + 
             u_color3 * mask3 + 
             u_color4 * mask4;
             
-          // Add subtle vignette
-          float vignette = smoothstep(0.0, 0.9, 1.0 - length((pos - 0.5) * 1.5));
-          color *= 0.8 + vignette * 0.2;
+          // Add subtle vignette for depth
+          float vignette = smoothstep(0.0, 0.7, 1.0 - length((pos - 0.5) * 1.3));
+          color = mix(color, color * 0.8, 1.0 - vignette);
           
           gl_FragColor = vec4(color, 1.0);
         }
@@ -278,10 +266,10 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
           gl.uniform3fv(color4Location, parseColor(colors[3]));
         } else {
           // Default colors if we don't have enough
-          gl.uniform3fv(color1Location, [0.5, 0.2, 0.9]);
-          gl.uniform3fv(color2Location, [0.9, 0.3, 0.6]);
-          gl.uniform3fv(color3Location, [0.3, 0.7, 0.9]);
-          gl.uniform3fv(color4Location, [0.8, 0.5, 0.2]);
+          gl.uniform3fv(color1Location, [0.9, 0.9, 0.95]);
+          gl.uniform3fv(color2Location, [0.8, 0.85, 0.9]);
+          gl.uniform3fv(color3Location, [0.7, 0.8, 0.9]);
+          gl.uniform3fv(color4Location, [0.6, 0.7, 0.85]);
         }
         
         // Set position attribute
@@ -310,7 +298,7 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
       if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.fillStyle = taskListColor || 'linear-gradient(135deg, #001f3f 0%, #004080 100%)';
+          ctx.fillStyle = taskListColor || 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
       }
@@ -371,7 +359,7 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
     if (!taskListColor) {
       // Use a nice default gradient
       return {
-        background: 'linear-gradient(135deg, #001f3f 0%, #004080 100%)'
+        background: 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)'
       };
     }
     

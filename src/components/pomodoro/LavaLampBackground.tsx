@@ -101,7 +101,7 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
           return 130.0 * dot(m, g);
         }
         
-        // Soft blending between colors
+        // Very soft blending between colors
         vec3 blend(vec3 a, vec3 b, float t) {
           return mix(a, b, smoothstep(0.0, 1.0, t));
         }
@@ -112,26 +112,26 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
           float ratio = u_resolution.x / u_resolution.y;
           uv.x *= ratio;
           
-          // Use slower time variables for gentler animation
-          float t = u_time * 0.15;
+          // Use MUCH slower time variables for extremely gentle animation
+          float t = u_time * 0.08; // Reduced from 0.15 to 0.08
           
-          // Create smoother flowing noise
-          float noise1 = snoise(vec2(uv.x * 1.2 + t * 0.1, uv.y * 1.2 - t * 0.07)) * 0.5 + 0.5;
-          float noise2 = snoise(vec2(uv.x * 1.8 - t * 0.05, uv.y * 1.9 + t * 0.09)) * 0.5 + 0.5;
-          float noise3 = snoise(vec2(uv.x * 2.5 + t * 0.11, uv.y * 2.0 - t * 0.13)) * 0.5 + 0.5;
-          float noise4 = snoise(vec2(uv.x * 0.7 - t * 0.15, uv.y * 0.9 + t * 0.17)) * 0.5 + 0.5;
+          // Create extremely smooth flowing noise with larger features
+          float noise1 = snoise(vec2(uv.x * 0.8 + t * 0.07, uv.y * 0.8 - t * 0.05)) * 0.5 + 0.5;
+          float noise2 = snoise(vec2(uv.x * 1.2 - t * 0.03, uv.y * 1.1 + t * 0.06)) * 0.5 + 0.5;
+          float noise3 = snoise(vec2(uv.x * 1.7 + t * 0.08, uv.y * 1.5 - t * 0.08)) * 0.5 + 0.5;
+          float noise4 = snoise(vec2(uv.x * 0.5 - t * 0.09, uv.y * 0.7 + t * 0.11)) * 0.5 + 0.5;
           
-          // Create smoother transitions between shapes
-          float shape1 = smoothstep(0.35, 0.65, noise1);
-          float shape2 = smoothstep(0.35, 0.65, noise2);
-          float shape3 = smoothstep(0.35, 0.65, noise3);
-          float shape4 = smoothstep(0.35, 0.65, noise4);
+          // Create extremely smooth transitions between shapes with gaussian-like falloff
+          float shape1 = smoothstep(0.2, 0.8, noise1);
+          float shape2 = smoothstep(0.2, 0.8, noise2);
+          float shape3 = smoothstep(0.2, 0.8, noise3);
+          float shape4 = smoothstep(0.2, 0.8, noise4);
           
-          // Use gentler blending between shapes
-          float mask1 = shape1 * (1.0 - shape2 * 0.5);
-          float mask2 = shape2 * (1.0 - shape3 * 0.5);
-          float mask3 = shape3 * (1.0 - shape4 * 0.5);
-          float mask4 = shape4 * (1.0 - shape1 * 0.5);
+          // Use much gentler blending between shapes
+          float mask1 = shape1 * (1.0 - shape2 * 0.3);
+          float mask2 = shape2 * (1.0 - shape3 * 0.3);
+          float mask3 = shape3 * (1.0 - shape4 * 0.3);
+          float mask4 = shape4 * (1.0 - shape1 * 0.3);
           
           // Normalize masks
           float total = mask1 + mask2 + mask3 + mask4;
@@ -140,16 +140,16 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
           mask3 /= total;
           mask4 /= total;
           
-          // Mix colors with smoother transitions
+          // Mix colors with ultra-smooth transitions
           vec3 color = 
             u_color1 * mask1 + 
             u_color2 * mask2 + 
             u_color3 * mask3 + 
             u_color4 * mask4;
             
-          // Add subtle vignette for depth
-          float vignette = smoothstep(0.0, 0.7, 1.0 - length((pos - 0.5) * 1.3));
-          color = mix(color, color * 0.8, 1.0 - vignette);
+          // Add subtle vignette for depth - much softer than before
+          float vignette = smoothstep(0.0, 0.9, 1.0 - length((pos - 0.5) * 1.0));
+          color = mix(color, color * 0.9, 1.0 - vignette);
           
           gl_FragColor = vec4(color, 1.0);
         }
@@ -245,7 +245,8 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
         if (!contextRef.current) return;
         const gl = contextRef.current;
         
-        timeRef.current += 0.01;
+        // Even slower time progression for gentler animation
+        timeRef.current += 0.005; // Reduced from 0.01 to 0.005
         
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         gl.clearColor(0, 0, 0, 0);
@@ -265,11 +266,11 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
           gl.uniform3fv(color3Location, parseColor(colors[2]));
           gl.uniform3fv(color4Location, parseColor(colors[3]));
         } else {
-          // Default colors if we don't have enough
-          gl.uniform3fv(color1Location, [0.9, 0.9, 0.95]);
-          gl.uniform3fv(color2Location, [0.8, 0.85, 0.9]);
-          gl.uniform3fv(color3Location, [0.7, 0.8, 0.9]);
-          gl.uniform3fv(color4Location, [0.6, 0.7, 0.85]);
+          // Default colors if we don't have enough - using much softer tones
+          gl.uniform3fv(color1Location, [0.95, 0.95, 0.98]); // Barely off-white
+          gl.uniform3fv(color2Location, [0.9, 0.92, 0.95]);  // Very soft blue
+          gl.uniform3fv(color3Location, [0.85, 0.9, 0.95]);  // Slightly deeper blue
+          gl.uniform3fv(color4Location, [0.8, 0.85, 0.92]);  // Deeper but still soft
         }
         
         // Set position attribute
@@ -298,7 +299,7 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
       if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.fillStyle = taskListColor || 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)';
+          ctx.fillStyle = taskListColor || 'linear-gradient(135deg, #F0F4F8 0%, #D9E2EC 100%)';
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
       }
@@ -357,9 +358,9 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ taskList
   // Create a background gradient based on the task list color
   const getBackgroundStyle = () => {
     if (!taskListColor) {
-      // Use a nice default gradient
+      // Use a nice default gradient - much softer
       return {
-        background: 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)'
+        background: 'linear-gradient(135deg, #F0F4F8 0%, #D9E2EC 100%)'
       };
     }
     

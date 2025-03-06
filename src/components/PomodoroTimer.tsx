@@ -9,6 +9,7 @@ import { useTimerVisibility } from '@/hooks/useTimerVisibility';
 import { Maximize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
+import { LavaLampBackground } from './pomodoro/LavaLampBackground';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -402,6 +403,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       ref={timerRef}
       className={`glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-5xl mx-auto ${isFullscreen ? 'fixed inset-0 flex flex-col justify-center items-center z-50 max-w-none' : ''}`}
     >
+      {isFullscreen && <LavaLampBackground />}
+      
       <div className="space-y-2 w-full">
         <h2 className="text-2xl font-semibold text-primary">
           {isBreak ? 'Break Time' : 'Work Session'}

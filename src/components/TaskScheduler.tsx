@@ -77,9 +77,12 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     if (activeTasks && activeTasks.length > 0) {
       setShowTimer(true);
       setTimerStarted(true);
-      setActiveTaskId(activeTasks[0].id);
+      // Only set the first task as active if no current task is already active
+      if (!activeTaskId || !activeTasks.some(task => task.id === activeTaskId)) {
+        setActiveTaskId(activeTasks[0].id);
+      }
     }
-  }, [activeTasks]);
+  }, [activeTasks, activeTaskId]);
   
   const handleTasksCreate = async (newTasks: NewTask[]) => {
     try {

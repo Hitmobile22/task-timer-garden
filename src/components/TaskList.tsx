@@ -14,8 +14,6 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
-import { getTaskListColor } from '@/utils/taskUtils';
-import { TASK_LIST_COLORS, DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 
 interface SubtaskData {
   id: number;
@@ -174,18 +172,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
-  // Get the task list color
-  const taskListStyle = isCurrentTask ? {} : (task.task_list_id && task.task_list_id !== 1) ? 
-    { backgroundImage: getTaskListColor(task.task_list_id, []) } : {};
-
   return <li className="space-y-2">
-      <div 
-        className={cn(
-          "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", 
-          isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80"
-        )}
-        style={taskListStyle}
-      >
+      <div className={cn("flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80")}>
         <div className="flex gap-2 flex-shrink-0">
           <Button size="icon" variant="ghost" className="touch-none cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" {...dragHandleProps}>
             <GripVertical className="h-4 w-4" />
@@ -376,80 +364,82 @@ export const TaskList: React.FC<TaskListProps> = ({
       const todayTasks = getTodayTasks(tasks);
       if (todayTasks.length === 0) return;
       
-      // Find the task being moved and check if it's being moved to the first position
-      const movedTask = todayTasks.find(t => t.id === movedTaskId);
-      const isMovingToFirst = todayTasks.findIndex(t => t.id === movedTaskId) === 0;
-      
-      // Find the current task (the one with "In progress" status)
       const currentTask = todayTasks.find(t => t.Progress === 'In progress');
-      const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
+      const movedTask = todayTasks.find(t => t.id === movedTaskId);
       
       console.log('Task update operation:', {
         currentTaskId: currentTask?.id,
         movedTaskId,
-        isMovingToFirst,
-        isMovingCurrentTask
+        isMovingToFirst: todayTasks.findIndex(t => t.id === movedTaskId) === 0,
+        isMovingCurrentTask: currentTask && movedTaskId === currentTask.id
       });
       
+      const isMovingToFirst = todayTasks.findIndex(t => t.id === movedTaskId) === 0;
+      const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
+      
+      const shouldUpdateCurrentTask = isMovingToFirst || isMovingCurrentTask;
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
       
-      // If we're moving a task to first position or moving the current task
-      if (isMovingToFirst || isMovingCurrentTask) {
-        // If moving to first position, that task becomes the current task
-        if (isMovingToFirst && !isMovingCurrentTask) {
-          // Update the task being moved to first position to be "In progress"
-          await supabase
-            .from('Tasks')
-            .update({
-              Progress: 'In progress',
-              date_started: currentTime.toISOString(),
-              date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
-            })
-            .eq('id', movedTaskId);
-            
-          // If there was a current task before, update it to "Not started"
-          if (currentTask && currentTask.id !== movedTaskId) {
-            await supabase
-              .from('Tasks')
-              .update({
-                Progress: 'Not started'
-              })
-              .eq('id', currentTask.id);
-          }
-          
-          nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
-        }
-      } else if (currentTask) {
-        // If we're not moving to first position and there is a current task
-        // Keep the current task as is and start scheduling after it
+      if (!shouldUpdateCurrentTask && currentTask) {
         const currentTaskEndTime = new Date(currentTask.date_due);
         nextStartTime = new Date(currentTaskEndTime.getTime() + 5 * 60 * 1000);
       }
       
-      // Update all other tasks
+      const updates = [];
+      
       for (const task of todayTasks) {
-        // Skip the current task or already completed tasks
         if (task.Progress === 'Completed') continue;
-        if ((isMovingToFirst && task.id === movedTaskId) || 
-            (currentTask && task.id === currentTask.id && !isMovingToFirst)) {
-          continue; // Skip - we've already handled this task
+        
+        const isCurrentTask = currentTask && task.id === currentTask.id;
+        const isFirst = todayTasks.indexOf(task) === 0;
+        let taskStartTime: Date;
+        let taskEndTime: Date;
+        let progressUpdate: Task['Progress'] | null = null;
+        
+        if (isCurrentTask && !shouldUpdateCurrentTask) {
+          taskStartTime = new Date(currentTask.date_started);
+          taskEndTime = new Date(currentTask.date_due);
+        } else {
+          if (isFirst) {
+            taskStartTime = currentTime;
+            progressUpdate = 'In progress';
+          } else {
+            taskStartTime = new Date(nextStartTime);
+            progressUpdate = 'Not started';
+          }
+          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
         
-        // For all other tasks, update their time slots and set to "Not started"
-        const taskStartTime = new Date(nextStartTime);
-        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        const updateData: any = {
+          id: task.id,
+          date_started: taskStartTime.toISOString(),
+          date_due: taskEndTime.toISOString()
+        };
         
-        await supabase
+        if (progressUpdate) {
+          updateData.Progress = progressUpdate;
+        }
+        
+        console.log('Updating task:', {
+          taskName: task["Task Name"],
+          startTime: taskStartTime,
+          endTime: taskEndTime,
+          isCurrentTask,
+          progress: updateData.Progress || task.Progress
+        });
+        
+        updates.push(updateData);
+      }
+      
+      for (const update of updates) {
+        const { error } = await supabase
           .from('Tasks')
-          .update({
-            Progress: 'Not started',
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString()
-          })
-          .eq('id', task.id);
+          .update(update)
+          .eq('id', update.id);
           
-        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        if (error) throw error;
       }
     },
     onSuccess: () => {
@@ -477,18 +467,17 @@ export const TaskList: React.FC<TaskListProps> = ({
     const oldIndex = todayTasks.findIndex(t => t.id === active.id);
     const newIndex = todayTasks.findIndex(t => t.id === over.id);
     
-    if (oldIndex === -1 || newIndex === -1) return; // Safety check
-    
     const reorderedTasks = [...todayTasks];
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
     
-    console.log(`Moving task ${movedTask.id} from position ${oldIndex} to ${newIndex}`);
+    const isMovingToFirst = newIndex === 0;
+    const currentTask = todayTasks.find(t => t.Progress === 'In progress');
+    const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
     
-    // Let the mutation handle the rest of the logic
     await updateTaskOrder.mutate({
       tasks: reorderedTasks,
-      shouldResetTimer: newIndex === 0,
+      shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
       movedTaskId: movedTask.id
     });
   };
@@ -528,20 +517,9 @@ export const TaskList: React.FC<TaskListProps> = ({
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
             <ul className="space-y-4">
-              {(dbTasks || [])
-                .filter(task => ['Not started', 'In progress'].includes(task.Progress))
-                .map(task => (
-                  <SortableTaskItem key={task.id} task={task}>
-                    <TaskItem 
-                      task={task} 
-                      subtasks={todaySubtasks} 
-                      updateTaskProgress={updateTaskProgress} 
-                      onTaskStart={onTaskStart} 
-                      isCurrentTask={task.id === activeTaskId} 
-                    />
-                  </SortableTaskItem>
-                ))
-              }
+              {(dbTasks || []).filter(task => ['Not started', 'In progress'].includes(task.Progress)).map(task => <SortableTaskItem key={task.id} task={task}>
+                    <TaskItem task={task} subtasks={todaySubtasks} updateTaskProgress={updateTaskProgress} onTaskStart={onTaskStart} isCurrentTask={task.id === activeTaskId} />
+                  </SortableTaskItem>)}
             </ul>
           </SortableContext>
         </DndContext>
@@ -754,4 +732,3 @@ export const TaskList: React.FC<TaskListProps> = ({
       </div>
     </div>;
 };
-

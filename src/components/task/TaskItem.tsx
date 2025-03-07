@@ -6,7 +6,6 @@ import { TaskNameCell } from './cells/TaskNameCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
 import { TaskTimelineCell } from './cells/TaskTimelineCell';
 import { TaskActionsCell } from './cells/TaskActionsCell';
-import { getTaskListColor } from '@/utils/taskUtils';
 
 interface TaskItemProps {
   task: Task;
@@ -78,12 +77,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     onEditSave(task.id);
   };
 
-  // Determine background style based on task status and list
-  let backgroundStyle = task.Progress === 'In progress' ? "bg-blue-50" : "";
-
   return (
     <React.Fragment>
-      <TableRow className={backgroundStyle}>
+      <TableRow className={task.Progress === 'In progress' ? "bg-blue-50" : ""}>
         <TaskNameCell
           task={task}
           subtasks={subtasks}

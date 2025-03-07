@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const isCheckingRef = useRef(false);
+  const initialCheckDoneRef = useRef(false);
 
   const { data: settings } = useQuery({
     queryKey: ['recurring-task-settings'],
@@ -53,10 +54,10 @@ export const useRecurringTasksCheck = () => {
       }
     };
 
-    // Check on mount if there are any enabled recurring task settings
-    // Only check once when component mounts or settings change
-    if (!lastChecked && settings && settings.length > 0) {
+    // Check on mount only once (not every time settings change)
+    if (!initialCheckDoneRef.current && settings && settings.length > 0) {
       checkRecurringTasks();
+      initialCheckDoneRef.current = true;
     }
 
     // Also set up an interval to check periodically (every hour instead of 15 minutes)
@@ -69,5 +70,5 @@ export const useRecurringTasksCheck = () => {
     }, 60 * 60 * 1000); // Check every hour instead of every 15 minutes
 
     return () => clearInterval(interval);
-  }, [settings, lastChecked]);
+  }, [settings]);
 };

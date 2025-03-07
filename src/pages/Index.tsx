@@ -1,3 +1,4 @@
+
 import { TaskScheduler } from '@/components/TaskScheduler';
 import { useRecurringTasksCheck } from '@/hooks/useRecurringTasksCheck';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
@@ -81,14 +82,16 @@ const Index = () => {
       } else if (tasksToShuffle.length > 0) {
         // If no current task, make the first shuffled task the current one
         const firstTask = tasksToShuffle.shift();
-        await supabase
-          .from('Tasks')
-          .update({
-            Progress: 'In progress',
-            date_started: currentTime.toISOString(),
-            date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
-          })
-          .eq('id', firstTask.id);
+        if (firstTask) {
+          await supabase
+            .from('Tasks')
+            .update({
+              Progress: 'In progress',
+              date_started: currentTime.toISOString(),
+              date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
+            })
+            .eq('id', firstTask.id);
+        }
           
         nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000); // 30 min after (25 min task + 5 min break)
       } else {

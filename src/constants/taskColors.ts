@@ -1,16 +1,16 @@
 
 export const TASK_LIST_COLORS = {
-  'Day to Day': 'linear-gradient(90deg, hsla(221, 45%, 73%, 1) 0%, hsla(220, 78%, 29%, 1) 100%)',
-  'Personal': 'linear-gradient(90deg, hsla(277, 75%, 84%, 1) 0%, hsla(297, 50%, 51%, 1) 100%)',
-  'Work': 'linear-gradient(90deg, hsla(39, 100%, 77%, 1) 0%, hsla(22, 90%, 57%, 1) 100%)',
-  'Shopping': 'linear-gradient(90deg, hsla(24, 100%, 83%, 1) 0%, hsla(341, 91%, 68%, 1) 100%)',
-  'Health': 'linear-gradient(90deg, hsla(46, 73%, 75%, 1) 0%, hsla(176, 73%, 88%, 1) 100%)',
-  'Learning': 'linear-gradient(90deg, hsla(139, 70%, 75%, 1) 0%, hsla(63, 90%, 76%, 1) 100%)',
-  'Projects': 'linear-gradient(90deg, rgb(245,152,168) 0%, rgb(246,237,178) 100%)',
-  'Home': 'linear-gradient(90deg, hsla(29, 92%, 70%, 1) 0%, hsla(0, 87%, 73%, 1) 100%)',
-  'Ideas': 'linear-gradient(90deg, hsla(186, 33%, 94%, 1) 0%, hsla(216, 41%, 79%, 1) 100%)',
-  'Goals': 'linear-gradient(to right, #ee9ca7, #ffdde1)',
-  'Default': 'linear-gradient(90deg, #8E9196 0%, #7E69AB 100%)'
+  'Day to Day': 'linear-gradient(90deg, rgba(221, 229, 243, 1) 0%, rgba(196, 209, 236, 1) 100%)',
+  'Personal': 'linear-gradient(90deg, rgba(246, 234, 252, 1) 0%, rgba(238, 210, 246, 1) 100%)',
+  'Work': 'linear-gradient(90deg, rgba(254, 244, 211, 1) 0%, rgba(253, 230, 189, 1) 100%)',
+  'Shopping': 'linear-gradient(90deg, rgba(254, 236, 226, 1) 0%, rgba(254, 216, 216, 1) 100%)',
+  'Health': 'linear-gradient(90deg, rgba(244, 248, 234, 1) 0%, rgba(226, 246, 244, 1) 100%)',
+  'Learning': 'linear-gradient(90deg, rgba(233, 247, 235, 1) 0%, rgba(243, 250, 219, 1) 100%)',
+  'Projects': 'linear-gradient(90deg, rgba(252, 235, 239, 1) 0%, rgba(251, 248, 230, 1) 100%)',
+  'Home': 'linear-gradient(90deg, rgba(254, 238, 227, 1) 0%, rgba(253, 230, 230, 1) 100%)',
+  'Ideas': 'linear-gradient(90deg, rgba(235, 247, 252, 1) 0%, rgba(224, 235, 248, 1) 100%)',
+  'Goals': 'linear-gradient(to right, rgba(249, 227, 231, 1), rgba(254, 245, 248, 1))',
+  'Default': 'linear-gradient(90deg, rgba(240, 240, 245, 1) 0%, rgba(230, 225, 240, 1) 100%)'
 } as const;
 
-export const DEFAULT_LIST_COLOR = 'linear-gradient(90deg, #8E9196 0%, #7E69AB 100%)';
+export const DEFAULT_LIST_COLOR = 'linear-gradient(90deg, rgba(240, 240, 245, 1) 0%, rgba(230, 225, 240, 1) 100%)';

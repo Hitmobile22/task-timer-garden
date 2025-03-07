@@ -9,7 +9,7 @@ import { useTimerVisibility } from '@/hooks/useTimerVisibility';
 import { Maximize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
-import { GradientBackground } from './pomodoro/GradientBackground';
+import { LavaLampBackground } from './pomodoro/LavaLampBackground';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -172,27 +172,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         return taskDate >= today && taskDate < tomorrow;
       });
     }
-  };
-
-  const getTaskListColor = () => {
-    if (!currentTask || !activeTasks) return null;
-    
-    const { data: taskLists } = useQuery({
-      queryKey: ['task-lists'],
-      queryFn: async () => {
-        const { data, error } = await supabase
-          .from('TaskLists')
-          .select('*');
-        
-        if (error) throw error;
-        return data || [];
-      },
-    });
-    
-    if (!taskLists) return null;
-    
-    const taskList = taskLists.find(list => list.id === currentTask.task_list_id);
-    return taskList?.color || null;
   };
 
   useEffect(() => {
@@ -405,14 +384,26 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   if (!isVisible) return null;
 
   const currentSubtask = subtasks && subtasks.length > 0 ? subtasks[currentSubtaskIndex] : null;
-  const activeTaskListColor = getTaskListColor();
+
+  const getSubtaskColor = () => {
+    const colors = [
+      "text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500",
+      "text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-teal-500",
+      "text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-yellow-500",
+      "text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-emerald-500",
+      "text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-600 to-pink-600"
+    ];
+    
+    const index = currentSubtask ? currentSubtask.id % colors.length : 0;
+    return colors[index];
+  };
 
   return (
     <div 
       ref={timerRef}
       className={`glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-5xl mx-auto ${isFullscreen ? 'fixed inset-0 flex flex-col justify-center items-center z-50 max-w-none' : ''}`}
     >
-      {isFullscreen && <GradientBackground taskListColor={activeTaskListColor || undefined} />}
+      {isFullscreen && <LavaLampBackground />}
       
       <div className="space-y-2 w-full">
         <h2 className="text-2xl font-semibold text-primary">
@@ -476,8 +467,4 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       />
     </div>
   );
-};
-
-const getSubtaskColor = () => {
-  return "text-secondary-foreground bg-secondary/80 px-2 py-1 rounded-md text-sm";
 };

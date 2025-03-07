@@ -79,7 +79,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <React.Fragment>
-      <TableRow className={task.Progress === 'In progress' ? "bg-blue-50" : ""}>
+      <TableRow>
         <TaskNameCell
           task={task}
           subtasks={subtasks}

@@ -366,24 +366,26 @@ export const TaskList: React.FC<TaskListProps> = ({
       
       const currentTask = todayTasks.find(t => t.Progress === 'In progress');
       const movedTask = todayTasks.find(t => t.id === movedTaskId);
+      const oldIndex = todayTasks.findIndex(t => t.id === movedTaskId);
+      const newIndex = todayTasks.findIndex(t => t.id === movedTaskId);
+      const isMovingToFirst = newIndex === 0;
+      const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
       
       console.log('Task update operation:', {
         currentTaskId: currentTask?.id,
         movedTaskId,
-        isMovingToFirst: todayTasks.findIndex(t => t.id === movedTaskId) === 0,
-        isMovingCurrentTask: currentTask && movedTaskId === currentTask.id
+        oldIndex,
+        newIndex,
+        isMovingToFirst,
+        isMovingCurrentTask
       });
       
-      const isMovingToFirst = todayTasks.findIndex(t => t.id === movedTaskId) === 0;
-      const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
-      
-      const shouldUpdateCurrentTask = isMovingToFirst || isMovingCurrentTask;
+      const shouldUpdateCurrentTask = isMovingCurrentTask || isMovingToFirst;
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
       
       if (!shouldUpdateCurrentTask && currentTask) {
-        const currentTaskEndTime = new Date(currentTask.date_due);
-        nextStartTime = new Date(currentTaskEndTime.getTime() + 5 * 60 * 1000);
+        nextStartTime = new Date(new Date(currentTask.date_started).getTime() + 30 * 60 * 1000);
       }
       
       const updates = [];
@@ -395,18 +397,16 @@ export const TaskList: React.FC<TaskListProps> = ({
         const isFirst = todayTasks.indexOf(task) === 0;
         let taskStartTime: Date;
         let taskEndTime: Date;
-        let progressUpdate: Task['Progress'] | null = null;
         
         if (isCurrentTask && !shouldUpdateCurrentTask) {
           taskStartTime = new Date(currentTask.date_started);
           taskEndTime = new Date(currentTask.date_due);
+          console.log('Preserving current task time:', taskStartTime);
         } else {
-          if (isFirst) {
+          if (isFirst && shouldUpdateCurrentTask) {
             taskStartTime = currentTime;
-            progressUpdate = 'In progress';
           } else {
             taskStartTime = new Date(nextStartTime);
-            progressUpdate = 'Not started';
           }
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
           nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
@@ -418,8 +418,10 @@ export const TaskList: React.FC<TaskListProps> = ({
           date_due: taskEndTime.toISOString()
         };
         
-        if (progressUpdate) {
-          updateData.Progress = progressUpdate;
+        if (isCurrentTask && !isFirst && shouldUpdateCurrentTask) {
+          updateData.Progress = 'Not started';
+        } else if (isFirst && shouldUpdateCurrentTask && !isCurrentTask) {
+          updateData.Progress = 'In progress';
         }
         
         console.log('Updating task:', {
@@ -471,8 +473,8 @@ export const TaskList: React.FC<TaskListProps> = ({
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
     
+    const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
     const isMovingToFirst = newIndex === 0;
-    const currentTask = todayTasks.find(t => t.Progress === 'In progress');
     const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
     
     await updateTaskOrder.mutate({

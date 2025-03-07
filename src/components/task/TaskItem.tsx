@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
@@ -78,16 +77,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     onEditSave(task.id);
   };
 
-  // Get task list color based on task's list
   const bgColor = task.Progress === 'In progress' 
     ? "bg-blue-50" 
-    : (task.task_list_id && task.task_list_id > 1) 
-      ? "" // We'll apply the gradient via inline style
-      : "";
+    : "";
 
-  // Only apply task list color if it has a list and isn't in progress
-  const rowStyle = task.Progress !== 'In progress' && task.task_list_id && task.task_list_id > 1
-    ? { backgroundImage: getTaskListColor(task.task_list_id, taskLists), opacity: 0.15 }
+  const rowStyle = task.Progress !== 'In progress' && task.task_list_id && task.task_list_id > 0
+    ? { backgroundImage: getTaskListColor(task.task_list_id, taskLists), opacity: 1 }
     : {};
 
   return (

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
@@ -77,17 +78,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     onEditSave(task.id);
   };
 
-  const bgColor = task.Progress === 'In progress' 
-    ? "bg-blue-50" 
-    : "";
-
-  const rowStyle = task.Progress !== 'In progress' && task.task_list_id && task.task_list_id > 0
-    ? { backgroundImage: getTaskListColor(task.task_list_id, taskLists), opacity: 1 }
-    : {};
+  // Determine background style based on task status and list
+  let backgroundStyle = task.Progress === 'In progress' ? "bg-blue-50" : "";
 
   return (
     <React.Fragment>
-      <TableRow className={bgColor} style={rowStyle}>
+      <TableRow className={backgroundStyle}>
         <TaskNameCell
           task={task}
           subtasks={subtasks}

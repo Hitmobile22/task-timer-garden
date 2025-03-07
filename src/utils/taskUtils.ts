@@ -1,3 +1,4 @@
+
 import { format } from 'date-fns';
 import { TASK_LIST_COLORS } from '@/constants/taskColors';
 
@@ -12,27 +13,12 @@ export const generateRandomColor = () => {
   const lightness1 = 45 + Math.random() * 15;
   const lightness2 = 45 + Math.random() * 15;
   
-  return `linear-gradient(135deg, hsla(${hue1}, ${saturation1}%, ${lightness1}%, 0.8) 0%, hsla(${hue2}, ${saturation2}%, ${lightness2}%, 0.8) 100%)`;
+  return `linear-gradient(135deg, hsla(${hue1}, ${saturation1}%, ${lightness1}%, 1) 0%, hsla(${hue2}, ${saturation2}%, ${lightness2}%, 1) 100%)`;
 };
 
 export const getTaskListColor = (listId: number, taskLists: any[]) => {
-  if (!listId) return TASK_LIST_COLORS['Default'];
-  
-  // Find the task list with the matching ID
   const list = taskLists?.find(l => l.id === listId);
-  
-  // If we have a list and it has a name that matches one of our predefined colors
-  if (list && list.name && TASK_LIST_COLORS[list.name as keyof typeof TASK_LIST_COLORS]) {
-    return TASK_LIST_COLORS[list.name as keyof typeof TASK_LIST_COLORS];
-  }
-  
-  // If the list has a custom color, use that
-  if (list && list.color) {
-    return list.color;
-  }
-  
-  // Otherwise, return the default color
-  return TASK_LIST_COLORS['Default'];
+  return list?.color || TASK_LIST_COLORS['Default'] || generateRandomColor();
 };
 
 export const formatDate = (date: string) => {

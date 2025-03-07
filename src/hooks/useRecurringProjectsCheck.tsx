@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from '@tanstack/react-query';
 
@@ -17,6 +17,7 @@ type RecurringProject = {
 
 export const useRecurringProjectsCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const isCheckingRef = useRef(false);
   
   const { data: projects } = useQuery({
     queryKey: ['recurring-projects'],
@@ -36,6 +37,12 @@ export const useRecurringProjectsCheck = () => {
 
   useEffect(() => {
     const checkRecurringProjects = async () => {
+      // Prevent concurrent checks
+      if (isCheckingRef.current) {
+        console.log('Already checking recurring projects, skipping...');
+        return;
+      }
+
       // Early morning check (before 7am don't generate tasks)
       const currentHour = new Date().getHours();
       if (currentHour < 7) {
@@ -45,6 +52,9 @@ export const useRecurringProjectsCheck = () => {
       
       if (projects && projects.length > 0) {
         try {
+          isCheckingRef.current = true;
+          console.log('Checking recurring projects...');
+          
           // For each recurring project, check if tasks need to be created
           for (const project of projects) {
             await ensureProjectHasTasks(project);
@@ -52,15 +62,18 @@ export const useRecurringProjectsCheck = () => {
           
           // Update last checked time
           setLastChecked(new Date());
+          console.log('Recurring projects check completed at', new Date().toISOString());
         } catch (error) {
           console.error('Error checking recurring projects:', error);
+        } finally {
+          isCheckingRef.current = false;
         }
       }
     };
 
     // Check on mount if there are any enabled recurring projects
     // Only check once when component mounts or projects change
-    if (!lastChecked) {
+    if (!lastChecked && projects && projects.length > 0) {
       checkRecurringProjects();
     }
 

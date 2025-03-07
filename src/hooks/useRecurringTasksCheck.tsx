@@ -1,10 +1,11 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from '@tanstack/react-query';
 
 export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const isCheckingRef = useRef(false);
 
   const { data: settings } = useQuery({
     queryKey: ['recurring-task-settings'],
@@ -21,6 +22,12 @@ export const useRecurringTasksCheck = () => {
 
   useEffect(() => {
     const checkRecurringTasks = async () => {
+      // Prevent concurrent checks
+      if (isCheckingRef.current) {
+        console.log('Already checking recurring tasks, skipping...');
+        return;
+      }
+
       // Early morning check (before 7am don't generate tasks)
       const currentHour = new Date().getHours();
       if (currentHour < 7) {
@@ -30,20 +37,25 @@ export const useRecurringTasksCheck = () => {
 
       if (settings && settings.length > 0) {
         try {
+          isCheckingRef.current = true;
+          console.log('Checking recurring tasks...');
           const { error } = await supabase.functions.invoke('check-recurring-tasks');
           if (error) throw error;
           
           // Update last checked time
           setLastChecked(new Date());
+          console.log('Recurring tasks check completed at', new Date().toISOString());
         } catch (error) {
           console.error('Error checking recurring tasks:', error);
+        } finally {
+          isCheckingRef.current = false;
         }
       }
     };
 
     // Check on mount if there are any enabled recurring task settings
     // Only check once when component mounts or settings change
-    if (!lastChecked) {
+    if (!lastChecked && settings && settings.length > 0) {
       checkRecurringTasks();
     }
 

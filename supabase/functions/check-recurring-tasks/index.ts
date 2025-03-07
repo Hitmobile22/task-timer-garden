@@ -91,74 +91,85 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Count existing active tasks for today
-      const { data: existingTasks, error: countError } = await supabaseClient
-        .from('Tasks')
-        .select('id')
-        .eq('task_list_id', setting.task_list_id)
-        .in('Progress', ['Not started', 'In progress'])
-        .gte('date_started', startOfDay.toISOString());
+      // Prevent duplicate task creation by using a transaction
+      try {
+        // First update the last_tasks_added_at timestamp to prevent race conditions
+        const { error: updateError } = await supabaseClient
+          .from('TaskLists')
+          .update({ 
+            last_tasks_added_at: new Date().toISOString() 
+          })
+          .eq('id', setting.task_list_id);
 
-      if (countError) throw countError;
+        if (updateError) throw updateError;
 
-      const existingCount = existingTasks?.length || 0;
-      const neededTasks = Math.max(0, setting.daily_task_count - existingCount);
+        // Count existing active tasks for today
+        const { data: existingTasks, error: countError } = await supabaseClient
+          .from('Tasks')
+          .select('id')
+          .eq('task_list_id', setting.task_list_id)
+          .in('Progress', ['Not started', 'In progress'])
+          .gte('date_started', startOfDay.toISOString());
 
-      console.log(`List ${taskList.id} (${taskList.name}): Has ${existingCount} tasks, needs ${neededTasks} more`);
+        if (countError) throw countError;
 
-      if (neededTasks > 0) {
-        // Create tasks starting at current time with 30 min intervals
-        const startingTime = new Date();
-        // If it's early morning, start at 9am
-        if (startingTime.getHours() < 9) {
-          startingTime.setHours(9, 0, 0, 0);
-        }
+        const existingCount = existingTasks?.length || 0;
+        const neededTasks = Math.max(0, setting.daily_task_count - existingCount);
 
-        const newTasks = Array.from({ length: neededTasks }, (_, i) => {
-          const taskStartTime = new Date(startingTime);
-          taskStartTime.setMinutes(startingTime.getMinutes() + (i * 30));
-          
-          const taskEndTime = new Date(taskStartTime);
-          taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
+        console.log(`List ${taskList.id} (${taskList.name}): Has ${existingCount} tasks, needs ${neededTasks} more`);
 
-          return {
-            "Task Name": `${taskList.name} ${existingCount + i + 1}`,
-            Progress: "Not started",
-            task_list_id: setting.task_list_id,
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString(),
-            order: existingCount + i,
-            archived: false,
-          };
-        });
-
-        console.log(`Creating ${newTasks.length} new tasks for list ${taskList.id} (${taskList.name})`);
-
-        if (newTasks.length > 0) {
-          const { error: insertError } = await supabaseClient
-            .from('Tasks')
-            .insert(newTasks);
-
-          if (insertError) {
-            console.error('Error inserting tasks:', insertError);
-            throw insertError;
+        if (neededTasks > 0) {
+          // Create tasks starting at current time with 30 min intervals
+          const startingTime = new Date();
+          // If it's early morning, start at 9am
+          if (startingTime.getHours() < 9) {
+            startingTime.setHours(9, 0, 0, 0);
           }
 
-          // Update last_tasks_added_at
-          const { error: updateError } = await supabaseClient
-            .from('TaskLists')
-            .update({ last_tasks_added_at: new Date().toISOString() })
-            .eq('id', setting.task_list_id);
+          const newTasks = Array.from({ length: neededTasks }, (_, i) => {
+            const taskStartTime = new Date(startingTime);
+            taskStartTime.setMinutes(startingTime.getMinutes() + (i * 30));
+            
+            const taskEndTime = new Date(taskStartTime);
+            taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
 
-          if (updateError) {
-            console.error('Error updating TaskList last_tasks_added_at:', updateError);
-            throw updateError;
+            return {
+              "Task Name": `${taskList.name} ${existingCount + i + 1}`,
+              Progress: "Not started",
+              task_list_id: setting.task_list_id,
+              date_started: taskStartTime.toISOString(),
+              date_due: taskEndTime.toISOString(),
+              order: existingCount + i,
+              archived: false,
+            };
+          });
+
+          console.log(`Creating ${newTasks.length} new tasks for list ${taskList.id} (${taskList.name})`);
+
+          if (newTasks.length > 0) {
+            const { error: insertError } = await supabaseClient
+              .from('Tasks')
+              .insert(newTasks);
+
+            if (insertError) {
+              console.error('Error inserting tasks:', insertError);
+              throw insertError;
+            }
+            
+            console.log(`Successfully created tasks for list ${taskList.id}`);
           }
-          
-          console.log(`Successfully created tasks and updated last_tasks_added_at for list ${taskList.id}`);
+        } else {
+          console.log(`No new tasks needed for list ${taskList.id} (${taskList.name})`);
         }
-      } else {
-        console.log(`No new tasks needed for list ${taskList.id} (${taskList.name})`);
+      } catch (error) {
+        console.error(`Error processing task list ${taskList.id}:`, error);
+        // If there was an error in the transaction, revert the last_tasks_added_at timestamp
+        await supabaseClient
+          .from('TaskLists')
+          .update({ 
+            last_tasks_added_at: lastAddedDate ? lastAddedDate.toISOString() : null 
+          })
+          .eq('id', setting.task_list_id);
       }
     }
 

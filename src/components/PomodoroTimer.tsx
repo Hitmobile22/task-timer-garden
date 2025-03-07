@@ -9,7 +9,7 @@ import { useTimerVisibility } from '@/hooks/useTimerVisibility';
 import { Maximize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
-import { LavaLampBackground } from './pomodoro/LavaLampBackground';
+import { GradientBackground } from './pomodoro/GradientBackground';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -412,7 +412,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       ref={timerRef}
       className={`glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-5xl mx-auto ${isFullscreen ? 'fixed inset-0 flex flex-col justify-center items-center z-50 max-w-none' : ''}`}
     >
-      {isFullscreen && <LavaLampBackground taskListColor={activeTaskListColor || undefined} />}
+      {isFullscreen && <GradientBackground taskListColor={activeTaskListColor || undefined} />}
       
       <div className="space-y-2 w-full">
         <h2 className="text-2xl font-semibold text-primary">
@@ -476,4 +476,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       />
     </div>
   );
+};
+
+const getSubtaskColor = () => {
+  return "text-secondary-foreground bg-secondary/80 px-2 py-1 rounded-md text-sm";
 };

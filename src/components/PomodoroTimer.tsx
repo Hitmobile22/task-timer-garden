@@ -32,7 +32,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const timerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const subtaskTextRef = useRef<HTMLDivElement>(null);
-
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
     queryFn: async () => {
@@ -45,6 +44,17 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       if (error) throw error;
       return data || [];
     },
+  });
+  const { data: taskLists } = useQuery({
+    queryKey: ['task-lists'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('TaskLists')
+        .select('*');
+      
+      if (error) throw error;
+      return data || [];
+    }
   });
 
   const currentTask = activeTaskId
@@ -403,7 +413,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       ref={timerRef}
       className={`glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-5xl mx-auto ${isFullscreen ? 'fixed inset-0 flex flex-col justify-center items-center z-50 max-w-none' : ''}`}
     >
-      {isFullscreen && <LavaLampBackground activeTaskId={activeTaskId} />}
+      {isFullscreen && <LavaLampBackground activeTaskId={activeTaskId} taskLists={taskLists} activeTasks={activeTasks} />}
 
       <div className="space-y-2 w-full">
         <h2 className="text-2xl font-semibold text-primary">

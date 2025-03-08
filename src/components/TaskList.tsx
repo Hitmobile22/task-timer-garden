@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +14,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
-import { getTaskListColor } from '@/utils/taskUtils';
+import { getTaskListColor, extractSolidColorFromGradient } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 
 interface SubtaskData {
@@ -137,32 +136,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
   
-  // Get task list color for styling
   const taskListColor = task.task_list_id && taskLists ? 
     getTaskListColor(task.task_list_id, taskLists) : 
     DEFAULT_LIST_COLOR;
   
-  // Create gradient style with transparency for task background
-  const getTaskBackground = () => {
-    if (isCurrentTask) return "bg-white";
-    
-    if (taskListColor && taskListColor.includes('linear-gradient')) {
-      return `bg-white/50 hover:bg-white/80`;
-    }
-    
-    // Extract color from gradient if it's a gradient
-    let bgColor = taskListColor;
-    if (taskListColor.includes('linear-gradient')) {
-      const colorMatch = taskListColor.match(/#[a-fA-F0-9]{6}/g);
-      if (colorMatch && colorMatch.length > 0) {
-        bgColor = colorMatch[0];
-      }
-    }
-    
-    // Add very light transparency to the color
-    return `bg-white/50 hover:bg-white/80 border-l-4 border-l-[${bgColor}]`;
-  };
-
+  const borderColor = extractSolidColorFromGradient(taskListColor);
+  
   const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[]) => {
     try {
       if (newTaskName !== task["Task Name"]) {
@@ -204,16 +183,16 @@ const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   return <li className="space-y-2">
-      <div className={cn(
-        "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", 
-        isCurrentTask ? "bg-white" : getTaskBackground(),
-        task.task_list_id !== 1 && !isCurrentTask ? `border-l-4 border-l-solid` : ""
-      )}
-      style={task.task_list_id !== 1 && !isCurrentTask ? {
-        borderLeftColor: taskListColor.includes('#') ? 
-          taskListColor.match(/#[a-fA-F0-9]{6}/g)?.[0] : 
-          'transparent'
-      } : undefined}>
+      <div 
+        className={cn(
+          "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", 
+          isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80",
+          task.task_list_id !== 1 && !isCurrentTask ? "border-l-4" : ""
+        )}
+        style={task.task_list_id !== 1 && !isCurrentTask ? {
+          borderLeftColor: borderColor
+        } : undefined}
+      >
         <div className="flex gap-2 flex-shrink-0">
           <Button size="icon" variant="ghost" className="touch-none cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" {...dragHandleProps}>
             <GripVertical className="h-4 w-4" />

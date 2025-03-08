@@ -66,6 +66,8 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({
   
   // Get the gradient colors for the active task's list
   const gradientColors = React.useMemo(() => {
+    console.log("LavaLampBackground rendering with:", { activeTaskId, taskLists: !!taskLists, activeTasks: !!activeTasks });
+    
     if (!activeTaskId || !taskLists || !activeTasks) {
       console.log("Missing data for background", { activeTaskId, taskLists: !!taskLists, activeTasks: !!activeTasks });
       return ['#acfffc', '#fbf0c1']; // Default fallback

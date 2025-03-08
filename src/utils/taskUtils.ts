@@ -8,8 +8,31 @@ export const generateRandomColor = () => {
 };
 
 export const getTaskListColor = (listId: number, taskLists: any[]) => {
-  const list = taskLists?.find(l => l.id === listId);
+  if (!listId || !taskLists || taskLists.length === 0) {
+    return TASK_LIST_COLORS['Default'];
+  }
+  
+  const list = taskLists.find(l => l.id === listId);
   return list?.color || TASK_LIST_COLORS['Default'];
+};
+
+// Helper to extract a solid color from a gradient string
+export const extractSolidColorFromGradient = (gradient: string): string => {
+  if (!gradient) return '#8E9196'; // Fallback color
+  
+  // Try to extract hex color
+  const hexMatch = gradient.match(/#[a-fA-F0-9]{6}/g);
+  if (hexMatch && hexMatch.length > 0) {
+    return hexMatch[0];
+  }
+  
+  // Try to extract rgb/rgba
+  const rgbMatch = gradient.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*\d*\.?\d+\s*)?\)/g);
+  if (rgbMatch && rgbMatch.length > 0) {
+    return rgbMatch[0];
+  }
+  
+  return '#8E9196'; // Fallback color
 };
 
 export const formatDate = (date: string) => {

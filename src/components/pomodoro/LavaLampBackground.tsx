@@ -1,5 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
+import { getTaskListColor } from '@/utils/taskUtils';
+import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 
 interface Blob {
   x: number;
@@ -11,23 +13,23 @@ interface Blob {
   color: string;
 }
 
-const getTaskListGradient = (activeTaskId, taskLists, activeTasks) => {
-  if (!taskLists || !activeTasks) return ['#acfffc', '#fbf0c1']; // Default green fallback
-  const activeTask = activeTasks.find(t => t.id === activeTaskId);
-  if (!activeTask || activeTask.task_list_id === 1) return ['#007F5F', '#2B9348'];
-  const taskList = taskLists.find(l => l.id === activeTask.task_list_id);
-  if (!taskList || !taskList.color) return ['#007F5F', '#2B9348'];
+interface LavaLampBackgroundProps {
+  activeTaskId: number | undefined;
+  taskLists: any[] | undefined;
+  activeTasks: any[] | undefined;
+}
 
-  if (/^#[a-fA-F0-9]{6}$/.test(taskList.color)) {
-    // If it's a single color, create a gradient variation
-    return [taskList.color, lightenColor(taskList.color, 50)];
+const lightenColor = (hex: string, percent: number) => {
+  // If it's a gradient string, extract the first color
+  if (hex.includes('linear-gradient')) {
+    const colorMatch = hex.match(/#[a-fA-F0-9]{6}/g);
+    if (colorMatch && colorMatch.length > 0) {
+      hex = colorMatch[0];
+    } else {
+      return `rgba(255, 255, 255, ${percent / 255})`;
+    }
   }
 
-  const colors = taskList.color.match(/#[a-fA-F0-9]{6}/g);
-  return colors && colors.length >= 2 ? colors : ['#007F5F', '#2B9348'];
-};
-
-const lightenColor = (hex, percent) => {
   let r = parseInt(hex.slice(1, 3), 16);
   let g = parseInt(hex.slice(3, 5), 16);
   let b = parseInt(hex.slice(5, 7), 16);
@@ -37,11 +39,49 @@ const lightenColor = (hex, percent) => {
   return `rgba(${r}, ${g}, ${b}, 0.4)`; // Lightened and slightly transparent
 };
 
-export const LavaLampBackground = ({ activeTaskId, taskLists, activeTasks }) => {
+const extractGradientColors = (gradient: string): string[] => {
+  const colors = gradient.match(/#[a-fA-F0-9]{6}/g);
+  if (colors && colors.length >= 2) {
+    return colors;
+  }
+  
+  // If gradient doesn't have hex colors, try extracting rgba format
+  const rgbaColors = gradient.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,?\s*\d*\.?\d*\s*\)/g);
+  if (rgbaColors && rgbaColors.length >= 2) {
+    return rgbaColors;
+  }
+  
+  // If no colors found, return default colors
+  return ['#007F5F', '#2B9348'];
+};
+
+export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({ 
+  activeTaskId, 
+  taskLists, 
+  activeTasks 
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const blobs = useRef<Blob[]>([]);
   const animationRef = useRef<number>();
-  const gradientColors = getTaskListGradient(activeTaskId, taskLists, activeTasks);
+  
+  // Get the gradient colors for the active task's list
+  const gradientColors = React.useMemo(() => {
+    if (!activeTaskId || !taskLists || !activeTasks) {
+      return ['#acfffc', '#fbf0c1']; // Default fallback
+    }
+    
+    const activeTask = activeTasks.find(t => t.id === activeTaskId);
+    if (!activeTask) {
+      return ['#acfffc', '#fbf0c1']; // Default fallback
+    }
+    
+    // Get the color from the task list
+    const taskListColor = getTaskListColor(activeTask.task_list_id, taskLists);
+    
+    // Extract colors from the gradient
+    const colors = extractGradientColors(taskListColor || DEFAULT_LIST_COLOR);
+    return colors;
+  }, [activeTaskId, taskLists, activeTasks]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,7 +109,7 @@ export const LavaLampBackground = ({ activeTaskId, taskLists, activeTasks }) => 
       cancelAnimationFrame(animationRef.current as number);
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [activeTaskId, taskLists, activeTasks]);
+  }, [gradientColors]);
 
   const generateBlobs = () => {
     return Array.from({ length: 8 }).map(() => ({

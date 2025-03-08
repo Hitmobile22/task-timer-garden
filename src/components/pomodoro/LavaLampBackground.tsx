@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 
 interface Blob {
@@ -65,7 +66,7 @@ export const LavaLampBackground = ({ activeTaskId, taskLists, activeTasks }) => 
     animate();
 
     return () => {
-      cancelAnimationFrame(animationRef.current);
+      cancelAnimationFrame(animationRef.current as number);
       window.removeEventListener('resize', resizeCanvas);
     };
   }, [activeTaskId, taskLists, activeTasks]);
@@ -82,7 +83,7 @@ export const LavaLampBackground = ({ activeTaskId, taskLists, activeTasks }) => 
     }));
   };
 
-  const drawBackground = (ctx) => {
+  const drawBackground = (ctx: CanvasRenderingContext2D) => {
     const gradient = ctx.createLinearGradient(0, 0, ctx.canvas.width, ctx.canvas.height);
     gradient.addColorStop(0, gradientColors[0]);
     gradient.addColorStop(1, gradientColors[1]);
@@ -90,7 +91,7 @@ export const LavaLampBackground = ({ activeTaskId, taskLists, activeTasks }) => 
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   };
 
-  const drawBlobs = (ctx) => {
+  const drawBlobs = (ctx: CanvasRenderingContext2D) => {
     ctx.globalCompositeOperation = "lighter";
     ctx.filter = 'blur(20px)';
     blobs.current.forEach(blob => {
@@ -102,7 +103,7 @@ export const LavaLampBackground = ({ activeTaskId, taskLists, activeTasks }) => 
       blob.x += blob.speedX;
       blob.y += blob.speedY;
       if (blob.x - blob.size < 0 || blob.x + blob.size > ctx.canvas.width) blob.speedX *= -1;
-      if (blob.y - blob.size < 0 || blob.y + ctx.canvas.height) blob.speedY *= -1;
+      if (blob.y - blob.size < 0 || blob.y + blob.size > ctx.canvas.height) blob.speedY *= -1;
     });
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";

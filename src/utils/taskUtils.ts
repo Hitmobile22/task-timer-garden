@@ -30,15 +30,18 @@ export const extractSolidColorFromGradient = (gradient: string): string => {
   const hslaMatch = gradient.match(/hsla\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)\s*\)/);
   if (hslaMatch) {
     const h = parseFloat(hslaMatch[1]);
-    const s = parseFloat(hslaMatch[2]);
-    const l = parseFloat(hslaMatch[3]);
+    // Use new variables instead of modifying the const variables
+    const sPercent = parseFloat(hslaMatch[2]);
+    const lPercent = parseFloat(hslaMatch[3]);
+    
+    // Convert percentages to decimal values
+    const sDecimal = sPercent / 100;
+    const lDecimal = lPercent / 100;
     
     // Convert HSLA to RGB
-    s /= 100;
-    l /= 100;
     const k = (n: number) => (n + h / 30) % 12;
-    const a = s * Math.min(l, 1 - l);
-    const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    const a = sDecimal * Math.min(lDecimal, 1 - lDecimal);
+    const f = (n: number) => lDecimal - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
     const rgb = [255 * f(0), 255 * f(8), 255 * f(4)];
     
     // Convert to hex

@@ -6,6 +6,9 @@ import { TaskNameCell } from './cells/TaskNameCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
 import { TaskTimelineCell } from './cells/TaskTimelineCell';
 import { TaskActionsCell } from './cells/TaskActionsCell';
+import { getTaskListColor, extractSolidColorFromGradient } from '@/utils/taskUtils';
+import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
+import { cn } from '@/lib/utils';
 
 interface TaskItemProps {
   task: Task;
@@ -50,6 +53,17 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   );
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
 
+  const taskListColor = React.useMemo(() => {
+    if (task.task_list_id && taskLists && taskLists.length > 0) {
+      return getTaskListColor(task.task_list_id, taskLists);
+    }
+    return DEFAULT_LIST_COLOR;
+  }, [task.task_list_id, taskLists]);
+
+  const borderColor = React.useMemo(() => {
+    return extractSolidColorFromGradient(taskListColor);
+  }, [taskListColor]);
+
   React.useEffect(() => {
     setSelectedStartDate(task.date_started ? new Date(task.date_started) : undefined);
     setSelectedEndDate(task.date_due ? new Date(task.date_due) : undefined);
@@ -79,7 +93,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <React.Fragment>
-      <TableRow>
+      <TableRow className={cn(
+        task.task_list_id !== 1 ? "border-l-4" : "",
+      )}
+      style={task.task_list_id !== 1 ? {
+        borderLeftColor: borderColor
+      } : undefined}>
         <TaskNameCell
           task={task}
           subtasks={subtasks}

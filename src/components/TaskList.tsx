@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -136,11 +137,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
   
+  // Get task list color and extract a solid color for the border
   const taskListColor = task.task_list_id && taskLists ? 
     getTaskListColor(task.task_list_id, taskLists) : 
     DEFAULT_LIST_COLOR;
   
   const borderColor = extractSolidColorFromGradient(taskListColor);
+  
+  // Log for debugging
+  console.log(`Task ${task.id} (${task["Task Name"]}): list_id=${task.task_list_id}, color=${taskListColor}, border=${borderColor}`);
   
   const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[]) => {
     try {
@@ -187,9 +192,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
         className={cn(
           "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", 
           isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80",
-          task.task_list_id !== 1 && !isCurrentTask ? "border-l-4" : ""
+          task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? "border-l-4" : ""
         )}
-        style={task.task_list_id !== 1 && !isCurrentTask ? {
+        style={task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? {
           borderLeftColor: borderColor
         } : undefined}
       >

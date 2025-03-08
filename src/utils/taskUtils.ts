@@ -26,6 +26,26 @@ export const extractSolidColorFromGradient = (gradient: string): string => {
     return hexMatch[0];
   }
   
+  // Try to extract hsla color and convert to hex
+  const hslaMatch = gradient.match(/hsla\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)\s*\)/);
+  if (hslaMatch) {
+    const h = parseFloat(hslaMatch[1]);
+    const s = parseFloat(hslaMatch[2]);
+    const l = parseFloat(hslaMatch[3]);
+    
+    // Convert HSLA to RGB
+    s /= 100;
+    l /= 100;
+    const k = (n: number) => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    const rgb = [255 * f(0), 255 * f(8), 255 * f(4)];
+    
+    // Convert to hex
+    const hex = `#${rgb.map(x => Math.round(x).toString(16).padStart(2, '0')).join('')}`;
+    return hex;
+  }
+  
   // Try to extract rgb/rgba
   const rgbMatch = gradient.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*\d*\.?\d+\s*)?\)/g);
   if (rgbMatch && rgbMatch.length > 0) {

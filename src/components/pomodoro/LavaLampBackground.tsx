@@ -40,18 +40,53 @@ const lightenColor = (hex: string, percent: number) => {
 };
 
 const extractGradientColors = (gradient: string): string[] => {
-  const colors = gradient.match(/#[a-fA-F0-9]{6}/g);
-  if (colors && colors.length >= 2) {
-    return colors;
+  console.log("Extracting colors from gradient:", gradient);
+  
+  // For hsla format in linear gradients (common in our task lists)
+  const hslaMatch = gradient.match(/hsla\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)\s*\)/g);
+  if (hslaMatch && hslaMatch.length >= 2) {
+    console.log("Found hsla colors:", hslaMatch);
+    // Convert HSLA to hex for better compatibility
+    const hslToRgb = (h: number, s: number, l: number) => {
+      s /= 100;
+      l /= 100;
+      const k = (n: number) => (n + h / 30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+      return [255 * f(0), 255 * f(8), 255 * f(4)];
+    };
+    
+    const hslaToHex = (hsla: string) => {
+      const matches = hsla.match(/hsla\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)\s*\)/);
+      if (matches) {
+        const h = parseFloat(matches[1]);
+        const s = parseFloat(matches[2]);
+        const l = parseFloat(matches[3]);
+        const rgb = hslToRgb(h, s, l);
+        return `#${rgb.map(x => Math.round(x).toString(16).padStart(2, '0')).join('')}`;
+      }
+      return '#007F5F'; // Default fallback
+    };
+    
+    return hslaMatch.map(hsla => hslaToHex(hsla));
   }
   
-  // If gradient doesn't have hex colors, try extracting rgba format
-  const rgbaColors = gradient.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,?\s*\d*\.?\d*\s*\)/g);
-  if (rgbaColors && rgbaColors.length >= 2) {
-    return rgbaColors;
+  // For hex colors
+  const hexMatch = gradient.match(/#[a-fA-F0-9]{6}/g);
+  if (hexMatch && hexMatch.length >= 2) {
+    console.log("Found hex colors:", hexMatch);
+    return hexMatch;
   }
   
-  // If no colors found, return default colors
+  // For rgb/rgba format
+  const rgbMatch = gradient.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*\d*\.?\d+\s*)?\)/g);
+  if (rgbMatch && rgbMatch.length >= 2) {
+    console.log("Found rgb colors:", rgbMatch);
+    return rgbMatch;
+  }
+  
+  console.log("No color patterns matched, using defaults");
+  // Default fallback colors
   return ['#007F5F', '#2B9348'];
 };
 

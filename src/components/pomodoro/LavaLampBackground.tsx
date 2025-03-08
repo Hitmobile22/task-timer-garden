@@ -67,19 +67,23 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({
   // Get the gradient colors for the active task's list
   const gradientColors = React.useMemo(() => {
     if (!activeTaskId || !taskLists || !activeTasks) {
+      console.log("Missing data for background", { activeTaskId, taskLists: !!taskLists, activeTasks: !!activeTasks });
       return ['#acfffc', '#fbf0c1']; // Default fallback
     }
     
     const activeTask = activeTasks.find(t => t.id === activeTaskId);
     if (!activeTask) {
+      console.log("No active task found with id:", activeTaskId);
       return ['#acfffc', '#fbf0c1']; // Default fallback
     }
     
     // Get the color from the task list
     const taskListColor = getTaskListColor(activeTask.task_list_id, taskLists);
+    console.log("Task list color:", taskListColor, "for list ID:", activeTask.task_list_id);
     
     // Extract colors from the gradient
     const colors = extractGradientColors(taskListColor || DEFAULT_LIST_COLOR);
+    console.log("Extracted colors:", colors);
     return colors;
   }, [activeTaskId, taskLists, activeTasks]);
 

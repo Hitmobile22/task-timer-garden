@@ -391,6 +391,27 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    if (isFullscreen) {
+      localStorage.setItem('pomodoroFullscreen', 'true');
+    } else if (localStorage.getItem('pomodoroFullscreen') === 'true' && !document.fullscreenElement) {
+      if (timerRef.current?.requestFullscreen) {
+        timerRef.current.requestFullscreen()
+          .then(() => setIsFullscreen(true))
+          .catch(err => {
+            console.error(`Error attempting to restore fullscreen: ${err.message}`);
+            localStorage.removeItem('pomodoroFullscreen');
+          });
+      }
+    }
+  }, [isFullscreen, currentTask, isBreak]);
+
+  useEffect(() => {
+    return () => {
+      localStorage.removeItem('pomodoroFullscreen');
+    };
+  }, []);
+
   if (!isVisible) return null;
 
   const currentSubtask = subtasks && subtasks.length > 0 ? subtasks[currentSubtaskIndex] : null;

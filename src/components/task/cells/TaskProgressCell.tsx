@@ -7,7 +7,7 @@ import { Task } from '@/types/task.types';
 interface TaskProgressCellProps {
   task: Task;
   isEditing: boolean;
-  onUpdateProgress: (progress: Task['Progress']) => void;  // Modified to only take progress
+  onUpdateProgress: (progress: Task['Progress']) => void;
 }
 
 export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({

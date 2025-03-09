@@ -89,7 +89,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         ascending: true
       });
       if (error) throw error;
-      return (data || []).filter(task => task.details?.isTimeBlock === true) as Task[];
+      return (data || []).filter(task => task.details && typeof task.details === 'object' && task.details.isTimeBlock === true) as Task[];
     }
   });
   
@@ -184,7 +184,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       // Filter to include only true time blocks
       const timeBlockItems = (allTimeBlocks || []).filter(task => 
-        task.details?.isTimeBlock === true
+        task.details && typeof task.details === 'object' && task.details.isTimeBlock === true
       );
       
       const { data: allTasks, error: tasksError } = await supabase
@@ -367,11 +367,13 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         .eq('Progress', 'Backlog')
         .order('date_started', { ascending: true });
         
-      const timeBlocks = (timeBlockData || []).filter(t => t.details?.isTimeBlock === true);
+      const timeBlocks = (timeBlockData || []).filter(t => 
+        t.details && typeof t.details === 'object' && t.details.isTimeBlock === true
+      );
       
       const tasksToShuffle = currentTask 
-        ? todayTasks.filter(t => t.id !== currentTask.id && !t.details?.isTimeBlock)
-        : todayTasks.filter(t => !t.details?.isTimeBlock).slice(1);
+        ? todayTasks.filter(t => t.id !== currentTask.id && !(t.details && typeof t.details === 'object' && t.details.isTimeBlock === true))
+        : todayTasks.filter(t => !(t.details && typeof t.details === 'object' && t.details.isTimeBlock === true)).slice(1);
       
       for (let i = tasksToShuffle.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -380,7 +382,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       const shuffledTasks = currentTask 
         ? [currentTask, ...tasksToShuffle]
-        : [...todayTasks.filter(t => !t.details?.isTimeBlock).slice(0, 1), ...tasksToShuffle];
+        : [...todayTasks.filter(t => !(t.details && typeof t.details === 'object' && t.details.isTimeBlock === true)).slice(0, 1), ...tasksToShuffle];
       
       // This part will be handled by rescheduleTasksAroundTimeBlocks()
       await rescheduleTasksAroundTimeBlocks();
@@ -464,7 +466,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
               </div>
               <div className="task-list">
                 <TaskList 
-                  tasks={(activeTasks || []).concat(timeBlocks || [])} 
+                  tasks={[...(activeTasks || []), ...(timeBlocks || [])]}
                   onTaskStart={handleTaskStart} 
                   subtasks={[]} 
                   taskLists={taskLists} 

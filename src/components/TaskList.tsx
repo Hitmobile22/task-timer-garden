@@ -1,11 +1,12 @@
 
 import React, { useState } from 'react';
 import { Task, Subtask } from '@/types/task.types';
-import { CheckCircle, Circle } from 'lucide-react';
+import { CheckCircle, Circle, ChevronDown, ChevronRight, Edit, Trash2 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from 'date-fns';
 import { getTaskListColor, extractSolidColorFromGradient } from '@/utils/taskUtils';
+import { Button } from "@/components/ui/button";
 
 interface TaskListProps {
   tasks: Task[];
@@ -22,6 +23,8 @@ export const TaskList: React.FC<TaskListProps> = ({
   taskLists,
   activeTaskId 
 }) => {
+  const [expandedTasks, setExpandedTasks] = useState<number[]>([]);
+  
   // Filter tasks to show only today's tasks
   const todayTasks = React.useMemo(() => {
     const now = new Date();
@@ -59,10 +62,18 @@ export const TaskList: React.FC<TaskListProps> = ({
     }
   };
   
+  const toggleExpand = (taskId: number) => {
+    setExpandedTasks(prev => 
+      prev.includes(taskId) 
+        ? prev.filter(id => id !== taskId) 
+        : [...prev, taskId]
+    );
+  };
+  
   const getTaskClass = (task: Task) => {
     let classes = "flex items-center justify-between p-3 rounded-lg mb-2 hover:bg-gray-100 transition-colors";
     
-    if (task.details?.isTimeBlock) {
+    if (task.details && typeof task.details === 'object' && task.details.isTimeBlock === true) {
       classes += " bg-gray-200 hover:bg-gray-300";
     } else if (task.Progress === 'In progress') {
       classes += " bg-blue-50";
@@ -89,6 +100,10 @@ export const TaskList: React.FC<TaskListProps> = ({
     return {};
   };
   
+  const getSubtasks = (taskId: number) => {
+    return subtasks.filter(subtask => subtask["Parent Task ID"] === taskId);
+  };
+  
   if (todayTasks.length === 0) {
     return (
       <div className="text-center p-8 text-gray-500">
@@ -101,44 +116,81 @@ export const TaskList: React.FC<TaskListProps> = ({
     <div className="grid gap-4 px-[20px] py-[16px]">
       <h2 className="text-xl font-semibold">Today's Tasks</h2>
       <div className="space-y-1">
-        {todayTasks.map((task) => (
-          <div
-            key={task.id}
-            className={getTaskClass(task)}
-            style={getTaskStyle(task)}
-          >
-            <div className="flex items-center">
-              {task.details?.isTimeBlock ? (
-                <div className="w-6 h-6 mr-3 flex-shrink-0">
-                  <Badge variant="outline" className="bg-gray-300 border-0">TB</Badge>
-                </div>
-              ) : task.Progress === 'In progress' ? (
-                <CheckCircle className="w-6 h-6 mr-3 text-blue-500" />
-              ) : (
-                <Circle 
-                  className="w-6 h-6 mr-3 text-gray-400 cursor-pointer hover:text-gray-600" 
-                  onClick={() => onTaskStart(task.id)}
-                />
-              )}
-              <div>
-                <div className="font-medium">{task["Task Name"]}</div>
-                {task.date_started && (
-                  <div className="text-xs text-gray-500">
-                    {getFormattedTime(task.date_started)} - {task.date_due ? getFormattedTime(task.date_due) : 'Not set'}
-                  </div>
-                )}
-              </div>
-            </div>
-            {!task.details?.isTimeBlock && (
-              <button 
-                onClick={() => onTaskStart(task.id)} 
-                className="text-sm px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-full transition-colors"
+        {todayTasks.map((task) => {
+          const hasSubtasks = getSubtasks(task.id).length > 0;
+          const isTimeBlock = task.details && typeof task.details === 'object' && task.details.isTimeBlock === true;
+          
+          return (
+            <div key={`task-${task.id}`}>
+              <div
+                className={getTaskClass(task)}
+                style={getTaskStyle(task)}
               >
-                Start
-              </button>
-            )}
-          </div>
-        ))}
+                <div className="flex items-center">
+                  {hasSubtasks && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleExpand(task.id)}
+                      className="mr-1 p-0 h-6 w-6"
+                    >
+                      {expandedTasks.includes(task.id) ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
+                  
+                  {isTimeBlock ? (
+                    <div className="w-6 h-6 mr-3 flex-shrink-0">
+                      <Badge variant="outline" className="bg-gray-300 border-0">TB</Badge>
+                    </div>
+                  ) : task.Progress === 'In progress' ? (
+                    <CheckCircle className="w-6 h-6 mr-3 text-blue-500" />
+                  ) : (
+                    <Circle 
+                      className="w-6 h-6 mr-3 text-gray-400 cursor-pointer hover:text-gray-600" 
+                      onClick={() => onTaskStart(task.id)}
+                    />
+                  )}
+                  
+                  <div>
+                    <div className="font-medium">{task["Task Name"]}</div>
+                    {task.date_started && (
+                      <div className="text-xs text-gray-500">
+                        {getFormattedTime(task.date_started)} - {task.date_due ? getFormattedTime(task.date_due) : 'Not set'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {!isTimeBlock && (
+                    <button 
+                      onClick={() => onTaskStart(task.id)} 
+                      className="text-sm px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-full transition-colors"
+                    >
+                      Start
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Show subtasks if expanded */}
+              {expandedTasks.includes(task.id) && getSubtasks(task.id).length > 0 && (
+                <div className="ml-8 mt-1 mb-2 space-y-1">
+                  {getSubtasks(task.id).map(subtask => (
+                    <div key={`subtask-${subtask.id}`} className="flex items-center p-2 rounded-lg hover:bg-gray-50">
+                      <Circle className="w-4 h-4 mr-2 text-gray-400" />
+                      <span className="text-sm">{subtask["Task Name"]}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

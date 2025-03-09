@@ -22,7 +22,7 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
   }, [task.Progress, isEditing]);
 
   // Display time block differently
-  if (task.details?.isTimeBlock) {
+  if (task.details && typeof task.details === 'object' && task.details.isTimeBlock === true) {
     return (
       <TableCell>
         <span className="text-sm bg-gray-200 px-2 py-1 rounded-full">Time Block</span>

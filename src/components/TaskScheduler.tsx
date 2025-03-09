@@ -1,15 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
-import { Circle } from 'lucide-react';
 import { MoreVertical, Shuffle, Clock, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
-import { TASK_LIST_COLORS, DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -78,6 +75,20 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   });
   
   const {
+    data: subtasks
+  } = useQuery({
+    queryKey: ['subtasks'],
+    queryFn: async () => {
+      const {
+        data,
+        error
+      } = await supabase.from('Subtasks').select('*');
+      if (error) throw error;
+      return data as Subtask[];
+    }
+  });
+  
+  const {
     data: timeBlocks
   } = useQuery({
     queryKey: ['time-blocks'],
@@ -89,7 +100,9 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         ascending: true
       });
       if (error) throw error;
-      return (data || []).filter(task => task.details && typeof task.details === 'object' && task.details.isTimeBlock === true) as Task[];
+      return (data || []).filter(task => 
+        task.details && typeof task.details === 'object' && task.details.isTimeBlock === true
+      ) as Task[];
     }
   });
   
@@ -205,7 +218,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       // Sort all tasks except the current task
       const tasksToReschedule = allTasks
-        .filter(t => !t.details?.isTimeBlock && (!currentTask || t.id !== currentTask.id))
+        .filter(t => {
+          return (!t.details || typeof t.details !== 'object' || !t.details.isTimeBlock) && 
+                 (!currentTask || t.id !== currentTask.id);
+        })
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
       
       // Create sorted timeline of all blocks
@@ -279,6 +295,13 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const selectedTask = activeTasks?.find(t => t.id === taskId);
       const currentTask = activeTasks?.find(t => t.Progress === 'In progress');
       if (!selectedTask) return;
+      
+      // Don't allow time blocks to be started
+      if (selectedTask.details && typeof selectedTask.details === 'object' && selectedTask.details.isTimeBlock === true) {
+        toast.error("Time blocks cannot be started directly");
+        return;
+      }
+      
       const currentTime = new Date();
       if (!currentTask || selectedTask.id === currentTask.id) {
         const {
@@ -468,8 +491,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                 <TaskList 
                   tasks={[...(activeTasks || []), ...(timeBlocks || [])]}
                   onTaskStart={handleTaskStart} 
-                  subtasks={[]} 
-                  taskLists={taskLists} 
+                  subtasks={subtasks || []} 
+                  taskLists={taskLists || []} 
                   activeTaskId={activeTaskId}
                 />
               </div>

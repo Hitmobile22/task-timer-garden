@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -82,12 +83,13 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const {
         data,
         error
-      } = await supabase.from('Subtasks').select('*');
+      } = await supabase.from('subtasks').select('*');
       if (error) throw error;
       return data as Subtask[];
     }
   });
   
+  // Time blocks are tasks with 'Backlog' status and details.isTimeBlock set to true
   const {
     data: timeBlocks
   } = useQuery({
@@ -100,9 +102,12 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         ascending: true
       });
       if (error) throw error;
-      return (data || []).filter(task => 
-        task.details && typeof task.details === 'object' && task.details.isTimeBlock === true
-      ) as Task[];
+      return (data || []).filter(task => {
+        return task.details && 
+          typeof task.details === 'object' && 
+          'isTimeBlock' in task.details && 
+          task.details.isTimeBlock === true;
+      }) as Task[];
     }
   });
   
@@ -155,7 +160,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       const { data, error } = await supabase.from('Tasks').insert([{
         "Task Name": timeBlock.name,
-        "Progress": "Backlog", // Use Backlog but with isTimeBlock flag in details
+        "Progress": "Backlog", // Use Backlog status for time blocks with isTimeBlock flag
         "date_started": timeBlock.startDate.toISOString(),
         "date_due": endTime.toISOString(),
         "details": { isTimeBlock: true }
@@ -197,7 +202,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       // Filter to include only true time blocks
       const timeBlockItems = (allTimeBlocks || []).filter(task => 
-        task.details && typeof task.details === 'object' && task.details.isTimeBlock === true
+        task.details && 
+        typeof task.details === 'object' && 
+        'isTimeBlock' in task.details && 
+        task.details.isTimeBlock === true
       );
       
       const { data: allTasks, error: tasksError } = await supabase
@@ -219,7 +227,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       // Sort all tasks except the current task
       const tasksToReschedule = allTasks
         .filter(t => {
-          return (!t.details || typeof t.details !== 'object' || !t.details.isTimeBlock) && 
+          return (!t.details || 
+                  typeof t.details !== 'object' || 
+                  !('isTimeBlock' in t.details) || 
+                  !t.details.isTimeBlock) && 
                  (!currentTask || t.id !== currentTask.id);
         })
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
@@ -296,8 +307,11 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const currentTask = activeTasks?.find(t => t.Progress === 'In progress');
       if (!selectedTask) return;
       
-      // Don't allow time blocks to be started
-      if (selectedTask.details && typeof selectedTask.details === 'object' && selectedTask.details.isTimeBlock === true) {
+      // Don't allow time blocks to be started (should never happen since they're filtered differently)
+      if (selectedTask.details && 
+          typeof selectedTask.details === 'object' && 
+          'isTimeBlock' in selectedTask.details && 
+          selectedTask.details.isTimeBlock === true) {
         toast.error("Time blocks cannot be started directly");
         return;
       }
@@ -383,20 +397,22 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       }
       
       const currentTask = todayTasks.find(t => t.Progress === 'In progress');
-      // Get time blocks
-      const { data: timeBlockData } = await supabase
-        .from('Tasks')
-        .select('*')
-        .eq('Progress', 'Backlog')
-        .order('date_started', { ascending: true });
-        
-      const timeBlocks = (timeBlockData || []).filter(t => 
-        t.details && typeof t.details === 'object' && t.details.isTimeBlock === true
-      );
       
+      // Filter out time blocks before shuffling
       const tasksToShuffle = currentTask 
-        ? todayTasks.filter(t => t.id !== currentTask.id && !(t.details && typeof t.details === 'object' && t.details.isTimeBlock === true))
-        : todayTasks.filter(t => !(t.details && typeof t.details === 'object' && t.details.isTimeBlock === true)).slice(1);
+        ? todayTasks.filter(t => {
+            return t.id !== currentTask.id && 
+                   (!t.details || 
+                    typeof t.details !== 'object' || 
+                    !('isTimeBlock' in t.details) || 
+                    !t.details.isTimeBlock);
+          })
+        : todayTasks.filter(t => {
+            return !t.details || 
+                   typeof t.details !== 'object' || 
+                   !('isTimeBlock' in t.details) || 
+                   !t.details.isTimeBlock;
+          }).slice(1);
       
       for (let i = tasksToShuffle.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -405,7 +421,12 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       const shuffledTasks = currentTask 
         ? [currentTask, ...tasksToShuffle]
-        : [...todayTasks.filter(t => !(t.details && typeof t.details === 'object' && t.details.isTimeBlock === true)).slice(0, 1), ...tasksToShuffle];
+        : [...todayTasks.filter(t => {
+            return !t.details || 
+                   typeof t.details !== 'object' || 
+                   !('isTimeBlock' in t.details) || 
+                   !t.details.isTimeBlock;
+          }).slice(0, 1), ...tasksToShuffle];
       
       // This part will be handled by rescheduleTasksAroundTimeBlocks()
       await rescheduleTasksAroundTimeBlocks();

@@ -144,9 +144,17 @@ export const TaskForm = ({
       const { data: timeBlocks } = await supabase
         .from('Tasks')
         .select('*')
-        .eq('Progress', 'TimeBlock')
+        .eq('Progress', 'Backlog')
         .gte('date_due', currentTime.toISOString())
         .order('date_started', { ascending: true });
+      
+      // Filter to include only time blocks
+      const timeBlockItems = (timeBlocks || []).filter(task => 
+        task.details && 
+        typeof task.details === 'object' && 
+        'isTimeBlock' in task.details && 
+        task.details.isTimeBlock === true
+      );
       
       let startTime = new Date(currentTime.getTime() + delayMilliseconds);
       const createdTasks = [];
@@ -163,8 +171,8 @@ export const TaskForm = ({
           foundValidTime = true;
           
           // Check for conflicts with time blocks
-          if (timeBlocks && timeBlocks.length > 0) {
-            for (const block of timeBlocks) {
+          if (timeBlockItems && timeBlockItems.length > 0) {
+            for (const block of timeBlockItems) {
               const blockStart = new Date(block.date_started);
               const blockEnd = new Date(block.date_due);
               
@@ -288,8 +296,18 @@ export const TaskForm = ({
                   {selectedDate ? format(selectedDate, "PPP p") : <span>Pick date and time</span>}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-4 space-y-4">
+              <PopoverContent 
+                className="w-auto p-0" 
+                align="start"
+                onInteractOutside={(e) => e.preventDefault()}
+                onFocusOutside={(e) => e.preventDefault()}
+                onPointerDownOutside={(e) => e.preventDefault()}
+              >
+                <div 
+                  className="p-4 space-y-4"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
                   <Calendar mode="single" selected={selectedDate} onSelect={date => {
                     if (date) {
                       const currentTime = selectedDate || new Date();
@@ -299,13 +317,18 @@ export const TaskForm = ({
                     }
                   }} initialFocus />
                   <div className="flex gap-2 items-center">
-                    <Input type="time" value={selectedDate ? format(selectedDate, "HH:mm") : ""} onChange={e => {
-                      const [hours, minutes] = e.target.value.split(':').map(Number);
-                      const newDate = selectedDate || new Date();
-                      newDate.setHours(hours);
-                      newDate.setMinutes(minutes);
-                      setSelectedDate(new Date(newDate));
-                    }} />
+                    <Input 
+                      type="time" 
+                      value={selectedDate ? format(selectedDate, "HH:mm") : ""} 
+                      onChange={e => {
+                        const [hours, minutes] = e.target.value.split(':').map(Number);
+                        const newDate = selectedDate || new Date();
+                        newDate.setHours(hours);
+                        newDate.setMinutes(minutes);
+                        setSelectedDate(new Date(newDate));
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </div>
                 </div>
               </PopoverContent>

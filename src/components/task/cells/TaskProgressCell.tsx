@@ -21,8 +21,14 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
     setTempProgress(task.Progress);
   }, [task.Progress, isEditing]);
 
+  // Check if this is a time block
+  const isTimeBlock = task.details && 
+    typeof task.details === 'object' && 
+    'isTimeBlock' in task.details && 
+    task.details.isTimeBlock === true;
+
   // Display time block differently
-  if (task.details && typeof task.details === 'object' && task.details.isTimeBlock === true) {
+  if (isTimeBlock) {
     return (
       <TableCell>
         <span className="text-sm bg-gray-200 px-2 py-1 rounded-full">Time Block</span>

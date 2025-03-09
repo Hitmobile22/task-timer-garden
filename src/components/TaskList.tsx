@@ -73,7 +73,13 @@ export const TaskList: React.FC<TaskListProps> = ({
   const getTaskClass = (task: Task) => {
     let classes = "flex items-center justify-between p-3 rounded-lg mb-2 hover:bg-gray-100 transition-colors";
     
-    if (task.details && typeof task.details === 'object' && task.details.isTimeBlock === true) {
+    // Check if it's a time block
+    const isTimeBlock = task.details && 
+      typeof task.details === 'object' && 
+      'isTimeBlock' in task.details && 
+      task.details.isTimeBlock === true;
+    
+    if (isTimeBlock) {
       classes += " bg-gray-200 hover:bg-gray-300";
     } else if (task.Progress === 'In progress') {
       classes += " bg-blue-50";
@@ -104,6 +110,13 @@ export const TaskList: React.FC<TaskListProps> = ({
     return subtasks.filter(subtask => subtask["Parent Task ID"] === taskId);
   };
   
+  const isTimeBlock = (task: Task) => {
+    return task.details && 
+      typeof task.details === 'object' && 
+      'isTimeBlock' in task.details && 
+      task.details.isTimeBlock === true;
+  };
+  
   if (todayTasks.length === 0) {
     return (
       <div className="text-center p-8 text-gray-500">
@@ -118,7 +131,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       <div className="space-y-1">
         {todayTasks.map((task) => {
           const hasSubtasks = getSubtasks(task.id).length > 0;
-          const isTimeBlock = task.details && typeof task.details === 'object' && task.details.isTimeBlock === true;
+          const timeBlock = isTimeBlock(task);
           
           return (
             <div key={`task-${task.id}`}>
@@ -142,7 +155,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                     </Button>
                   )}
                   
-                  {isTimeBlock ? (
+                  {timeBlock ? (
                     <div className="w-6 h-6 mr-3 flex-shrink-0">
                       <Badge variant="outline" className="bg-gray-300 border-0">TB</Badge>
                     </div>
@@ -166,7 +179,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  {!isTimeBlock && (
+                  {!timeBlock && (
                     <button 
                       onClick={() => onTaskStart(task.id)} 
                       className="text-sm px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-full transition-colors"

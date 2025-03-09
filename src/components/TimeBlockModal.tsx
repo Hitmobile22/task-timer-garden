@@ -25,6 +25,7 @@ export const TimeBlockModal: React.FC<TimeBlockModalProps> = ({
   const [name, setName] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [duration, setDuration] = useState<string>("");
+  const [calendarOpen, setCalendarOpen] = useState(false);
   
   const durationOptions = [
     { value: "10", label: "10 minutes" },
@@ -62,9 +63,14 @@ export const TimeBlockModal: React.FC<TimeBlockModalProps> = ({
     onClose();
   };
   
+  // Function to prevent event propagation
+  const handlePopoverInteraction = (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+  };
+  
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px]" onClick={e => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Add Time Block</DialogTitle>
         </DialogHeader>
@@ -81,7 +87,10 @@ export const TimeBlockModal: React.FC<TimeBlockModalProps> = ({
           
           <div className="grid gap-2">
             <Label>Schedule for</Label>
-            <Popover>
+            <Popover
+              open={calendarOpen}
+              onOpenChange={setCalendarOpen}
+            >
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -94,8 +103,19 @@ export const TimeBlockModal: React.FC<TimeBlockModalProps> = ({
                   {selectedDate ? format(selectedDate, "PPP p") : <span>Pick date and time</span>}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-4 space-y-4">
+              <PopoverContent 
+                className="w-auto p-0" 
+                align="start"
+                onInteractOutside={(e) => e.preventDefault()}
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                onFocusOutside={(e) => e.preventDefault()}
+                onPointerDownOutside={(e) => e.preventDefault()}
+              >
+                <div 
+                  className="p-4 space-y-4"
+                  onClick={handlePopoverInteraction}
+                  onKeyDown={handlePopoverInteraction}
+                >
                   <Calendar
                     mode="single"
                     selected={selectedDate}
@@ -115,11 +135,12 @@ export const TimeBlockModal: React.FC<TimeBlockModalProps> = ({
                       value={selectedDate ? format(selectedDate, "HH:mm") : ""}
                       onChange={(e) => {
                         const [hours, minutes] = e.target.value.split(':').map(Number);
-                        const newDate = selectedDate || new Date();
+                        const newDate = new Date(selectedDate);
                         newDate.setHours(hours);
                         newDate.setMinutes(minutes);
-                        setSelectedDate(new Date(newDate));
+                        setSelectedDate(newDate);
                       }}
+                      onClick={(e) => e.stopPropagation()}
                     />
                   </div>
                 </div>

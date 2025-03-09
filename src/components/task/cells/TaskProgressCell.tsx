@@ -7,7 +7,7 @@ import { Task } from '@/types/task.types';
 interface TaskProgressCellProps {
   task: Task;
   isEditing: boolean;
-  onUpdateProgress: (progress: Task['Progress']) => void;
+  onUpdateProgress: (progress: Task['Progress']) => void;  // Modified to only take progress
 }
 
 export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
@@ -20,21 +20,6 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
   React.useEffect(() => {
     setTempProgress(task.Progress);
   }, [task.Progress, isEditing]);
-
-  // Check if this is a time block
-  const isTimeBlock = task.details && 
-    typeof task.details === 'object' && 
-    'isTimeBlock' in task.details && 
-    task.details.isTimeBlock === true;
-
-  // Display time block differently
-  if (isTimeBlock) {
-    return (
-      <TableCell>
-        <span className="text-sm bg-gray-200 px-2 py-1 rounded-full">Time Block</span>
-      </TableCell>
-    );
-  }
 
   return (
     <TableCell>

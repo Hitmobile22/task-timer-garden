@@ -59,6 +59,7 @@ export const TimeBlockModal: React.FC<TimeBlockModalProps> = ({
     setName("");
     setSelectedDate(new Date());
     setDuration("");
+    onClose();
   };
   
   return (

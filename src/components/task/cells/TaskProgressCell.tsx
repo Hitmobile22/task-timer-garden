@@ -21,6 +21,15 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
     setTempProgress(task.Progress);
   }, [task.Progress, isEditing]);
 
+  // Display time block differently
+  if (task.details?.isTimeBlock) {
+    return (
+      <TableCell>
+        <span className="text-sm bg-gray-200 px-2 py-1 rounded-full">Time Block</span>
+      </TableCell>
+    );
+  }
+
   return (
     <TableCell>
       {isEditing ? (

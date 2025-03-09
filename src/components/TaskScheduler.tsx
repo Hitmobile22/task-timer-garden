@@ -85,11 +85,11 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const {
         data,
         error
-      } = await supabase.from('Tasks').select('*').eq('Progress', 'TimeBlock').order('date_started', {
+      } = await supabase.from('Tasks').select('*').eq('Progress', 'Backlog').order('date_started', {
         ascending: true
       });
       if (error) throw error;
-      return data as Task[];
+      return (data || []).filter(task => task.details?.isTimeBlock === true) as Task[];
     }
   });
   
@@ -142,9 +142,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       const { data, error } = await supabase.from('Tasks').insert([{
         "Task Name": timeBlock.name,
-        "Progress": "TimeBlock",
+        "Progress": "Backlog", // Use Backlog but with isTimeBlock flag in details
         "date_started": timeBlock.startDate.toISOString(),
-        "date_due": endTime.toISOString()
+        "date_due": endTime.toISOString(),
+        "details": { isTimeBlock: true }
       }]).select().single();
       
       if (error) throw error;
@@ -176,10 +177,15 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const { data: allTimeBlocks, error: timeBlocksError } = await supabase
         .from('Tasks')
         .select('*')
-        .eq('Progress', 'TimeBlock')
+        .eq('Progress', 'Backlog')
         .order('date_started', { ascending: true });
       
       if (timeBlocksError) throw timeBlocksError;
+      
+      // Filter to include only true time blocks
+      const timeBlockItems = (allTimeBlocks || []).filter(task => 
+        task.details?.isTimeBlock === true
+      );
       
       const { data: allTasks, error: tasksError } = await supabase
         .from('Tasks')
@@ -189,7 +195,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       if (tasksError) throw tasksError;
       
-      if (!allTimeBlocks || allTimeBlocks.length === 0 || !allTasks) return;
+      if (!timeBlockItems || timeBlockItems.length === 0 || !allTasks) return;
       
       // Get the current "In progress" task
       const currentTask = allTasks.find(t => t.Progress === 'In progress');
@@ -199,12 +205,12 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       // Sort all tasks except the current task
       const tasksToReschedule = allTasks
-        .filter(t => t.Progress !== 'TimeBlock' && (!currentTask || t.id !== currentTask.id))
+        .filter(t => !t.details?.isTimeBlock && (!currentTask || t.id !== currentTask.id))
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
       
       // Create sorted timeline of all blocks
       const timeline = [
-        ...allTimeBlocks.map(block => ({
+        ...timeBlockItems.map(block => ({
           id: block.id,
           type: 'block',
           start: new Date(block.date_started),
@@ -354,10 +360,18 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       }
       
       const currentTask = todayTasks.find(t => t.Progress === 'In progress');
-      const timeBlocks = todayTasks.filter(t => t.Progress === 'TimeBlock');
+      // Get time blocks
+      const { data: timeBlockData } = await supabase
+        .from('Tasks')
+        .select('*')
+        .eq('Progress', 'Backlog')
+        .order('date_started', { ascending: true });
+        
+      const timeBlocks = (timeBlockData || []).filter(t => t.details?.isTimeBlock === true);
+      
       const tasksToShuffle = currentTask 
-        ? todayTasks.filter(t => t.id !== currentTask.id && t.Progress !== 'TimeBlock')
-        : todayTasks.filter(t => t.Progress !== 'TimeBlock').slice(1);
+        ? todayTasks.filter(t => t.id !== currentTask.id && !t.details?.isTimeBlock)
+        : todayTasks.filter(t => !t.details?.isTimeBlock).slice(1);
       
       for (let i = tasksToShuffle.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -366,7 +380,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       const shuffledTasks = currentTask 
         ? [currentTask, ...tasksToShuffle]
-        : [...todayTasks.filter(t => t.Progress !== 'TimeBlock').slice(0, 1), ...tasksToShuffle];
+        : [...todayTasks.filter(t => !t.details?.isTimeBlock).slice(0, 1), ...tasksToShuffle];
       
       // This part will be handled by rescheduleTasksAroundTimeBlocks()
       await rescheduleTasksAroundTimeBlocks();
@@ -450,12 +464,11 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
               </div>
               <div className="task-list">
                 <TaskList 
-                  tasks={activeTasks || []} 
+                  tasks={(activeTasks || []).concat(timeBlocks || [])} 
                   onTaskStart={handleTaskStart} 
                   subtasks={[]} 
                   taskLists={taskLists} 
                   activeTaskId={activeTaskId}
-                  timeBlocks={timeBlocks || []}
                 />
               </div>
             </div>

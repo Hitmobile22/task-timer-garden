@@ -76,11 +76,16 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   useEffect(() => {
     if (activeTasks && activeTasks.length > 0) {
       setShowTimer(true);
-      setTimerStarted(true);
-      // Only set the first task as active if no current task is already active
-      if (!activeTaskId || !activeTasks.some(task => task.id === activeTaskId)) {
-        setActiveTaskId(activeTasks[0].id);
+      const inProgressTask = activeTasks.find(task => task.Progress === 'In progress');
+      setTimerStarted(!!inProgressTask);
+      
+      const firstRegularTask = activeTasks.find(task => !task.details?.isTimeBlock);
+      if (firstRegularTask) {
+        setActiveTaskId(firstRegularTask.id);
       }
+    } else {
+      setShowTimer(true);
+      setTimerStarted(false);
     }
   }, [activeTasks, activeTaskId]);
   
@@ -108,13 +113,82 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     }
   };
   
+  const handleTimeBlockCreate = async (timeBlock: Task) => {
+    try {
+      if (activeTasks && activeTasks.length > 0) {
+        const timeBlockStart = new Date(timeBlock.date_started || '');
+        const timeBlockEnd = new Date(timeBlock.date_due || '');
+        
+        const tasksToReschedule = activeTasks
+          .filter(task => {
+            if (task.details?.isTimeBlock || task.Progress === 'In progress' || task.id === timeBlock.id) {
+              return false;
+            }
+            
+            const taskStart = new Date(task.date_started || '');
+            const taskEnd = new Date(task.date_due || '');
+            
+            if (
+              (taskStart >= timeBlockStart && taskStart < timeBlockEnd) ||
+              (taskEnd > timeBlockStart && taskEnd <= timeBlockEnd) ||
+              (taskStart <= timeBlockStart && taskEnd >= timeBlockEnd)
+            ) {
+              return true;
+            }
+          })
+          .sort((a, b) => {
+            const dateA = new Date(a.date_started || '').getTime();
+            const dateB = new Date(b.date_started || '').getTime();
+            return dateA - dateB;
+          });
+        
+        if (tasksToReschedule.length > 0) {
+          const nextAvailableTime = new Date(timeBlockEnd.getTime() + 5 * 60 * 1000);
+          
+          for (let i = 0; i < tasksToReschedule.length; i++) {
+            const task = tasksToReschedule[i];
+            const originalDuration = new Date(task.date_due || '').getTime() - new Date(task.date_started || '').getTime();
+            
+            const newStartTime = new Date(nextAvailableTime.getTime() + (i * 30 * 60 * 1000));
+            const newEndTime = new Date(newStartTime.getTime() + originalDuration);
+            
+            await supabase
+              .from('Tasks')
+              .update({
+                date_started: newStartTime.toISOString(),
+                date_due: newEndTime.toISOString()
+              })
+              .eq('id', task.id);
+          }
+          
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+          toast.success(`Rescheduled ${tasksToReschedule.length} tasks around time block`);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling time block creation:', error);
+      toast.error('Failed to reschedule tasks around time block');
+    }
+  };
+  
   const handleTaskStart = async (taskId: number) => {
     try {
+      const targetTask = activeTasks?.find(t => t.id === taskId);
+      if (targetTask?.details?.isTimeBlock) {
+        toast.info("Time blocks can't be started as tasks");
+        return;
+      }
+      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const notStartedTasks = activeTasks?.filter(t => {
+        if (t.details?.isTimeBlock) {
+          return false;
+        }
+        
         const taskDate = t.date_started ? new Date(t.date_started) : null;
         const isValidProgress = t.Progress === 'Not started' || t.Progress === 'In progress';
         return isValidProgress && taskDate && taskDate >= today && taskDate < tomorrow;
@@ -123,9 +197,12 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         const dateB = b.date_started ? new Date(b.date_started).getTime() : 0;
         return dateA - dateB;
       }) || [];
+      
       const selectedTask = activeTasks?.find(t => t.id === taskId);
       const currentTask = activeTasks?.find(t => t.Progress === 'In progress');
+      
       if (!selectedTask) return;
+      
       const currentTime = new Date();
       if (!currentTask || selectedTask.id === currentTask.id) {
         const {
@@ -137,21 +214,54 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         }).eq('id', taskId);
         if (updateError) throw updateError;
       }
+      
+      const timeBlocks = activeTasks
+        ?.filter(t => t.details?.isTimeBlock)
+        .map(t => ({
+          start: new Date(t.date_started || ''),
+          end: new Date(t.date_due || '')
+        }))
+        .sort((a, b) => a.start.getTime() - b.start.getTime()) || [];
+      
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
+      
       for (const task of notStartedTasks) {
         if (task.id === taskId || currentTask && task.id === currentTask.id) continue;
         if (nextStartTime >= tomorrow) break;
-        const taskStartTime = new Date(nextStartTime);
-        const taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        
+        let taskStartTime = new Date(nextStartTime);
+        let taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        
+        let needsRescheduling = true;
+        while (needsRescheduling) {
+          needsRescheduling = false;
+          
+          for (const block of timeBlocks) {
+            if (
+              (taskStartTime >= block.start && taskStartTime < block.end) ||
+              (taskDueTime > block.start && taskDueTime <= block.end) ||
+              (taskStartTime <= block.start && taskDueTime >= block.end)
+            ) {
+              taskStartTime = new Date(block.end.getTime() + 5 * 60 * 1000);
+              taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+              needsRescheduling = true;
+              break;
+            }
+          }
+        }
+        
         const {
           error
         } = await supabase.from('Tasks').update({
           date_started: taskStartTime.toISOString(),
           date_due: taskDueTime.toISOString()
         }).eq('id', task.id);
+        
         if (error) throw error;
-        nextStartTime = new Date(taskStartTime.getTime() + 30 * 60 * 1000);
+        
+        nextStartTime = new Date(taskDueTime.getTime() + 5 * 60 * 1000);
       }
+      
       queryClient.invalidateQueries({
         queryKey: ['tasks']
       });
@@ -211,16 +321,24 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         return;
       }
       
-      const todayTasks = getTodayTasks(tasks);
-      if (todayTasks.length < 2) {
+      const regularTasks = tasks.filter(t => !t.details?.isTimeBlock);
+      const timeBlocks = tasks.filter(t => t.details?.isTimeBlock);
+      
+      if (regularTasks.length < 2) {
+        toast.info('Not enough regular tasks to shuffle');
+        return;
+      }
+      
+      const todayRegularTasks = getTodayTasks(regularTasks);
+      if (todayRegularTasks.length < 2) {
         toast.info('Not enough tasks to shuffle today');
         return;
       }
       
-      const currentTask = todayTasks.find(t => t.Progress === 'In progress');
+      const currentTask = todayRegularTasks.find(t => t.Progress === 'In progress');
       const tasksToShuffle = currentTask 
-        ? todayTasks.filter(t => t.id !== currentTask.id)
-        : todayTasks.slice(1);
+        ? todayRegularTasks.filter(t => t.id !== currentTask.id)
+        : todayRegularTasks.slice(1);
       
       for (let i = tasksToShuffle.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -229,7 +347,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       const shuffledTasks = currentTask 
         ? [currentTask, ...tasksToShuffle]
-        : [...todayTasks.slice(0, 1), ...tasksToShuffle];
+        : [...todayRegularTasks.slice(0, 1), ...tasksToShuffle];
       
       const currentTime = new Date();
       let startTime = currentTime;
@@ -238,21 +356,68 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         startTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
       }
       
+      const allTasksToSchedule = [...timeBlocks];
+      
       for (let i = currentTask ? 1 : 0; i < shuffledTasks.length; i++) {
-        const task = shuffledTasks[i];
-        const taskStartTime = new Date(startTime);
-        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        allTasksToSchedule.push(shuffledTasks[i]);
+      }
+      
+      allTasksToSchedule.sort((a, b) => {
+        const aTime = a.details?.isTimeBlock ? new Date(a.date_started).getTime() : 0;
+        const bTime = b.details?.isTimeBlock ? new Date(b.date_started).getTime() : 0;
         
-        await supabase
-          .from('Tasks')
-          .update({
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString(),
-            Progress: 'Not started'
-          })
-          .eq('id', task.id);
+        if (a.details?.isTimeBlock && b.details?.isTimeBlock) {
+          return aTime - bTime;
+        }
+        if (a.details?.isTimeBlock) return -1;
+        if (b.details?.isTimeBlock) return 1;
         
-        startTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        return 0;
+      });
+      
+      let currentScheduleTime = startTime;
+      
+      for (const task of allTasksToSchedule) {
+        if (currentTask && task.id === currentTask.id) continue;
+        
+        if (task.details?.isTimeBlock) {
+          continue;
+        } else {
+          const timeBlockConflicts = timeBlocks.filter(block => {
+            const blockStart = new Date(block.date_started);
+            const blockEnd = new Date(block.date_due);
+            
+            if (currentScheduleTime >= blockStart && currentScheduleTime < blockEnd) {
+              return true;
+            }
+            
+            const taskEnd = new Date(currentScheduleTime.getTime() + 25 * 60 * 1000);
+            return (taskEnd > blockStart && currentScheduleTime < blockEnd);
+          });
+          
+          if (timeBlockConflicts.length > 0) {
+            const latestBlock = timeBlockConflicts.reduce((latest, block) => {
+              const blockEnd = new Date(block.date_due);
+              return blockEnd > latest ? blockEnd : latest;
+            }, new Date(0));
+            
+            currentScheduleTime = new Date(latestBlock.getTime() + 5 * 60 * 1000);
+          }
+          
+          const taskStartTime = new Date(currentScheduleTime);
+          const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+          
+          await supabase
+            .from('Tasks')
+            .update({
+              date_started: taskStartTime.toISOString(),
+              date_due: taskEndTime.toISOString(),
+              Progress: 'Not started'
+            })
+            .eq('id', task.id);
+          
+          currentScheduleTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        }
       }
       
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -270,6 +435,9 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     const taskList = taskLists.find(l => l.id === activeTask.task_list_id);
     return taskList?.color || null;
   })() : null;
+  
+  const hasActiveTasks = activeTasks && activeTasks.length > 0;
+  const hasInProgressTask = activeTasks?.some(t => t.Progress === 'In progress');
   
   return <div className="min-h-screen p-0 space-y-4 md:space-y-8 overflow-x-hidden" style={{
     background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)'
@@ -304,13 +472,17 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
             }}>
                   <PomodoroTimer
                     tasks={tasks.map(t => t.name)}
-                    autoStart={timerStarted}
+                    autoStart={timerStarted && hasInProgressTask}
                     activeTaskId={activeTaskId} 
                     onShuffleTasks={onShuffleTasks || handleShuffleTasks}
+                    showIdleState={!hasInProgressTask}
                   />
                 </div>}
               <div className="form-control">
-                <TaskForm onTasksCreate={handleTasksCreate} />
+                <TaskForm 
+                  onTasksCreate={handleTasksCreate} 
+                  onTimeBlockCreate={handleTimeBlockCreate}
+                />
               </div>
               <div className="task-list">
                 <TaskList tasks={activeTasks || []} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
@@ -321,3 +493,4 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       </main>
     </div>;
 };
+

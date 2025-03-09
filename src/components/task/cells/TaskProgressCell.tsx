@@ -3,11 +3,12 @@ import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Task } from '@/types/task.types';
+import { Badge } from "@/components/ui/badge";
 
 interface TaskProgressCellProps {
   task: Task;
   isEditing: boolean;
-  onUpdateProgress: (progress: Task['Progress']) => void;  // Modified to only take progress
+  onUpdateProgress: (progress: Task['Progress']) => void;
 }
 
 export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
@@ -16,10 +17,21 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
   onUpdateProgress,
 }) => {
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
+  const isTimeBlock = task.details?.isTimeBlock === true;
 
   React.useEffect(() => {
     setTempProgress(task.Progress);
   }, [task.Progress, isEditing]);
+
+  if (isTimeBlock) {
+    return (
+      <TableCell>
+        <Badge variant="secondary" className="bg-gray-200 text-gray-700">
+          Time Block
+        </Badge>
+      </TableCell>
+    );
+  }
 
   return (
     <TableCell>

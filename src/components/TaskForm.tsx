@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,7 @@ export const TaskForm = ({
       return data;
     }
   });
-  const [numTasks, setNumTasks] = useState<string>("none");
+  const [numTasks, setNumTasks] = useState<string>("1");
   const [tasks, setTasks] = useState<Task[]>([{
     name: "",
     subtasks: []
@@ -50,25 +51,17 @@ export const TaskForm = ({
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedMinutes, setSelectedMinutes] = useState<string>('');
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
+  
   const handleNumTasksChange = (value: string) => {
     setNumTasks(value);
-    if (value === "none") {
-      setTasks([{
-        name: "",
-        subtasks: []
-      }]);
-      setDelayType(null);
-      setSelectedDate(undefined);
-      setSelectedMinutes('');
-    } else {
-      const numericValue = parseInt(value);
-      const newTasks = Array(numericValue).fill(null).map((_, i) => ({
-        name: tasks[i]?.name || "",
-        subtasks: tasks[i]?.subtasks || []
-      }));
-      setTasks(newTasks);
-    }
+    const numericValue = parseInt(value);
+    const newTasks = Array(numericValue).fill(null).map((_, i) => ({
+      name: tasks[i]?.name || "",
+      subtasks: tasks[i]?.subtasks || []
+    }));
+    setTasks(newTasks);
   };
+  
   const handleTaskInputChange = (index: number, value: string) => {
     const newTasks = [...tasks];
     newTasks[index].name = value;
@@ -95,6 +88,7 @@ export const TaskForm = ({
       }
     }, 1000);
   };
+  
   useEffect(() => {
     return () => {
       if (typingTimeout.current) {
@@ -102,6 +96,7 @@ export const TaskForm = ({
       }
     };
   }, []);
+  
   const addSubtask = (taskIndex: number) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].subtasks.push({
@@ -109,16 +104,19 @@ export const TaskForm = ({
     });
     setTasks(newTasks);
   };
+  
   const removeSubtask = (taskIndex: number, subtaskIndex: number) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].subtasks.splice(subtaskIndex, 1);
     setTasks(newTasks);
   };
+  
   const handleSubtaskInputChange = (taskIndex: number, subtaskIndex: number, value: string) => {
     const newTasks = [...tasks];
     newTasks[taskIndex].subtasks[subtaskIndex].name = value;
     setTasks(newTasks);
   };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (tasks.some(task => !task.name.trim())) {
@@ -141,14 +139,51 @@ export const TaskForm = ({
           return;
         }
       }
+      
+      // Get all time blocks to avoid scheduling tasks during them
+      const { data: timeBlocks } = await supabase
+        .from('Tasks')
+        .select('*')
+        .eq('Progress', 'TimeBlock')
+        .gte('date_due', currentTime.toISOString())
+        .order('date_started', { ascending: true });
+      
+      let startTime = new Date(currentTime.getTime() + delayMilliseconds);
+      const createdTasks = [];
+      
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
-        const taskStartTime = new Date(currentTime.getTime() + delayMilliseconds);
-        // Add 30 minutes for each previous task (25min task + 5min break)
-        taskStartTime.setMinutes(taskStartTime.getMinutes() + i * 30);
-        const taskDueTime = new Date(taskStartTime);
-        taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
-
+        
+        // Find a suitable start time that doesn't overlap with time blocks
+        let taskStartTime = new Date(startTime);
+        let taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        let foundValidTime = false;
+        
+        while (!foundValidTime) {
+          foundValidTime = true;
+          
+          // Check for conflicts with time blocks
+          if (timeBlocks && timeBlocks.length > 0) {
+            for (const block of timeBlocks) {
+              const blockStart = new Date(block.date_started);
+              const blockEnd = new Date(block.date_due);
+              
+              // Check for overlap
+              if (
+                (taskStartTime >= blockStart && taskStartTime < blockEnd) || // task starts during block
+                (taskDueTime > blockStart && taskDueTime <= blockEnd) || // task ends during block
+                (taskStartTime <= blockStart && taskDueTime >= blockEnd) // task spans the entire block
+              ) {
+                // Schedule task after this time block
+                taskStartTime = new Date(blockEnd.getTime() + 5 * 60 * 1000);
+                taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+                foundValidTime = false;
+                break;
+              }
+            }
+          }
+        }
+        
         // Create main task with timestamps and delay info
         const {
           data: taskData,
@@ -161,7 +196,9 @@ export const TaskForm = ({
           "delay_type": delayType,
           "delay_value": delayType === 'minutes' ? selectedMinutes : selectedDate?.toISOString()
         }]).select().single();
+        
         if (taskError) throw taskError;
+        createdTasks.push(taskData);
 
         // Create subtasks
         if (task.subtasks.length > 0) {
@@ -175,6 +212,9 @@ export const TaskForm = ({
           } = await supabase.from('subtasks').insert(subtasksToInsert);
           if (subtaskError) throw subtaskError;
         }
+        
+        // Set start time for next task
+        startTime = new Date(taskDueTime.getTime() + 5 * 60 * 1000);
       }
 
       // Reset form state
@@ -182,17 +222,17 @@ export const TaskForm = ({
         name: "",
         subtasks: []
       }]);
-      setNumTasks("none");
+      setNumTasks("1");
       setDelayType(null);
       setSelectedDate(undefined);
       setSelectedMinutes('');
       onTasksCreate(tasks);
-      toast.success("Tasks created successfully");
     } catch (error) {
       console.error('Error creating tasks:', error);
       toast.error('Failed to create tasks');
     }
   };
+  
   return <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4 px-[20px]">
         <div className="px-[58px]">
@@ -202,7 +242,6 @@ export const TaskForm = ({
               <SelectValue placeholder="Select number of tasks" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">None</SelectItem>
               {[...Array(10)].map((_, i) => <SelectItem key={i + 1} value={(i + 1).toString()}>
                   {i + 1} {i === 0 ? "Task" : "Tasks"}
                 </SelectItem>)}
@@ -210,11 +249,10 @@ export const TaskForm = ({
           </Select>
         </div>
 
-        {numTasks !== "none" && <>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Delay by Minutes</Label>
-                <Select value={delayType === 'minutes' ? selectedMinutes : ''} onValueChange={value => {
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <Label>Delay by Minutes</Label>
+            <Select value={delayType === 'minutes' ? selectedMinutes : ''} onValueChange={value => {
               if (value === 'none') {
                 setDelayType(null);
                 setSelectedMinutes('');
@@ -224,35 +262,35 @@ export const TaskForm = ({
                 setSelectedDate(undefined);
               }
             }} disabled={delayType === 'datetime'}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select delay" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {[5, 10, 25, 30, 45, 60, 120, 180].map(minutes => <SelectItem key={minutes} value={minutes.toString()}>
-                        {minutes >= 60 ? `${minutes / 60} ${minutes === 60 ? 'hour' : 'hours'}` : `${minutes} minutes`}
-                      </SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              <SelectTrigger>
+                <SelectValue placeholder="Select delay" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {[5, 10, 25, 30, 45, 60, 120, 180].map(minutes => <SelectItem key={minutes} value={minutes.toString()}>
+                    {minutes >= 60 ? `${minutes / 60} ${minutes === 60 ? 'hour' : 'hours'}` : `${minutes} minutes`}
+                  </SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
 
-              <div>
-                <Label>Schedule for</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")} disabled={delayType === 'minutes'} onClick={() => {
+          <div>
+            <Label>Schedule for</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !selectedDate && "text-muted-foreground")} disabled={delayType === 'minutes'} onClick={() => {
                   if (delayType !== 'datetime') {
                     setDelayType('datetime');
                     setSelectedMinutes('');
                   }
                 }}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? format(selectedDate, "PPP p") : <span>Pick date and time</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <div className="p-4 space-y-4">
-                      <Calendar mode="single" selected={selectedDate} onSelect={date => {
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "PPP p") : <span>Pick date and time</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="p-4 space-y-4">
+                  <Calendar mode="single" selected={selectedDate} onSelect={date => {
                     if (date) {
                       const currentTime = selectedDate || new Date();
                       date.setHours(currentTime.getHours());
@@ -260,48 +298,47 @@ export const TaskForm = ({
                       setSelectedDate(date);
                     }
                   }} initialFocus />
-                      <div className="flex gap-2 items-center">
-                        <Input type="time" value={selectedDate ? format(selectedDate, "HH:mm") : ""} onChange={e => {
+                  <div className="flex gap-2 items-center">
+                    <Input type="time" value={selectedDate ? format(selectedDate, "HH:mm") : ""} onChange={e => {
                       const [hours, minutes] = e.target.value.split(':').map(Number);
                       const newDate = selectedDate || new Date();
                       newDate.setHours(hours);
                       newDate.setMinutes(minutes);
                       setSelectedDate(new Date(newDate));
                     }} />
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {tasks.map((task, taskIndex) => <div key={taskIndex} className="space-y-4 p-4 rounded-lg bg-white/50 px-[11px] py-[4px]">
+              <div className="space-y-2">
+                <Label htmlFor={`task-${taskIndex}`}>Task {taskIndex + 1} Name</Label>
+                <div className="flex items-center gap-2">
+                  <Input id={`task-${taskIndex}`} value={task.name} onChange={e => handleTaskInputChange(taskIndex, e.target.value)} placeholder={`Enter task ${taskIndex + 1} name`} className="hover-lift flex-grow" required />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => addSubtask(taskIndex)} className="flex-shrink-0">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-6">
-              {tasks.map((task, taskIndex) => <div key={taskIndex} className="space-y-4 p-4 rounded-lg bg-white/50 px-[11px] py-[4px]">
-                  <div className="space-y-2">
-                    <Label htmlFor={`task-${taskIndex}`}>Task {taskIndex + 1} Name</Label>
-                    <div className="flex items-center gap-2">
-                      <Input id={`task-${taskIndex}`} value={task.name} onChange={e => handleTaskInputChange(taskIndex, e.target.value)} placeholder={`Enter task ${taskIndex + 1} name`} className="hover-lift flex-grow" required />
-                      <Button type="button" variant="ghost" size="icon" onClick={() => addSubtask(taskIndex)} className="flex-shrink-0">
-                        <Plus className="h-4 w-4" />
+              <div className="space-y-3 pl-4 border-l-2 border-primary/20">
+                {loadingTaskIndex === taskIndex ? <p className="text-gray-500">Generating response...</p> : task.subtasks.map((subtask, subtaskIndex) => <div key={subtaskIndex} className="flex items-center gap-2">
+                      <Input value={subtask.name} onChange={e => handleSubtaskInputChange(taskIndex, subtaskIndex, e.target.value)} placeholder={`Enter subtask ${subtaskIndex + 1} name`} className="hover-lift" required />
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeSubtask(taskIndex, subtaskIndex)} className="flex-shrink-0">
+                        <Minus className="h-4 w-4" />
                       </Button>
-                    </div>
-                  </div>
+                    </div>)}
+              </div>
+            </div>)}
+        </div>
 
-                  <div className="space-y-3 pl-4 border-l-2 border-primary/20">
-                    {loadingTaskIndex === taskIndex ? <p className="text-gray-500">Generating response...</p> : task.subtasks.map((subtask, subtaskIndex) => <div key={subtaskIndex} className="flex items-center gap-2">
-                          <Input value={subtask.name} onChange={e => handleSubtaskInputChange(taskIndex, subtaskIndex, e.target.value)} placeholder={`Enter subtask ${subtaskIndex + 1} name`} className="hover-lift" required />
-                          <Button type="button" variant="ghost" size="icon" onClick={() => removeSubtask(taskIndex, subtaskIndex)} className="flex-shrink-0">
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                        </div>)}
-                  </div>
-                </div>)}
-            </div>
-
-            <Button type="submit" className="w-full hover-lift">
-              Create Tasks
-            </Button>
-          </>}
+        <Button type="submit" className="w-full hover-lift">
+          Create Tasks
+        </Button>
       </div>
     </form>;
 };

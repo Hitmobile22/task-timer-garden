@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TimerControls } from './pomodoro/TimerControls';
 import { usePomodoroSounds } from '@/hooks/usePomodoroSounds';
 import { useTimerVisibility } from '@/hooks/useTimerVisibility';
-import { Maximize2 } from 'lucide-react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
 import { LavaLampBackground } from './pomodoro/LavaLampBackground';
@@ -375,14 +375,26 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     if (!document.fullscreenElement) {
       if (timerRef.current?.requestFullscreen) {
         timerRef.current.requestFullscreen()
-          .then(() => setIsFullscreen(true))
-          .catch(err => console.error(`Error attempting to enable fullscreen: ${err.message}`));
+          .then(() => {
+            setIsFullscreen(true);
+            console.log('Entered fullscreen mode');
+          })
+          .catch(err => {
+            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+            toast.error('Failed to enter fullscreen mode');
+          });
       }
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen()
-          .then(() => setIsFullscreen(false))
-          .catch(err => console.error(`Error attempting to exit fullscreen: ${err.message}`));
+          .then(() => {
+            setIsFullscreen(false);
+            console.log('Exited fullscreen mode');
+          })
+          .catch(err => {
+            console.error(`Error attempting to exit fullscreen: ${err.message}`);
+            toast.error('Failed to exit fullscreen mode');
+          });
       }
     }
   };
@@ -390,6 +402,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
+      console.log('Fullscreen state changed:', !!document.fullscreenElement);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -397,22 +410,12 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isFullscreen) {
-      localStorage.setItem('pomodoroFullscreen', 'true');
-    } else if (localStorage.getItem('pomodoroFullscreen') === 'true' && !document.fullscreenElement) {
-      if (timerRef.current?.requestFullscreen) {
-        timerRef.current.requestFullscreen()
-          .then(() => setIsFullscreen(true))
-          .catch(err => {
-            console.error(`Error attempting to restore fullscreen: ${err.message}`);
-            localStorage.removeItem('pomodoroFullscreen');
-          });
-      }
-    }
-  }, [isFullscreen, currentTask, isBreak]);
-
-  useEffect(() => {
     return () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => {
+          console.error(`Error exiting fullscreen on unmount: ${err.message}`);
+        });
+      }
       localStorage.removeItem('pomodoroFullscreen');
     };
   }, []);
@@ -505,6 +508,18 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         onToggleFullscreen={toggleFullscreen}
         isFullscreen={isFullscreen}
       />
+      
+      {isFullscreen && (
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="absolute top-4 right-4 z-50"
+          onClick={toggleFullscreen}
+        >
+          <Minimize2 className="h-4 w-4 mr-2" />
+          Exit Fullscreen
+        </Button>
+      )}
     </div>
   );
 };

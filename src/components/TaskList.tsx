@@ -12,11 +12,10 @@ import { Label } from "./ui/label";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
+import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X, Lock } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
-import { getTaskListColor, extractSolidColorFromGradient } from '@/utils/taskUtils';
+import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
-import { isTaskTimeBlock } from '@/utils/taskUtils';
 
 interface SubtaskData {
   id: number;
@@ -136,6 +135,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const hasSubtasks = subtasks?.some(st => st["Parent Task ID"] === task.id);
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
+  const isTimeBlock = isTaskTimeBlock(task);
   
   const taskListColor = task.task_list_id && taskLists ? 
     getTaskListColor(task.task_list_id, taskLists) : 
@@ -190,27 +190,39 @@ const TaskItem: React.FC<TaskItemProps> = ({
         className={cn(
           "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", 
           isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80",
-          task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? "border-l-4" : ""
+          task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? "border-l-4" : "",
+          isTimeBlock ? "border border-blue-200 bg-blue-50/50" : ""
         )}
         style={task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? {
           borderLeftColor: borderColor
         } : undefined}
       >
         <div className="flex gap-2 flex-shrink-0">
-          <Button size="icon" variant="ghost" className="touch-none cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" {...dragHandleProps}>
-            <GripVertical className="h-4 w-4" />
-          </Button>
+          {isTimeBlock ? (
+            <div className="flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center">
+              <Lock className="h-4 w-4 text-blue-500" />
+            </div>
+          ) : (
+            <Button size="icon" variant="ghost" className="touch-none cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" {...dragHandleProps}>
+              <GripVertical className="h-4 w-4" />
+            </Button>
+          )}
           <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-8 w-8 rounded-full", task.Progress === 'Completed' ? "bg-green-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
           id: task.id
         })}>
             <Check className="h-4 w-4" />
           </Button>
-          {task.Progress !== 'Completed' && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" onClick={() => onTaskStart?.(task.id)}>
+          {task.Progress !== 'Completed' && !isTimeBlock && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" onClick={() => onTaskStart?.(task.id)}>
               <Play className="h-4 w-4" />
             </Button>}
         </div>
         <div className="flex-grow min-w-0">
           <div className="flex items-start gap-2 flex-wrap">
+            {isTimeBlock && (
+              <span className="text-xs inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 mr-1">
+                Time Block
+              </span>
+            )}
             <span className={cn("font-bold break-words", task.Progress === 'Completed' && "line-through text-gray-500")}>
               {task["Task Name"]}
             </span>
@@ -220,7 +232,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </span>}
           </div>
         </div>
-        {!isTaskView && task.Progress !== 'Completed' && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-primary/10" onClick={() => setIsEditing(true)}>
+        {!isTaskView && task.Progress !== 'Completed' && !isTimeBlock && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-primary/10" onClick={() => setIsEditing(true)}>
             <PencilIcon className="h-4 w-4" />
           </Button>}
         {hasSubtasks && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-primary/10" onClick={() => setIsExpanded(!isExpanded)}>
@@ -228,7 +240,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
           </Button>}
       </div>
 
-      <EditTaskModal isOpen={isEditing} onClose={() => setIsEditing(false)} task={task} subtasks={subtasks} onSave={handleEditSave} />
+      {!isTimeBlock && <EditTaskModal isOpen={isEditing} onClose={() => setIsEditing(false)} task={task} subtasks={subtasks} onSave={handleEditSave} />}
 
       {isExpanded && hasSubtasks && <ul className="pl-6 space-y-2">
           {subtasks?.filter(subtask => subtask["Parent Task ID"] === task.id).sort((a, b) => {
@@ -386,20 +398,23 @@ export const TaskList: React.FC<TaskListProps> = ({
       const todayTasks = getTodayTasks(tasks);
       if (todayTasks.length === 0) return;
       
-      const currentTask = todayTasks.find(t => t.Progress === 'In progress');
-      const movedTask = todayTasks.find(t => t.id === movedTaskId);
-      const oldIndex = todayTasks.findIndex(t => t.id === movedTaskId);
-      const newIndex = todayTasks.findIndex(t => t.id === movedTaskId);
-      const isMovingToFirst = newIndex === 0;
+      const timeBlocks = todayTasks.filter(t => isTaskTimeBlock(t))
+        .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
+      
+      const regularTasks = todayTasks.filter(t => !isTaskTimeBlock(t));
+      
+      const currentTask = regularTasks.find(t => t.Progress === 'In progress');
+      const movedTask = regularTasks.find(t => t.id === movedTaskId);
+      
+      const isMovingToFirst = regularTasks.indexOf(movedTask) === 0;
       const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
       
       console.log('Task update operation:', {
         currentTaskId: currentTask?.id,
         movedTaskId,
-        oldIndex,
-        newIndex,
         isMovingToFirst,
-        isMovingCurrentTask
+        isMovingCurrentTask,
+        timeBlocks: timeBlocks.length
       });
       
       const shouldUpdateCurrentTask = isMovingCurrentTask || isMovingToFirst;
@@ -407,32 +422,57 @@ export const TaskList: React.FC<TaskListProps> = ({
       let nextStartTime = new Date(currentTime);
       
       if (!shouldUpdateCurrentTask && currentTask) {
-        nextStartTime = new Date(new Date(currentTask.date_started).getTime() + 30 * 60 * 1000);
+        nextStartTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
       }
       
       const updates = [];
       
-      for (const task of todayTasks) {
+      if (currentTask && !shouldUpdateCurrentTask) {
+        updates.push({
+          id: currentTask.id,
+          date_started: currentTask.date_started,
+          date_due: currentTask.date_due,
+          Progress: 'In progress'
+        });
+      }
+      
+      for (const task of regularTasks) {
         if (task.Progress === 'Completed') continue;
+        if (currentTask && !shouldUpdateCurrentTask && task.id === currentTask.id) continue;
         
-        const isCurrentTask = currentTask && task.id === currentTask.id;
-        const isFirst = todayTasks.indexOf(task) === 0;
+        const isFirst = regularTasks.indexOf(task) === 0;
         let taskStartTime: Date;
         let taskEndTime: Date;
         
-        if (isCurrentTask && !shouldUpdateCurrentTask) {
-          taskStartTime = new Date(currentTask.date_started);
-          taskEndTime = new Date(currentTask.date_due);
-          console.log('Preserving current task time:', taskStartTime);
+        if (isFirst && shouldUpdateCurrentTask) {
+          taskStartTime = currentTime;
         } else {
-          if (isFirst && shouldUpdateCurrentTask) {
-            taskStartTime = currentTime;
-          } else {
-            taskStartTime = new Date(nextStartTime);
+          let conflictDetected = true;
+          taskStartTime = new Date(nextStartTime);
+          
+          while (conflictDetected) {
+            conflictDetected = false;
+            for (const block of timeBlocks) {
+              const blockStart = new Date(block.date_started);
+              const blockEnd = new Date(block.date_due);
+              
+              taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+              
+              if (
+                (taskStartTime >= blockStart && taskStartTime < blockEnd) ||
+                (taskEndTime > blockStart && taskEndTime <= blockEnd) ||
+                (taskStartTime <= blockStart && taskEndTime >= blockEnd)
+              ) {
+                taskStartTime = new Date(blockEnd.getTime() + 5 * 60 * 1000);
+                conflictDetected = true;
+                break;
+              }
+            }
           }
-          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
+        
+        taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         
         const updateData: any = {
           id: task.id,
@@ -440,17 +480,16 @@ export const TaskList: React.FC<TaskListProps> = ({
           date_due: taskEndTime.toISOString()
         };
         
-        if (isCurrentTask && !isFirst && shouldUpdateCurrentTask) {
-          updateData.Progress = 'Not started';
-        } else if (isFirst && shouldUpdateCurrentTask && !isCurrentTask) {
+        if (isFirst && shouldUpdateCurrentTask) {
           updateData.Progress = 'In progress';
+        } else if (isMovingCurrentTask && task.id === currentTask?.id) {
+          updateData.Progress = 'Not started';
         }
         
         console.log('Updating task:', {
           taskName: task["Task Name"],
           startTime: taskStartTime,
           endTime: taskEndTime,
-          isCurrentTask,
           progress: updateData.Progress || task.Progress
         });
         
@@ -487,6 +526,12 @@ export const TaskList: React.FC<TaskListProps> = ({
     
     const todayTasks = getTodayTasks(dbTasks);
     if (todayTasks.length === 0) return;
+    
+    const activeTask = todayTasks.find(t => t.id === active.id);
+    if (activeTask && isTaskTimeBlock(activeTask)) {
+      toast.error("Time blocks cannot be reordered");
+      return;
+    }
     
     const oldIndex = todayTasks.findIndex(t => t.id === active.id);
     const newIndex = todayTasks.findIndex(t => t.id === over.id);
@@ -541,7 +586,10 @@ export const TaskList: React.FC<TaskListProps> = ({
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
             <ul className="space-y-4">
-              {(dbTasks || []).filter(task => ['Not started', 'In progress'].includes(task.Progress)).map(task => <SortableTaskItem key={task.id} task={task}>
+              {(dbTasks || []).filter(task => ['Not started', 'In progress'].includes(task.Progress)).map(task => {
+                const isTimeBlockTask = isTaskTimeBlock(task);
+                return (
+                  <SortableTaskItem key={task.id} task={task}>
                     <TaskItem 
                       task={task} 
                       subtasks={todaySubtasks} 
@@ -550,7 +598,9 @@ export const TaskList: React.FC<TaskListProps> = ({
                       isCurrentTask={task.id === activeTaskId}
                       taskLists={taskLists} 
                     />
-                  </SortableTaskItem>)}
+                  </SortableTaskItem>
+                );
+              })}
             </ul>
           </SortableContext>
         </DndContext>
@@ -768,3 +818,5 @@ export const TaskList: React.FC<TaskListProps> = ({
       </div>
     </div>;
 };
+
+export { TaskList };

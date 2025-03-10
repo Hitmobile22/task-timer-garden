@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
-import { TaskList } from './TaskList';
+import { TaskList as TaskListComponent } from './TaskList';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
@@ -376,14 +376,11 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       }
       
       allTasksToSchedule.sort((a, b) => {
-        const aTime = a.details?.isTimeBlock ? new Date(a.date_started).getTime() : 0;
-        const bTime = b.details?.isTimeBlock ? new Date(b.date_started).getTime() : 0;
-        
-        if (a.details?.isTimeBlock && b.details?.isTimeBlock) {
-          return aTime - bTime;
+        if (isTaskTimeBlock(a) && isTaskTimeBlock(b)) {
+          return new Date(a.date_started).getTime() - new Date(b.date_started).getTime();
         }
-        if (a.details?.isTimeBlock) return -1;
-        if (b.details?.isTimeBlock) return 1;
+        if (isTaskTimeBlock(a)) return -1;
+        if (isTaskTimeBlock(b)) return 1;
         
         return 0;
       });
@@ -393,7 +390,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       for (const task of allTasksToSchedule) {
         if (currentTask && task.id === currentTask.id) continue;
         
-        if (task.details?.isTimeBlock) {
+        if (isTaskTimeBlock(task)) {
           continue;
         } else {
           const timeBlockConflicts = timeBlocks.filter(block => {
@@ -497,7 +494,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                 />
               </div>
               <div className="task-list">
-                <TaskList tasks={activeTasks || []} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
+                <TaskListComponent tasks={activeTasks || []} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
               </div>
             </div>
           </div>

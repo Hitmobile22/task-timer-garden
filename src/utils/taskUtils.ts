@@ -80,7 +80,20 @@ export const isTaskTimeBlock = (task: any): boolean => {
   
   // Handle object
   if (typeof task.details === 'object' && task.details !== null) {
-    return !!task.details.isTimeBlock;
+    try {
+      if (typeof task.details.isTimeBlock === 'boolean') {
+        return task.details.isTimeBlock;
+      }
+      
+      // Handle case where details might be another format
+      const detailsStr = JSON.stringify(task.details);
+      if (detailsStr.includes('isTimeBlock')) {
+        const parsedDetails = JSON.parse(detailsStr);
+        return !!parsedDetails.isTimeBlock;
+      }
+    } catch (e) {
+      return false;
+    }
   }
   
   return false;

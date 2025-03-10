@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,9 +67,13 @@ export const RecurringTasksModal = ({
       daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
     }
   );
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadSettings = async () => {
+      if (!open || !listId) return;
+      
+      setIsLoading(true);
       try {
         const { data: settingsData, error } = await supabase
           .from('recurring_task_settings')
@@ -79,26 +84,41 @@ export const RecurringTasksModal = ({
         if (error && error.code !== 'PGRST116') throw error;
 
         if (settingsData) {
+          console.log('Loaded settings:', settingsData);
           setSettings({
             enabled: settingsData.enabled,
             dailyTaskCount: settingsData.daily_task_count,
             daysOfWeek: settingsData.days_of_week,
           });
+        } else {
+          // Reset to defaults if no settings found
+          setSettings({
+            enabled: false,
+            dailyTaskCount: 1,
+            daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+          });
         }
       } catch (error) {
         console.error('Error loading recurring task settings:', error);
         toast.error('Failed to load recurring task settings');
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    if (open && listId) {
-      loadSettings();
-    }
+    loadSettings();
   }, [open, listId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      console.log('Saving settings:', {
+        task_list_id: listId,
+        enabled: settings.enabled,
+        daily_task_count: settings.dailyTaskCount,
+        days_of_week: settings.daysOfWeek,
+      });
+      
       const { error } = await supabase
         .from('recurring_task_settings')
         .upsert({
@@ -144,55 +164,62 @@ export const RecurringTasksModal = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Recurring Tasks for {listName}</DialogTitle>
+          <DialogDescription>
+            Configure automatic task creation for this list.
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="recurring-enabled">Enable Recurring Tasks</Label>
-            <Switch
-              id="recurring-enabled"
-              checked={settings.enabled}
-              onCheckedChange={(checked) =>
-                setSettings((prev) => ({ ...prev, enabled: checked }))
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="daily-count">Daily Task Count</Label>
-            <Input
-              id="daily-count"
-              type="number"
-              min="1"
-              max="10"
-              value={settings.dailyTaskCount}
-              onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  dailyTaskCount: parseInt(e.target.value) || 1,
-                }))
-              }
-              disabled={!settings.enabled}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Days of Week</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {DAYS_OF_WEEK.map((day) => (
-                <div key={day} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`day-${day}`}
-                    checked={settings.daysOfWeek.includes(day)}
-                    onCheckedChange={() => toggleDay(day)}
-                    disabled={!settings.enabled}
-                  />
-                  <Label htmlFor={`day-${day}`}>{day}</Label>
-                </div>
-              ))}
+        {isLoading ? (
+          <div className="py-6 text-center">Loading settings...</div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="recurring-enabled">Enable Recurring Tasks</Label>
+              <Switch
+                id="recurring-enabled"
+                checked={settings.enabled}
+                onCheckedChange={(checked) =>
+                  setSettings((prev) => ({ ...prev, enabled: checked }))
+                }
+              />
             </div>
-          </div>
-          <DialogFooter>
-            <Button type="submit">Save Changes</Button>
-          </DialogFooter>
-        </form>
+            <div className="space-y-2">
+              <Label htmlFor="daily-count">Daily Task Count</Label>
+              <Input
+                id="daily-count"
+                type="number"
+                min="1"
+                max="10"
+                value={settings.dailyTaskCount}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    dailyTaskCount: parseInt(e.target.value) || 1,
+                  }))
+                }
+                disabled={!settings.enabled}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Days of Week</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {DAYS_OF_WEEK.map((day) => (
+                  <div key={day} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`day-${day}`}
+                      checked={settings.daysOfWeek.includes(day)}
+                      onCheckedChange={() => toggleDay(day)}
+                      disabled={!settings.enabled}
+                    />
+                    <Label htmlFor={`day-${day}`}>{day}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

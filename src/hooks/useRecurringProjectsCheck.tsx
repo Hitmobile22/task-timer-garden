@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Define explicit type for project data to avoid deep type instantiation
 type RecurringProject = {
@@ -17,6 +17,7 @@ type RecurringProject = {
 
 export const useRecurringProjectsCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const queryClient = useQueryClient();
   
   const { data: projects } = useQuery({
     queryKey: ['recurring-projects'],
@@ -52,6 +53,10 @@ export const useRecurringProjectsCheck = () => {
           
           // Update last checked time
           setLastChecked(new Date());
+          
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
         } catch (error) {
           console.error('Error checking recurring projects:', error);
         }
@@ -59,24 +64,21 @@ export const useRecurringProjectsCheck = () => {
     };
 
     // Check on mount if there are any enabled recurring projects
-    // Only check once when component mounts or projects change
-    if (!lastChecked) {
+    if (!lastChecked && projects && projects.length > 0) {
       checkRecurringProjects();
     }
 
-    // Also set up an interval to check once per day (at app load)
-    // But only once per app session
-    const oneDay = 24 * 60 * 60 * 1000;
+    // Also set up an interval to check once per day
     const interval = setInterval(() => {
       const currentHour = new Date().getHours();
       // Only check during daytime hours (7am-10pm)
       if (currentHour >= 7 && currentHour < 22) {
         checkRecurringProjects();
       }
-    }, oneDay);
+    }, 24 * 60 * 60 * 1000); // Check once per day
 
     return () => clearInterval(interval);
-  }, [projects, lastChecked]);
+  }, [projects, lastChecked, queryClient]);
 
   const ensureProjectHasTasks = async (project: RecurringProject) => {
     try {
@@ -86,7 +88,22 @@ export const useRecurringProjectsCheck = () => {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Check if tasks exist for today
+      // First check for tasks already created today by looking at created_at
+      const { data: tasksCreatedToday, error: createdTodayError } = await supabase
+        .from('Tasks')
+        .select('id')
+        .eq('project_id', project.id)
+        .gte('created_at', today.toISOString())
+        .lt('created_at', tomorrow.toISOString());
+
+      if (createdTodayError) throw createdTodayError;
+
+      if (tasksCreatedToday && tasksCreatedToday.length > 0) {
+        console.log(`Already created ${tasksCreatedToday.length} tasks today for project ${project.id} (${project["Project Name"]}), skipping`);
+        return;
+      }
+
+      // Check if tasks exist for today by start date
       const { data: existingTasks, error: countError } = await supabase
         .from('Tasks')
         .select('id')
@@ -135,7 +152,11 @@ export const useRecurringProjectsCheck = () => {
             .insert(newTasks);
 
           if (insertError) throw insertError;
+          
+          console.log(`Successfully created ${newTasks.length} tasks for project ${project.id}`);
         }
+      } else {
+        console.log(`No new tasks needed for project ${project.id} (${project["Project Name"]})`);
       }
     } catch (error) {
       console.error('Error ensuring project has tasks:', error);

@@ -23,6 +23,8 @@ Deno.serve(async (req) => {
     // Get today's date at midnight
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Find projects that are recurring and should generate tasks today
     const { data: projects, error: projectsError } = await supabaseClient
@@ -43,6 +45,7 @@ Deno.serve(async (req) => {
       // Skip if project doesn't have start/due dates
       if (!project.date_started || !project.date_due) {
         console.log(`Project ${project.id} missing start/due dates, skipping`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'missing_dates' });
         continue;
       }
 
@@ -68,39 +71,67 @@ Deno.serve(async (req) => {
         }
         
         console.log(`Project ${project.id} not active today, skipping`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'outside_date_range' });
         continue;
       }
 
-      // Check if tasks were already created today for this project
-      const { data: existingTasks, error: existingTasksError } = await supabaseClient
+      // Check if tasks were already created today by looking at created_at
+      const { data: tasksCreatedToday, error: createdTodayError } = await supabaseClient
         .from('Tasks')
         .select('id')
         .eq('project_id', project.id)
         .gte('created_at', today.toISOString())
-        .lt('created_at', new Date(today.getTime() + 86400000).toISOString());
+        .lt('created_at', tomorrow.toISOString());
 
-      if (existingTasksError) {
-        console.error(`Error checking existing tasks for project ${project.id}:`, existingTasksError);
+      if (createdTodayError) {
+        console.error(`Error checking tasks created today for project ${project.id}:`, createdTodayError);
+        results.push({ project_id: project.id, status: 'error', error: 'created_today_check_failed' });
         continue;
       }
 
       // Skip if tasks were already created today
-      if (existingTasks && existingTasks.length > 0) {
-        console.log(`Already created ${existingTasks.length} tasks today for project ${project.id}, skipping`);
+      if (tasksCreatedToday && tasksCreatedToday.length > 0) {
+        console.log(`Already created ${tasksCreatedToday.length} tasks today for project ${project.id}, skipping`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'tasks_already_created_today', count: tasksCreatedToday.length });
+        continue;
+      }
+
+      // Count existing active tasks for today
+      const { data: existingTasks, error: existingTasksError } = await supabaseClient
+        .from('Tasks')
+        .select('id')
+        .eq('project_id', project.id)
+        .in('Progress', ['Not started', 'In progress'])
+        .gte('date_started', today.toISOString())
+        .lt('date_started', tomorrow.toISOString());
+
+      if (existingTasksError) {
+        console.error(`Error checking existing tasks for project ${project.id}:`, existingTasksError);
+        results.push({ project_id: project.id, status: 'error', error: 'existing_tasks_check_failed' });
+        continue;
+      }
+
+      // Calculate how many tasks to add
+      const taskCount = project.recurringTaskCount || 1;
+      const existingCount = existingTasks?.length || 0;
+      const neededTasks = Math.max(0, taskCount - existingCount);
+      
+      if (neededTasks <= 0) {
+        console.log(`No new tasks needed for project ${project.id} (${project['Project Name']})`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks', existing: existingCount });
         continue;
       }
 
       // Create new tasks for today
       const tasksToCreate = [];
-      const taskCount = project.recurringTaskCount || 1;
       
-      for (let i = 0; i < taskCount; i++) {
+      for (let i = 0; i < neededTasks; i++) {
         const now = new Date();
         const startTime = new Date(now.getTime() + (i * 30 * 60 * 1000)); // 30 min spacing
         const endTime = new Date(startTime.getTime() + (25 * 60 * 1000)); // 25 min duration
         
         tasksToCreate.push({
-          "Task Name": `${project['Project Name']} - Task ${i + 1}`,
+          "Task Name": `${project['Project Name']} - Task ${existingCount + i + 1}`,
           Progress: "Not started",
           date_started: startTime.toISOString(),
           date_due: endTime.toISOString(),
@@ -108,6 +139,8 @@ Deno.serve(async (req) => {
           project_id: project.id
         });
       }
+
+      console.log(`Creating ${tasksToCreate.length} new tasks for project ${project.id}`);
 
       if (tasksToCreate.length > 0) {
         const { data: newTasks, error: createError } = await supabaseClient
@@ -117,11 +150,12 @@ Deno.serve(async (req) => {
 
         if (createError) {
           console.error(`Error creating tasks for project ${project.id}:`, createError);
+          results.push({ project_id: project.id, status: 'error', error: 'task_creation_failed' });
           continue;
         }
 
         console.log(`Created ${newTasks.length} tasks for project ${project.id}`);
-        results.push({ project_id: project.id, tasks_created: newTasks.length });
+        results.push({ project_id: project.id, status: 'created', tasks_created: newTasks.length });
       }
     }
 

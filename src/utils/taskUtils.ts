@@ -1,4 +1,3 @@
-
 import { format } from 'date-fns';
 import { TASK_LIST_COLORS } from '@/constants/taskColors';
 
@@ -60,4 +59,28 @@ export const extractSolidColorFromGradient = (gradient: string): string => {
 
 export const formatDate = (date: string) => {
   return format(new Date(date), 'MMM d, h:mm a');
+};
+
+/**
+ * Helper function to safely check if a task is a time block
+ */
+export const isTaskTimeBlock = (task: any): boolean => {
+  if (!task || !task.details) return false;
+  
+  // Handle string JSON
+  if (typeof task.details === 'string') {
+    try {
+      const parsedDetails = JSON.parse(task.details);
+      return !!parsedDetails.isTimeBlock;
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  // Handle object
+  if (typeof task.details === 'object' && task.details !== null) {
+    return !!task.details.isTimeBlock;
+  }
+  
+  return false;
 };

@@ -1,10 +1,11 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: settings } = useQuery({
     queryKey: ['recurring-task-settings'],
@@ -30,11 +31,19 @@ export const useRecurringTasksCheck = () => {
 
       if (settings && settings.length > 0) {
         try {
-          const { error } = await supabase.functions.invoke('check-recurring-tasks');
+          console.log('Checking recurring tasks...');
+          const { data, error } = await supabase.functions.invoke('check-recurring-tasks');
+          
           if (error) throw error;
+          
+          console.log('Recurring tasks check result:', data);
           
           // Update last checked time
           setLastChecked(new Date());
+          
+          // Invalidate tasks query to refresh the task list
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
         } catch (error) {
           console.error('Error checking recurring tasks:', error);
         }
@@ -42,20 +51,19 @@ export const useRecurringTasksCheck = () => {
     };
 
     // Check on mount if there are any enabled recurring task settings
-    // Only check once when component mounts or settings change
-    if (!lastChecked) {
+    if (!lastChecked && settings && settings.length > 0) {
       checkRecurringTasks();
     }
 
-    // Also set up an interval to check periodically (every hour instead of 15 minutes)
+    // Also set up an interval to check periodically (once per hour)
     const interval = setInterval(() => {
       const currentHour = new Date().getHours();
       // Only check during daytime hours (7am-10pm)
       if (currentHour >= 7 && currentHour < 22) {
         checkRecurringTasks();
       }
-    }, 60 * 60 * 1000); // Check every hour instead of every 15 minutes
+    }, 60 * 60 * 1000); // Check every hour
 
     return () => clearInterval(interval);
-  }, [settings, lastChecked]);
+  }, [settings, lastChecked, queryClient]);
 };

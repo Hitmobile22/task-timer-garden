@@ -38,7 +38,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
-        .neq('Progress', 'Completed')
+        .in('Progress', ['Not started', 'In progress'])
+        .neq('Progress', 'Backlog')
         .order('date_started', { ascending: true });
 
       if (error) throw error;
@@ -136,6 +137,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
     const now = new Date();
     return activeTasks.find(task => {
+      if (task.Progress === 'Backlog') return false;
+      
       const startTime = new Date(task.date_started);
       const timeDiff = startTime.getTime() - now.getTime();
       return timeDiff > 0 && timeDiff <= 10 * 60 * 1000;
@@ -169,14 +172,16 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     const tomorrow5AM = new Date(tomorrow);
     tomorrow5AM.setHours(5, 0, 0, 0);
 
+    const nonBacklogTasks = tasks.filter(task => task.Progress !== 'Backlog');
+
     if (now.getHours() >= 21) {
-      return tasks.filter(task => {
+      return nonBacklogTasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
         return taskDate >= today && taskDate <= tomorrow5AM;
       });
     } else {
-      return tasks.filter(task => {
+      return nonBacklogTasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
         return taskDate >= today && taskDate < tomorrow;

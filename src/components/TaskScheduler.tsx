@@ -15,6 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Task, Subtask } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
+import { isTaskTimeBlock } from '@/utils/taskUtils';
 
 interface SubTask {
   name: string;
@@ -63,9 +64,12 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const {
         data,
         error
-      } = await supabase.from('Tasks').select('*').in('Progress', ['Not started', 'In progress']).order('date_started', {
-        ascending: true
-      });
+      } = await supabase.from('Tasks').select('*')
+        .in('Progress', ['Not started', 'In progress'])
+        .neq('Progress', 'Backlog')
+        .order('date_started', {
+          ascending: true
+        });
       if (error) throw error;
       return (data || []).filter(task => {
         return task.Progress && task.Progress !== 'Backlog';
@@ -79,9 +83,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const inProgressTask = activeTasks.find(task => task.Progress === 'In progress');
       setTimerStarted(!!inProgressTask);
       
-      const firstRegularTask = activeTasks.find(task => 
-        !(task.details && task.details.isTimeBlock === true)
-      );
+      const firstRegularTask = activeTasks.find(task => !isTaskTimeBlock(task));
       if (firstRegularTask) {
         setActiveTaskId(firstRegularTask.id);
       }
@@ -123,13 +125,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         
         const tasksToReschedule = activeTasks
           .filter(task => {
-            const isTaskTimeBlock = task.details && 
-              typeof task.details === 'object' && 
-              task.details !== null && 
-              'isTimeBlock' in task.details && 
-              task.details.isTimeBlock === true;
-              
-            if (isTaskTimeBlock) {
+            if (isTaskTimeBlock(task)) {
               return false;
             }
             if (task.Progress === 'In progress' || task.id === timeBlock.id) {
@@ -189,14 +185,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     try {
       const targetTask = activeTasks?.find(t => t.id === taskId);
       
-      const isTimeBlock = targetTask && 
-        targetTask.details && 
-        typeof targetTask.details === 'object' && 
-        targetTask.details !== null && 
-        'isTimeBlock' in targetTask.details && 
-        targetTask.details.isTimeBlock === true;
-        
-      if (isTimeBlock) {
+      if (isTaskTimeBlock(targetTask)) {
         toast.info("Time blocks can't be started as tasks");
         return;
       }
@@ -206,7 +195,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const notStartedTasks = activeTasks?.filter(t => {
-        if (t.details?.isTimeBlock) {
+        if (isTaskTimeBlock(t)) {
           return false;
         }
         
@@ -237,7 +226,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       }
       
       const timeBlocks = activeTasks
-        ?.filter(t => t.details && t.details.isTimeBlock === true)
+        ?.filter(t => isTaskTimeBlock(t))
         .map(t => ({
           start: new Date(t.date_started || ''),
           end: new Date(t.date_due || '')
@@ -299,6 +288,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const getTodayTasks = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return [];
     
+    tasks = tasks.filter(task => task.Progress !== 'Backlog');
+    
     const now = new Date();
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);
@@ -334,6 +325,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         .from('Tasks')
         .select('*')
         .in('Progress', ['Not started', 'In progress'])
+        .neq('Progress', 'Backlog')
         .order('date_started', { ascending: true });
       
       if (error) throw error;
@@ -342,8 +334,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         return;
       }
       
-      const regularTasks = tasks.filter(t => !(t.details && t.details.isTimeBlock === true));
-      const timeBlocks = tasks.filter(t => t.details && t.details.isTimeBlock === true);
+      const regularTasks = tasks.filter(t => !isTaskTimeBlock(t));
+      const timeBlocks = tasks.filter(t => isTaskTimeBlock(t));
       
       if (regularTasks.length < 2) {
         toast.info('Not enough regular tasks to shuffle');

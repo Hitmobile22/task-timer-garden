@@ -66,6 +66,7 @@ Deno.serve(async (req) => {
     console.log(`Found ${settings?.length || 0} recurring task settings for ${dayOfWeek}`);
 
     // Process each task list that needs recurring tasks
+    const results = [];
     for (const setting of (settings as RecurringTaskSettings[] || [])) {
       // Get task list info and check last_tasks_added_at
       const { data: taskList } = await supabaseClient
@@ -80,6 +81,28 @@ Deno.serve(async (req) => {
       }
 
       // Check if tasks have already been added today
+      const todayMidnight = new Date(today);
+      todayMidnight.setHours(0, 0, 0, 0);
+      const tomorrowMidnight = new Date(todayMidnight);
+      tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+
+      // First check for tasks already created today by looking at created_at
+      const { data: tasksCreatedToday, error: countError } = await supabaseClient
+        .from('Tasks')
+        .select('id')
+        .eq('task_list_id', setting.task_list_id)
+        .gte('created_at', todayMidnight.toISOString())
+        .lt('created_at', tomorrowMidnight.toISOString());
+
+      if (countError) throw countError;
+
+      if (tasksCreatedToday && tasksCreatedToday.length > 0) {
+        console.log(`Already created ${tasksCreatedToday.length} tasks today for list ${taskList.id} (${taskList.name}), skipping`);
+        results.push({ task_list_id: setting.task_list_id, status: 'skipped', reason: 'tasks_already_created_today' });
+        continue;
+      }
+
+      // Also check last_tasks_added_at as a fallback
       const lastAddedDate = taskList.last_tasks_added_at ? new Date(taskList.last_tasks_added_at) : null;
       const hasAddedToday = lastAddedDate && 
         lastAddedDate.getDate() === today.getDate() &&
@@ -87,24 +110,26 @@ Deno.serve(async (req) => {
         lastAddedDate.getFullYear() === today.getFullYear();
 
       if (hasAddedToday) {
-        console.log(`Tasks already added today for list ${taskList.id} (${taskList.name})`);
+        console.log(`Tasks already added today for list ${taskList.id} (${taskList.name}) based on last_tasks_added_at`);
+        results.push({ task_list_id: setting.task_list_id, status: 'skipped', reason: 'last_tasks_added_at_is_today' });
         continue;
       }
 
       // Count existing active tasks for today
-      const { data: existingTasks, error: countError } = await supabaseClient
+      const { data: existingActiveTasks, error: activeTasksError } = await supabaseClient
         .from('Tasks')
         .select('id')
         .eq('task_list_id', setting.task_list_id)
         .in('Progress', ['Not started', 'In progress'])
-        .gte('date_started', startOfDay.toISOString());
+        .gte('date_started', todayMidnight.toISOString())
+        .lt('date_started', tomorrowMidnight.toISOString());
 
-      if (countError) throw countError;
+      if (activeTasksError) throw activeTasksError;
 
-      const existingCount = existingTasks?.length || 0;
+      const existingCount = existingActiveTasks?.length || 0;
       const neededTasks = Math.max(0, setting.daily_task_count - existingCount);
 
-      console.log(`List ${taskList.id} (${taskList.name}): Has ${existingCount} tasks, needs ${neededTasks} more`);
+      console.log(`List ${taskList.id} (${taskList.name}): Has ${existingCount} active tasks, needs ${neededTasks} more`);
 
       if (neededTasks > 0) {
         // Create tasks starting at current time with 30 min intervals
@@ -156,15 +181,18 @@ Deno.serve(async (req) => {
           }
           
           console.log(`Successfully created tasks and updated last_tasks_added_at for list ${taskList.id}`);
+          results.push({ task_list_id: setting.task_list_id, status: 'created', tasks_created: newTasks.length });
         }
       } else {
         console.log(`No new tasks needed for list ${taskList.id} (${taskList.name})`);
+        results.push({ task_list_id: setting.task_list_id, status: 'skipped', reason: 'has_enough_tasks' });
       }
     }
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: `Processed ${settings?.length || 0} recurring task settings`
+      message: `Processed ${settings?.length || 0} recurring task settings`,
+      results
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,

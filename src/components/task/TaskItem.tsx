@@ -6,7 +6,7 @@ import { TaskNameCell } from './cells/TaskNameCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
 import { TaskTimelineCell } from './cells/TaskTimelineCell';
 import { TaskActionsCell } from './cells/TaskActionsCell';
-import { getTaskListColor, extractSolidColorFromGradient } from '@/utils/taskUtils';
+import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { cn } from '@/lib/utils';
 
@@ -52,6 +52,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     task.date_due ? new Date(task.date_due) : undefined
   );
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
+  const isTimeBlock = React.useMemo(() => isTaskTimeBlock(task), [task]);
 
   const taskListColor = React.useMemo(() => {
     if (task.task_list_id && taskLists && taskLists.length > 0) {
@@ -71,6 +72,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   }, [task.date_started, task.date_due, task.Progress, editingTaskId]);
 
   const handleTimelineUpdate = (startDate?: Date, endDate?: Date) => {
+    // Prevent updating timeline for time blocks
+    if (isTimeBlock) return;
+    
     setSelectedStartDate(startDate);
     setSelectedEndDate(endDate);
   };
@@ -82,7 +86,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const isEditing = editingTaskId === task.id;
 
   const handleSave = () => {
-    if (selectedStartDate && selectedEndDate) {
+    if (selectedStartDate && selectedEndDate && !isTimeBlock) {
       onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     }
     if (tempProgress !== task.Progress) {
@@ -95,6 +99,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     <React.Fragment>
       <TableRow className={cn(
         task.task_list_id !== 1 ? "border-l-4" : "",
+        isTimeBlock ? "bg-amber-50" : ""
       )}
       style={task.task_list_id !== 1 ? {
         borderLeftColor: borderColor
@@ -124,6 +129,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           endDate={selectedEndDate}
           isEditing={isEditing}
           onTimelineUpdate={handleTimelineUpdate}
+          isTimeBlock={isTimeBlock}
         />
         <TaskActionsCell
           task={task}
@@ -134,6 +140,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onEditCancel={onEditCancel}
           onEditSave={handleSave}
           onDeleteTask={onDeleteTask}
+          isTimeBlock={isTimeBlock}
         />
       </TableRow>
     </React.Fragment>

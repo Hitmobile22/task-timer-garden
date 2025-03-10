@@ -7,7 +7,7 @@ export type Task = {
   date_due?: string;
   task_list_id: number | null;
   project_id?: number | null;
-  details?: any; // Changed from Record<string, any> | string | null to any to handle JSON
+  details?: Record<string, any> | string | null;
 };
 
 export type Subtask = {

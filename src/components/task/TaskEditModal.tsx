@@ -113,9 +113,23 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     };
     
     // Preserve isTimeBlock flag if it exists
-    if (task.details && typeof task.details === 'object' && task.details !== null) {
-      if ('isTimeBlock' in task.details) {
-        updatedDetails.isTimeBlock = task.details.isTimeBlock;
+    if (task.details) {
+      // Handle object details
+      if (typeof task.details === 'object' && task.details !== null) {
+        if ('isTimeBlock' in task.details) {
+          updatedDetails.isTimeBlock = task.details.isTimeBlock;
+        }
+      }
+      // Handle string details that might contain JSON
+      else if (typeof task.details === 'string') {
+        try {
+          const parsedDetails = JSON.parse(task.details);
+          if (parsedDetails && 'isTimeBlock' in parsedDetails) {
+            updatedDetails.isTimeBlock = parsedDetails.isTimeBlock;
+          }
+        } catch (e) {
+          // Not valid JSON, ignore
+        }
       }
     }
     

@@ -48,160 +48,122 @@ Deno.serve(async (req) => {
     // Get current day of week
     const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
     
-    // Get all enabled recurring task settings for today
+    // Get all enabled recurring task settings for the current day
     const { data: settings, error: settingsError } = await supabaseClient
       .from('recurring_task_settings')
-      .select(`
-        id,
-        task_list_id,
-        enabled,
-        daily_task_count,
-        days_of_week
-      `)
+      .select('*')
       .eq('enabled', true)
       .contains('days_of_week', [dayOfWeek]);
-
+    
     if (settingsError) throw settingsError;
-
-    console.log(`Found ${settings?.length || 0} recurring task settings for ${dayOfWeek}`);
-
-    // Process each task list that needs recurring tasks
-    const results = [];
-    for (const setting of (settings as RecurringTaskSettings[] || [])) {
-      // Get task list info and check last_tasks_added_at
-      const { data: taskList } = await supabaseClient
+    if (!settings || settings.length === 0) {
+      console.log('No active recurring task settings for today');
+      return new Response(JSON.stringify({ success: true, message: 'No active settings for today' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+    
+    console.log(`Found ${settings.length} active recurring task settings for ${dayOfWeek}`);
+    
+    // For each settings entry, get the task list and check if tasks need to be generated
+    const generatedTasks = [];
+    
+    for (const setting of settings) {
+      // Verify the setting is actually enabled
+      if (!setting.enabled) {
+        console.log(`Settings ID ${setting.id} is marked as not enabled, skipping`);
+        continue;
+      }
+      
+      // Get the associated task list
+      const { data: taskListData, error: taskListError } = await supabaseClient
         .from('TaskLists')
         .select('*')
         .eq('id', setting.task_list_id)
-        .single();
-
-      if (!taskList) {
-        console.log(`TaskList ${setting.task_list_id} not found, skipping`);
+        .single<TaskList>();
+      
+      if (taskListError) {
+        console.error(`Error getting task list ${setting.task_list_id}:`, taskListError);
         continue;
       }
-
-      // Check if tasks have already been added today
-      const todayMidnight = new Date(today);
-      todayMidnight.setHours(0, 0, 0, 0);
-      const tomorrowMidnight = new Date(todayMidnight);
-      tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
-
-      // First check for tasks already created today by looking at created_at
-      const { data: tasksCreatedToday, error: countError } = await supabaseClient
-        .from('Tasks')
-        .select('id')
-        .eq('task_list_id', setting.task_list_id)
-        .gte('created_at', todayMidnight.toISOString())
-        .lt('created_at', tomorrowMidnight.toISOString());
-
-      if (countError) throw countError;
-
-      if (tasksCreatedToday && tasksCreatedToday.length > 0) {
-        console.log(`Already created ${tasksCreatedToday.length} tasks today for list ${taskList.id} (${taskList.name}), skipping`);
-        results.push({ task_list_id: setting.task_list_id, status: 'skipped', reason: 'tasks_already_created_today' });
-        continue;
-      }
-
-      // Also check last_tasks_added_at as a fallback
-      const lastAddedDate = taskList.last_tasks_added_at ? new Date(taskList.last_tasks_added_at) : null;
-      const hasAddedToday = lastAddedDate && 
-        lastAddedDate.getDate() === today.getDate() &&
-        lastAddedDate.getMonth() === today.getMonth() &&
-        lastAddedDate.getFullYear() === today.getFullYear();
-
-      if (hasAddedToday) {
-        console.log(`Tasks already added today for list ${taskList.id} (${taskList.name}) based on last_tasks_added_at`);
-        results.push({ task_list_id: setting.task_list_id, status: 'skipped', reason: 'last_tasks_added_at_is_today' });
-        continue;
-      }
-
-      // Count existing active tasks for today
-      const { data: existingActiveTasks, error: activeTasksError } = await supabaseClient
-        .from('Tasks')
-        .select('id')
-        .eq('task_list_id', setting.task_list_id)
-        .in('Progress', ['Not started', 'In progress'])
-        .gte('date_started', todayMidnight.toISOString())
-        .lt('date_started', tomorrowMidnight.toISOString());
-
-      if (activeTasksError) throw activeTasksError;
-
-      const existingCount = existingActiveTasks?.length || 0;
-      const neededTasks = Math.max(0, setting.daily_task_count - existingCount);
-
-      console.log(`List ${taskList.id} (${taskList.name}): Has ${existingCount} active tasks, needs ${neededTasks} more`);
-
-      if (neededTasks > 0) {
-        // Create tasks starting at current time with 30 min intervals
-        const startingTime = new Date();
-        // If it's early morning, start at 9am
-        if (startingTime.getHours() < 9) {
-          startingTime.setHours(9, 0, 0, 0);
+      
+      // Check if tasks have already been generated today
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      
+      if (taskListData.last_tasks_added_at) {
+        const lastAdded = new Date(taskListData.last_tasks_added_at);
+        if (lastAdded >= startOfToday) {
+          console.log(`Tasks already generated today for list ${taskListData.name} (${setting.task_list_id})`);
+          continue;
         }
-
-        const newTasks = Array.from({ length: neededTasks }, (_, i) => {
-          const taskStartTime = new Date(startingTime);
-          taskStartTime.setMinutes(startingTime.getMinutes() + (i * 30));
-          
-          const taskEndTime = new Date(taskStartTime);
-          taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
-
-          return {
-            "Task Name": `${taskList.name} ${existingCount + i + 1}`,
+      }
+      
+      // Generate the tasks
+      console.log(`Generating ${setting.daily_task_count} tasks for list ${taskListData.name} (${setting.task_list_id})`);
+      
+      const taskDate = new Date();
+      const baseTaskName = `${taskListData.name} - Task`;
+      
+      for (let i = 0; i < setting.daily_task_count; i++) {
+        const taskStartTime = new Date(taskDate);
+        taskStartTime.setHours(9 + i * 2, 0, 0, 0); // Start at 9am, 2-hour increments
+        
+        const taskEndTime = new Date(taskStartTime);
+        taskEndTime.setMinutes(taskEndTime.getMinutes() + 25); // 25-minute task
+        
+        const { data: taskData, error: taskError } = await supabaseClient
+          .from('Tasks')
+          .insert({
+            "Task Name": `${baseTaskName} ${i + 1}`,
             Progress: "Not started",
-            task_list_id: setting.task_list_id,
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),
-            order: existingCount + i,
-            archived: false,
-          };
-        });
-
-        console.log(`Creating ${newTasks.length} new tasks for list ${taskList.id} (${taskList.name})`);
-
-        if (newTasks.length > 0) {
-          const { error: insertError } = await supabaseClient
-            .from('Tasks')
-            .insert(newTasks);
-
-          if (insertError) {
-            console.error('Error inserting tasks:', insertError);
-            throw insertError;
-          }
-
-          // Update last_tasks_added_at
-          const { error: updateError } = await supabaseClient
-            .from('TaskLists')
-            .update({ last_tasks_added_at: new Date().toISOString() })
-            .eq('id', setting.task_list_id);
-
-          if (updateError) {
-            console.error('Error updating TaskList last_tasks_added_at:', updateError);
-            throw updateError;
-          }
-          
-          console.log(`Successfully created tasks and updated last_tasks_added_at for list ${taskList.id}`);
-          results.push({ task_list_id: setting.task_list_id, status: 'created', tasks_created: newTasks.length });
+            task_list_id: setting.task_list_id
+          })
+          .select()
+          .single();
+        
+        if (taskError) {
+          console.error(`Error creating task for list ${taskListData.name}:`, taskError);
+          continue;
         }
-      } else {
-        console.log(`No new tasks needed for list ${taskList.id} (${taskList.name})`);
-        results.push({ task_list_id: setting.task_list_id, status: 'skipped', reason: 'has_enough_tasks' });
+        
+        generatedTasks.push(taskData);
+      }
+      
+      // Update the last_tasks_added_at timestamp
+      const { error: updateError } = await supabaseClient
+        .from('TaskLists')
+        .update({ last_tasks_added_at: new Date().toISOString() })
+        .eq('id', setting.task_list_id);
+      
+      if (updateError) {
+        console.error(`Error updating last_tasks_added_at for list ${taskListData.name}:`, updateError);
       }
     }
-
-    return new Response(JSON.stringify({ 
-      success: true,
-      message: `Processed ${settings?.length || 0} recurring task settings`,
-      results
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: `Generated ${generatedTasks.length} tasks`,
+        tasks: generatedTasks
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
+    
   } catch (error) {
     console.error('Error in check-recurring-tasks:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    });
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
+    );
   }
 });

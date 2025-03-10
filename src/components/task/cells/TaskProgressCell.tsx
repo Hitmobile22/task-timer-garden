@@ -4,6 +4,7 @@ import { TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Task } from '@/types/task.types';
 import { Badge } from "@/components/ui/badge";
+import { isTaskTimeBlock } from '@/utils/taskUtils';
 
 interface TaskProgressCellProps {
   task: Task;
@@ -17,7 +18,7 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
   onUpdateProgress,
 }) => {
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
-  const isTimeBlock = task.details && task.details.isTimeBlock === true;
+  const isTimeBlock = isTaskTimeBlock(task);
 
   React.useEffect(() => {
     setTempProgress(task.Progress);

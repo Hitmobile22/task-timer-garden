@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +16,7 @@ import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circl
 import { Task, Subtask } from '@/types/task.types';
 import { getTaskListColor, extractSolidColorFromGradient } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
+import { isTaskTimeBlock } from '@/utils/taskUtils';
 
 interface SubtaskData {
   id: number;
@@ -137,14 +137,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
   
-  // Get task list color and extract a solid color for the border
   const taskListColor = task.task_list_id && taskLists ? 
     getTaskListColor(task.task_list_id, taskLists) : 
     DEFAULT_LIST_COLOR;
   
   const borderColor = extractSolidColorFromGradient(taskListColor);
   
-  // Log for debugging
   console.log(`Task ${task.id} (${task["Task Name"]}): list_id=${task.task_list_id}, color=${taskListColor}, border=${borderColor}`);
   
   const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[]) => {
@@ -620,6 +618,11 @@ export const TaskList: React.FC<TaskListProps> = ({
       const selectedTask = todayTasks.find(t => t.id === taskId);
       if (!selectedTask) return;
       
+      if (isTaskTimeBlock(selectedTask)) {
+        toast.info("Time blocks can't be started as tasks");
+        return;
+      }
+      
       const currentTime = new Date();
       const tomorrow5AM = new Date(currentTime);
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
@@ -637,7 +640,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       if (startError) throw startError;
       
       const otherTasks = todayTasks
-        .filter(t => t.id !== taskId)
+        .filter(t => t.id !== taskId && !isTaskTimeBlock(t) && t.Progress !== 'Backlog')
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
         
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60000);

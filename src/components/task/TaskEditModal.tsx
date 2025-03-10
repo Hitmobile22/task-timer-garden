@@ -31,6 +31,11 @@ interface TaskEditModalProps {
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
 }
 
+interface EditorContent {
+  type: string;
+  content: { type: string; content: { type: string; text: string; }[] }[];
+}
+
 export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   task,
   taskLists,
@@ -46,7 +51,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   const [tempListId, setTempListId] = React.useState<number>(1);
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date>(new Date());
   const [selectedEndDate, setSelectedEndDate] = React.useState<Date>(new Date());
-  const [details, setDetails] = React.useState<any>({
+  const [details, setDetails] = React.useState<EditorContent>({
     type: 'doc',
     content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
   });
@@ -63,15 +68,22 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       
       // Check if details exists and if it contains rich text editor content
       if (task.details) {
-        if (task.details.type && task.details.content) {
-          // It's rich text editor content
-          setDetails(task.details);
+        if (typeof task.details === 'object' && task.details !== null) {
+          if (task.details.type && task.details.content) {
+            // It's rich text editor content
+            setDetails(task.details as unknown as EditorContent);
+          } else {
+            // It's other details, but we still need to initialize the editor
+            setDetails({
+              type: 'doc',
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
+            });
+          }
         } else {
-          // It's other details, but we still need to initialize the editor
+          // No details, initialize with empty editor content
           setDetails({
             type: 'doc',
-            content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }],
-            ...task.details
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
           });
         }
       } else {
@@ -95,10 +107,16 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     onMoveTask(task.id, tempListId);
     onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     
+    // Prepare details for update
+    const updatedDetails = {
+      ...(details as object),
+    };
+    
     // Preserve isTimeBlock flag if it exists
-    const updatedDetails = {...details};
-    if (task.details && task.details.isTimeBlock !== undefined) {
-      updatedDetails.isTimeBlock = task.details.isTimeBlock;
+    if (task.details && typeof task.details === 'object' && task.details !== null) {
+      if ('isTimeBlock' in task.details) {
+        updatedDetails.isTimeBlock = task.details.isTimeBlock;
+      }
     }
     
     try {

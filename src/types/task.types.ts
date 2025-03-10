@@ -7,10 +7,7 @@ export type Task = {
   date_due?: string;
   task_list_id: number | null;
   project_id?: number | null;
-  details?: {
-    isTimeBlock?: boolean;
-    [key: string]: any;
-  } | null;
+  details?: Record<string, any> | null;
 };
 
 export type Subtask = {

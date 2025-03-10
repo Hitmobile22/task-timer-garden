@@ -123,7 +123,13 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         
         const tasksToReschedule = activeTasks
           .filter(task => {
-            if (task.details && task.details.isTimeBlock === true) {
+            const isTaskTimeBlock = task.details && 
+              typeof task.details === 'object' && 
+              task.details !== null && 
+              'isTimeBlock' in task.details && 
+              task.details.isTimeBlock === true;
+              
+            if (isTaskTimeBlock) {
               return false;
             }
             if (task.Progress === 'In progress' || task.id === timeBlock.id) {
@@ -182,7 +188,15 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const handleTaskStart = async (taskId: number) => {
     try {
       const targetTask = activeTasks?.find(t => t.id === taskId);
-      if (targetTask && targetTask.details && targetTask.details.isTimeBlock === true) {
+      
+      const isTimeBlock = targetTask && 
+        targetTask.details && 
+        typeof targetTask.details === 'object' && 
+        targetTask.details !== null && 
+        'isTimeBlock' in targetTask.details && 
+        targetTask.details.isTimeBlock === true;
+        
+      if (isTimeBlock) {
         toast.info("Time blocks can't be started as tasks");
         return;
       }

@@ -13,12 +13,13 @@ import { Task } from "@/types/task.types";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Clock } from "lucide-react";
+import { Clock, LockIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isTaskTimeBlock } from "@/utils/taskUtils";
 
 interface TaskEditModalProps {
   task: Task;
@@ -57,6 +58,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   });
   const [startDateOpen, setStartDateOpen] = React.useState(false);
   const [endDateOpen, setEndDateOpen] = React.useState(false);
+  const isTimeBlock = React.useMemo(() => isTaskTimeBlock(task), [task]);
 
   React.useEffect(() => {
     if (isOpen && task) {
@@ -105,11 +107,15 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     onEditNameChange(taskName);
     onUpdateProgress(task.id, tempProgress);
     onMoveTask(task.id, tempListId);
-    onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
+    
+    // Only update timeline if this is not a time block
+    if (!isTimeBlock) {
+      onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
+    }
     
     // Prepare details for update
-    const updatedDetails = {
-      ...(details as object),
+    const updatedDetails: Record<string, any> = {
+      ...(typeof details === 'object' ? details : {}),
     };
     
     // Preserve isTimeBlock flag if it exists
@@ -160,7 +166,9 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[700px]" onClick={preventPropagation}>
         <DialogHeader>
-          <DialogTitle>Edit Task</DialogTitle>
+          <DialogTitle>
+            {isTimeBlock ? "Edit Time Block" : "Edit Task"}
+          </DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
@@ -175,20 +183,27 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Progress</label>
-              <Select
-                value={tempProgress}
-                onValueChange={(value: Task['Progress']) => setTempProgress(value)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select progress" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Not started">Not started</SelectItem>
-                  <SelectItem value="In progress">In progress</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Backlog">Backlog</SelectItem>
-                </SelectContent>
-              </Select>
+              {isTimeBlock ? (
+                <div className="flex items-center space-x-2 h-10 px-3 py-2 border rounded-md">
+                  <LockIcon className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-500">Time Block</span>
+                </div>
+              ) : (
+                <Select
+                  value={tempProgress}
+                  onValueChange={(value: Task['Progress']) => setTempProgress(value)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select progress" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Not started">Not started</SelectItem>
+                    <SelectItem value="In progress">In progress</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="Backlog">Backlog</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -212,96 +227,124 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Timeline</label>
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium">Timeline</label>
+              {isTimeBlock && (
+                <div className="flex items-center text-amber-600 text-xs">
+                  <LockIcon className="h-3 w-3 mr-1" />
+                  <span>Time blocks have fixed schedule</span>
+                </div>
+              )}
+            </div>
             <div className="flex gap-2">
-              <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
-                <PopoverTrigger asChild>
+              <Popover 
+                open={isTimeBlock ? false : startDateOpen} 
+                onOpenChange={isTimeBlock ? undefined : setStartDateOpen}
+              >
+                <PopoverTrigger asChild disabled={isTimeBlock}>
                   <Button
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !selectedStartDate && "text-muted-foreground"
+                      !selectedStartDate && "text-muted-foreground",
+                      isTimeBlock && "opacity-70 cursor-not-allowed"
                     )}
                   >
-                    <Clock className="mr-2 h-4 w-4" />
+                    {isTimeBlock ? (
+                      <LockIcon className="mr-2 h-4 w-4 text-amber-500" />
+                    ) : (
+                      <Clock className="mr-2 h-4 w-4" />
+                    )}
                     {selectedStartDate ? formatDateTime(selectedStartDate) : <span>Start time</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0" 
-                  align="start"
-                  onInteractOutside={(e) => e.preventDefault()}
-                  onOpenAutoFocus={(e) => e.preventDefault()}
-                  onFocusOutside={(e) => e.preventDefault()}
-                  onPointerDownOutside={(e) => e.preventDefault()}
-                >
-                  <div onKeyDown={preventPropagation} onClick={preventPropagation}>
-                    <Calendar
-                      mode="single"
-                      selected={selectedStartDate}
-                      onSelect={(date) => date && setSelectedStartDate(date)}
-                      initialFocus
-                    />
-                    <div className="border-t p-3">
-                      <Input
-                        type="time"
-                        value={format(selectedStartDate, "HH:mm")}
-                        onChange={(e) => {
-                          const [hours, minutes] = e.target.value.split(':');
-                          const newDate = new Date(selectedStartDate);
-                          newDate.setHours(parseInt(hours));
-                          newDate.setMinutes(parseInt(minutes));
-                          setSelectedStartDate(newDate);
-                        }}
+                {!isTimeBlock && (
+                  <PopoverContent 
+                    className="w-auto p-0" 
+                    align="start"
+                    onInteractOutside={(e) => e.preventDefault()}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    onFocusOutside={(e) => e.preventDefault()}
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                  >
+                    <div onKeyDown={preventPropagation} onClick={preventPropagation}>
+                      <Calendar
+                        mode="single"
+                        selected={selectedStartDate}
+                        onSelect={(date) => date && setSelectedStartDate(date)}
+                        initialFocus
                       />
+                      <div className="border-t p-3">
+                        <Input
+                          type="time"
+                          value={format(selectedStartDate, "HH:mm")}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':');
+                            const newDate = new Date(selectedStartDate);
+                            newDate.setHours(parseInt(hours));
+                            newDate.setMinutes(parseInt(minutes));
+                            setSelectedStartDate(newDate);
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
+                  </PopoverContent>
+                )}
               </Popover>
 
-              <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
-                <PopoverTrigger asChild>
+              <Popover 
+                open={isTimeBlock ? false : endDateOpen} 
+                onOpenChange={isTimeBlock ? undefined : setEndDateOpen}
+              >
+                <PopoverTrigger asChild disabled={isTimeBlock}>
                   <Button
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !selectedEndDate && "text-muted-foreground"
+                      !selectedEndDate && "text-muted-foreground",
+                      isTimeBlock && "opacity-70 cursor-not-allowed"
                     )}
                   >
-                    <Clock className="mr-2 h-4 w-4" />
+                    {isTimeBlock ? (
+                      <LockIcon className="mr-2 h-4 w-4 text-amber-500" />
+                    ) : (
+                      <Clock className="mr-2 h-4 w-4" />
+                    )}
                     {selectedEndDate ? formatDateTime(selectedEndDate) : <span>End time</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0" 
-                  align="start"
-                  onInteractOutside={(e) => e.preventDefault()}
-                  onOpenAutoFocus={(e) => e.preventDefault()}
-                  onFocusOutside={(e) => e.preventDefault()}
-                  onPointerDownOutside={(e) => e.preventDefault()}
-                >
-                  <div onKeyDown={preventPropagation} onClick={preventPropagation}>
-                    <Calendar
-                      mode="single"
-                      selected={selectedEndDate}
-                      onSelect={(date) => date && setSelectedEndDate(date)}
-                      initialFocus
-                    />
-                    <div className="border-t p-3">
-                      <Input
-                        type="time"
-                        value={format(selectedEndDate, "HH:mm")}
-                        onChange={(e) => {
-                          const [hours, minutes] = e.target.value.split(':');
-                          const newDate = new Date(selectedEndDate);
-                          newDate.setHours(parseInt(hours));
-                          newDate.setMinutes(parseInt(minutes));
-                          setSelectedEndDate(newDate);
-                        }}
+                {!isTimeBlock && (
+                  <PopoverContent 
+                    className="w-auto p-0" 
+                    align="start"
+                    onInteractOutside={(e) => e.preventDefault()}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    onFocusOutside={(e) => e.preventDefault()}
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                  >
+                    <div onKeyDown={preventPropagation} onClick={preventPropagation}>
+                      <Calendar
+                        mode="single"
+                        selected={selectedEndDate}
+                        onSelect={(date) => date && setSelectedEndDate(date)}
+                        initialFocus
                       />
+                      <div className="border-t p-3">
+                        <Input
+                          type="time"
+                          value={format(selectedEndDate, "HH:mm")}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':');
+                            const newDate = new Date(selectedEndDate);
+                            newDate.setHours(parseInt(hours));
+                            newDate.setMinutes(parseInt(minutes));
+                            setSelectedEndDate(newDate);
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
+                  </PopoverContent>
+                )}
               </Popover>
             </div>
           </div>

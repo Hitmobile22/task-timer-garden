@@ -2,9 +2,9 @@
 import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ListFilter, PencilIcon, Trash2, Check, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Task } from '@/types/task.types';
+import { Edit2, Trash2, MoreHorizontal, ArrowRight, LockIcon } from "lucide-react";
 
 interface TaskActionsCellProps {
   task: Task;
@@ -13,8 +13,9 @@ interface TaskActionsCellProps {
   onMoveTask: (taskId: number, listId: number) => void;
   onEditStart: (task: Task) => void;
   onEditCancel: () => void;
-  onEditSave: (taskId: number) => void;
+  onEditSave: () => void;
   onDeleteTask: (taskId: number) => void;
+  isTimeBlock?: boolean;
 }
 
 export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
@@ -26,115 +27,64 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   onEditCancel,
   onEditSave,
   onDeleteTask,
+  isTimeBlock = false,
 }) => {
-  const currentList = taskLists?.find(list => list.id === task.task_list_id);
-  const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
-
-  React.useEffect(() => {
-    console.log('TaskActionsCell: task_list_id changed:', task.task_list_id);
-    setTempListId(task.task_list_id);
-  }, [task.task_list_id, isEditing]);
-
-  const handleSave = () => {
-    console.log('TaskActionsCell: handleSave called', {
-      taskId: task.id,
-      tempListId,
-      currentListId: task.task_list_id
-    });
-    
-    if (tempListId !== null) {
-      console.log('TaskActionsCell: Calling onMoveTask with:', {
-        taskId: task.id,
-        listId: tempListId
-      });
-      onMoveTask(task.id, tempListId);
-      onEditSave(task.id);
-    }
-  };
-  
   return (
-    <TableCell>
-      <div className="flex items-center gap-2">
-        {isEditing ? (
-          <>
-            <Select
-              value={tempListId?.toString() || ''}
-              onValueChange={(value) => {
-                console.log('TaskActionsCell: Select value changed to:', value);
-                setTempListId(parseInt(value));
-              }}
-            >
-              <SelectTrigger className="w-[150px]">
-                <div className="flex items-center gap-2">
-                  <ListFilter className="h-4 w-4" />
-                  <SelectValue placeholder="Move to list" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {taskLists?.map((list) => (
-                  <SelectItem 
-                    key={list.id} 
-                    value={list.id.toString()}
-                    className="flex items-center gap-2"
-                  >
-                    <div 
-                      className="w-2 h-2 rounded-full"
-                      style={{ 
-                        backgroundColor: list.color || 'gray'
-                      }} 
-                    />
-                    {list.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleSave}
-            >
-              <Check className="h-4 w-4" />
+    <TableCell className="text-right">
+      {isEditing ? (
+        <div className="flex justify-end space-x-2">
+          <Button variant="ghost" size="sm" onClick={onEditCancel}>
+            Cancel
+          </Button>
+          <Button variant="default" size="sm" onClick={onEditSave}>
+            Save
+          </Button>
+        </div>
+      ) : (
+        <div className="flex justify-end space-x-2">
+          {isTimeBlock && (
+            <Button variant="ghost" size="sm" className="text-amber-600" disabled>
+              <LockIcon className="h-4 w-4 mr-1" />
+              Time Block
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onEditCancel}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2 text-sm">
-              {currentList && (
-                <div className="flex items-center gap-1.5">
-                  <div 
-                    className="w-2 h-2 rounded-full"
-                    style={{ 
-                      backgroundColor: currentList.color || 'gray'
-                    }} 
-                  />
-                  <span>{currentList.name}</span>
-                </div>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => onEditStart(task)}>
+            <Edit2 className="h-4 w-4" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onDeleteTask(task.id)}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+              
+              {taskLists && taskLists.length > 0 && task.task_list_id && !isTimeBlock && (
+                <>
+                  <DropdownMenuItem disabled className="opacity-50 text-xs font-semibold">
+                    Move to list:
+                  </DropdownMenuItem>
+                  {taskLists.map((list) => (
+                    <DropdownMenuItem 
+                      key={list.id}
+                      onClick={() => onMoveTask(task.id, list.id)}
+                      disabled={list.id === task.task_list_id}
+                      className={list.id === task.task_list_id ? "bg-gray-100" : ""}
+                    >
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                      {list.name}
+                    </DropdownMenuItem>
+                  ))}
+                </>
               )}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEditStart(task)}
-            >
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onDeleteTask(task.id)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </>
-        )}
-      </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </TableCell>
   );
 };

@@ -1,195 +1,176 @@
 
 import React from 'react';
 import { TableCell } from "@/components/ui/table";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { Clock, LockIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Clock } from "lucide-react";
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface TaskTimelineCellProps {
-  startDate?: Date;
-  endDate?: Date;
+  startDate: Date | undefined;
+  endDate: Date | undefined;
   isEditing: boolean;
   onTimelineUpdate: (startDate?: Date, endDate?: Date) => void;
-  isTimeBlock?: boolean;
 }
 
 export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
-  startDate,
-  endDate,
+  startDate: selectedStartDate,
+  endDate: selectedEndDate,
   isEditing,
   onTimelineUpdate,
-  isTimeBlock = false,
 }) => {
-  const [startCalendarOpen, setStartCalendarOpen] = React.useState(false);
-  const [endCalendarOpen, setEndCalendarOpen] = React.useState(false);
-  const [localStartDate, setLocalStartDate] = React.useState<Date | undefined>(startDate);
-  const [localEndDate, setLocalEndDate] = React.useState<Date | undefined>(endDate);
+  const [tempStartDate, setTempStartDate] = React.useState<Date | undefined>(selectedStartDate);
+  const [tempEndDate, setTempEndDate] = React.useState<Date | undefined>(selectedEndDate);
+  const [startDateOpen, setStartDateOpen] = React.useState(false);
+  const [endDateOpen, setEndDateOpen] = React.useState(false);
 
   React.useEffect(() => {
-    setLocalStartDate(startDate);
-    setLocalEndDate(endDate);
-  }, [startDate, endDate, isEditing]);
-
-  const handleStartDateChange = (date?: Date) => {
-    if (!date || isTimeBlock) return;
-    
-    // Get time from current start date
-    const newDate = new Date(date);
-    if (localStartDate) {
-      newDate.setHours(localStartDate.getHours());
-      newDate.setMinutes(localStartDate.getMinutes());
+    if (tempStartDate !== selectedStartDate || tempEndDate !== selectedEndDate) {
+      onTimelineUpdate(tempStartDate, tempEndDate);
     }
-    
-    setLocalStartDate(newDate);
-    onTimelineUpdate(newDate, localEndDate);
+  }, [tempStartDate, tempEndDate]);
+
+  React.useEffect(() => {
+    setTempStartDate(selectedStartDate);
+    setTempEndDate(selectedEndDate);
+  }, [selectedStartDate, selectedEndDate]);
+
+  const formatDateTime = (date: Date | undefined) => {
+    if (!date) return '';
+    return format(date, 'M/d h:mm a');
   };
 
-  const handleEndDateChange = (date?: Date) => {
-    if (!date || isTimeBlock) return;
-    
-    // Get time from current end date
-    const newDate = new Date(date);
-    if (localEndDate) {
-      newDate.setHours(localEndDate.getHours());
-      newDate.setMinutes(localEndDate.getMinutes());
-    }
-    
-    setLocalEndDate(newDate);
-    onTimelineUpdate(localStartDate, newDate);
-  };
-
-  const handleStartTimeChange = (time: string) => {
-    if (!localStartDate || isTimeBlock) return;
-    
-    const [hours, minutes] = time.split(':').map(Number);
-    const newDate = new Date(localStartDate);
-    newDate.setHours(hours);
-    newDate.setMinutes(minutes);
-    
-    setLocalStartDate(newDate);
-    onTimelineUpdate(newDate, localEndDate);
-  };
-
-  const handleEndTimeChange = (time: string) => {
-    if (!localEndDate || isTimeBlock) return;
-    
-    const [hours, minutes] = time.split(':').map(Number);
-    const newDate = new Date(localEndDate);
-    newDate.setHours(hours);
-    newDate.setMinutes(minutes);
-    
-    setLocalEndDate(newDate);
-    onTimelineUpdate(localStartDate, newDate);
-  };
-
-  const formatTime = (date?: Date) => {
-    if (!date) return "Not set";
-    return format(date, "h:mm a");
-  };
-
-  const formatDate = (date?: Date) => {
-    if (!date) return "Not set";
-    return format(date, "MMM d");
-  };
+  if (!isEditing) {
+    return (
+      <TableCell>
+        <div className="space-y-1">
+          <div className="text-sm">
+            Start: {selectedStartDate ? formatDateTime(selectedStartDate) : 'Not set'}
+          </div>
+          <div className="text-sm">
+            Due: {selectedEndDate ? formatDateTime(selectedEndDate) : 'Not set'}
+          </div>
+        </div>
+      </TableCell>
+    );
+  }
 
   return (
     <TableCell>
-      {isEditing ? (
-        <div className="flex space-x-2">
-          {isTimeBlock ? (
-            <div className="flex flex-col space-y-1 w-full">
-              <div className="flex items-center text-amber-600 text-xs mb-2">
-                <LockIcon className="h-3 w-3 mr-1" />
-                <span>Time blocks have fixed schedule</span>
-              </div>
-              <div className="flex items-center space-x-2 h-10 px-3 py-2 border rounded-md">
-                <LockIcon className="h-4 w-4 text-amber-500" />
-                <div className="text-sm">
-                  {formatDate(localStartDate)}, {formatTime(localStartDate)}
-                </div>
-              </div>
-              <div className="flex items-center space-x-2 h-10 px-3 py-2 border rounded-md">
-                <LockIcon className="h-4 w-4 text-amber-500" />
-                <div className="text-sm">
-                  {formatDate(localEndDate)}, {formatTime(localEndDate)}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col space-y-1 w-full">
-              <div className="flex space-x-2">
-                <Popover open={startCalendarOpen} onOpenChange={setStartCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Clock className="mr-2 h-4 w-4" />
-                      {formatDate(localStartDate)}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={localStartDate}
-                      onSelect={handleStartDateChange}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(
+                  "w-[140px] justify-start text-left font-normal",
+                  !tempStartDate && "text-muted-foreground"
+                )}
+              >
+                <Clock className="mr-2 h-4 w-4" />
+                {tempStartDate ? formatDateTime(tempStartDate) : (
+                  <span>Start time</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={tempStartDate}
+                onSelect={(date) => {
+                  if (date) {
+                    const newDate = new Date(date);
+                    if (tempStartDate) {
+                      newDate.setHours(tempStartDate.getHours());
+                      newDate.setMinutes(tempStartDate.getMinutes());
+                    } else {
+                      newDate.setHours(new Date().getHours());
+                      newDate.setMinutes(new Date().getMinutes());
+                    }
+                    setTempStartDate(newDate);
+                    setStartDateOpen(false);
+                  }
+                }}
+                initialFocus
+              />
+              <div className="border-t p-3">
                 <Input
                   type="time"
-                  value={localStartDate ? format(localStartDate, "HH:mm") : ""}
-                  onChange={(e) => handleStartTimeChange(e.target.value)}
-                  className="w-24"
+                  value={tempStartDate ? format(tempStartDate, "HH:mm") : ""}
+                  onChange={(e) => {
+                    if (tempStartDate && e.target.value) {
+                      const [hours, minutes] = e.target.value.split(':');
+                      const newDate = new Date(tempStartDate);
+                      newDate.setHours(parseInt(hours));
+                      newDate.setMinutes(parseInt(minutes));
+                      setTempStartDate(newDate);
+                    }
+                  }}
                 />
               </div>
-              <div className="flex space-x-2">
-                <Popover open={endCalendarOpen} onOpenChange={setEndCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Clock className="mr-2 h-4 w-4" />
-                      {formatDate(localEndDate)}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={localEndDate}
-                      onSelect={handleEndDateChange}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+            </PopoverContent>
+          </Popover>
+
+          <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(
+                  "w-[140px] justify-start text-left font-normal",
+                  !tempEndDate && "text-muted-foreground"
+                )}
+              >
+                <Clock className="mr-2 h-4 w-4" />
+                {tempEndDate ? formatDateTime(tempEndDate) : (
+                  <span>Due time</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={tempEndDate}
+                onSelect={(date) => {
+                  if (date) {
+                    const newDate = new Date(date);
+                    if (tempEndDate) {
+                      newDate.setHours(tempEndDate.getHours());
+                      newDate.setMinutes(tempEndDate.getMinutes());
+                    } else {
+                      newDate.setHours(new Date().getHours());
+                      newDate.setMinutes(new Date().getMinutes());
+                    }
+                    setTempEndDate(newDate);
+                    setEndDateOpen(false);
+                  }
+                }}
+                initialFocus
+              />
+              <div className="border-t p-3">
                 <Input
                   type="time"
-                  value={localEndDate ? format(localEndDate, "HH:mm") : ""}
-                  onChange={(e) => handleEndTimeChange(e.target.value)}
-                  className="w-24"
+                  value={tempEndDate ? format(tempEndDate, "HH:mm") : ""}
+                  onChange={(e) => {
+                    if (tempEndDate && e.target.value) {
+                      const [hours, minutes] = e.target.value.split(':');
+                      const newDate = new Date(tempEndDate);
+                      newDate.setHours(parseInt(hours));
+                      newDate.setMinutes(parseInt(minutes));
+                      setTempEndDate(newDate);
+                    }
+                  }}
                 />
               </div>
-            </div>
-          )}
+            </PopoverContent>
+          </Popover>
         </div>
-      ) : (
-        <div className="text-sm space-y-1">
-          {isTimeBlock && (
-            <div className="flex items-center text-amber-600 text-xs mb-1">
-              <LockIcon className="h-3 w-3 mr-1" />
-              <span>Fixed</span>
-            </div>
-          )}
-          <div className="flex items-center">
-            <Clock className="mr-2 h-3 w-3 text-gray-400" />
-            <span>{startDate ? format(startDate, "MMM d, h:mm a") : "Not set"}</span>
-          </div>
-          <div className="flex items-center">
-            <Clock className="mr-2 h-3 w-3 text-gray-400" />
-            <span>{endDate ? format(endDate, "MMM d, h:mm a") : "Not set"}</span>
-          </div>
-        </div>
-      )}
+      </div>
     </TableCell>
   );
 };

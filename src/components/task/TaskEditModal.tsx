@@ -46,7 +46,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   const [tempListId, setTempListId] = React.useState<number>(1);
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date>(new Date());
   const [selectedEndDate, setSelectedEndDate] = React.useState<Date>(new Date());
-  const [details, setDetails] = React.useState({
+  const [details, setDetails] = React.useState<any>({
     type: 'doc',
     content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
   });
@@ -60,10 +60,27 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       setTempListId(task.task_list_id || 1);
       setSelectedStartDate(task.date_started ? new Date(task.date_started) : new Date());
       setSelectedEndDate(task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000));
-      setDetails(task.details || {
-        type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-      });
+      
+      // Check if details exists and if it contains rich text editor content
+      if (task.details) {
+        if (task.details.type && task.details.content) {
+          // It's rich text editor content
+          setDetails(task.details);
+        } else {
+          // It's other details, but we still need to initialize the editor
+          setDetails({
+            type: 'doc',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }],
+            ...task.details
+          });
+        }
+      } else {
+        // No details, initialize with empty editor content
+        setDetails({
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
+        });
+      }
     }
   }, [isOpen, task]);
 
@@ -78,10 +95,16 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     onMoveTask(task.id, tempListId);
     onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     
+    // Preserve isTimeBlock flag if it exists
+    const updatedDetails = {...details};
+    if (task.details && task.details.isTimeBlock !== undefined) {
+      updatedDetails.isTimeBlock = task.details.isTimeBlock;
+    }
+    
     try {
       await supabase
         .from('Tasks')
-        .update({ details })
+        .update({ details: updatedDetails })
         .eq('id', task.id);
       
       onClose();

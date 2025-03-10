@@ -10,7 +10,7 @@ export type Task = {
   details?: {
     isTimeBlock?: boolean;
     [key: string]: any;
-  };
+  } | null;
 };
 
 export type Subtask = {

@@ -79,7 +79,9 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const inProgressTask = activeTasks.find(task => task.Progress === 'In progress');
       setTimerStarted(!!inProgressTask);
       
-      const firstRegularTask = activeTasks.find(task => !task.details?.isTimeBlock);
+      const firstRegularTask = activeTasks.find(task => 
+        !(task.details && task.details.isTimeBlock === true)
+      );
       if (firstRegularTask) {
         setActiveTaskId(firstRegularTask.id);
       }
@@ -121,7 +123,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         
         const tasksToReschedule = activeTasks
           .filter(task => {
-            if (task.details?.isTimeBlock || task.Progress === 'In progress' || task.id === timeBlock.id) {
+            if (task.details && task.details.isTimeBlock === true) {
+              return false;
+            }
+            if (task.Progress === 'In progress' || task.id === timeBlock.id) {
               return false;
             }
             
@@ -135,6 +140,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
             ) {
               return true;
             }
+            
+            return false;
           })
           .sort((a, b) => {
             const dateA = new Date(a.date_started || '').getTime();
@@ -175,7 +182,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const handleTaskStart = async (taskId: number) => {
     try {
       const targetTask = activeTasks?.find(t => t.id === taskId);
-      if (targetTask?.details?.isTimeBlock) {
+      if (targetTask && targetTask.details && targetTask.details.isTimeBlock === true) {
         toast.info("Time blocks can't be started as tasks");
         return;
       }
@@ -216,7 +223,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       }
       
       const timeBlocks = activeTasks
-        ?.filter(t => t.details?.isTimeBlock)
+        ?.filter(t => t.details && t.details.isTimeBlock === true)
         .map(t => ({
           start: new Date(t.date_started || ''),
           end: new Date(t.date_due || '')
@@ -321,8 +328,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         return;
       }
       
-      const regularTasks = tasks.filter(t => !t.details?.isTimeBlock);
-      const timeBlocks = tasks.filter(t => t.details?.isTimeBlock);
+      const regularTasks = tasks.filter(t => !(t.details && t.details.isTimeBlock === true));
+      const timeBlocks = tasks.filter(t => t.details && t.details.isTimeBlock === true);
       
       if (regularTasks.length < 2) {
         toast.info('Not enough regular tasks to shuffle');
@@ -475,7 +482,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                     autoStart={timerStarted && hasInProgressTask}
                     activeTaskId={activeTaskId} 
                     onShuffleTasks={onShuffleTasks || handleShuffleTasks}
-                    showIdleState={!hasInProgressTask}
                   />
                 </div>}
               <div className="form-control">
@@ -493,4 +499,3 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       </main>
     </div>;
 };
-

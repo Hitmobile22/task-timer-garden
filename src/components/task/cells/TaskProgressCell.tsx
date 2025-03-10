@@ -17,7 +17,7 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
   onUpdateProgress,
 }) => {
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
-  const isTimeBlock = task.details?.isTimeBlock === true;
+  const isTimeBlock = task.details && task.details.isTimeBlock === true;
 
   React.useEffect(() => {
     setTempProgress(task.Progress);

@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
-import { TaskListComponent } from './TaskList';
+import { TaskList } from './TaskList';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
+import { Circle } from 'lucide-react';
 import { MoreVertical, Shuffle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
@@ -117,43 +117,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     }
   };
   
-  // Helper function to check if a task overlaps with a time block
-  const overlapsWithTimeBlock = (taskStart: Date, taskEnd: Date, timeBlocks: { start: Date; end: Date }[]): boolean => {
-    for (const block of timeBlocks) {
-      if (
-        (taskStart >= block.start && taskStart < block.end) ||
-        (taskEnd > block.start && taskEnd <= block.end) ||
-        (taskStart <= block.start && taskEnd >= block.end)
-      ) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // Helper function to find the next available time slot
-  const findNextAvailableTime = (startTime: Date, duration: number, timeBlocks: { start: Date; end: Date }[]): Date => {
-    let candidateStart = new Date(startTime);
-    let candidateEnd = new Date(candidateStart.getTime() + duration);
-    
-    while (overlapsWithTimeBlock(candidateStart, candidateEnd, timeBlocks)) {
-      // Find the earliest block that overlaps with our candidate
-      const overlappingBlocks = timeBlocks.filter(block => 
-        (candidateStart < block.end && candidateEnd > block.start)
-      ).sort((a, b) => a.start.getTime() - b.start.getTime());
-      
-      if (overlappingBlocks.length > 0) {
-        // Move to after the earliest overlapping block
-        candidateStart = new Date(overlappingBlocks[0].end.getTime() + 5 * 60 * 1000); // 5 min buffer
-        candidateEnd = new Date(candidateStart.getTime() + duration);
-      } else {
-        break; // No overlapping blocks found
-      }
-    }
-    
-    return candidateStart;
-  };
-  
   const handleTimeBlockCreate = async (timeBlock: Task) => {
     try {
       if (activeTasks && activeTasks.length > 0) {
@@ -169,12 +132,18 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
               return false;
             }
             
-            const taskStart = task.date_started ? new Date(task.date_started) : null;
-            const taskEnd = task.date_due ? new Date(task.date_due) : null;
+            const taskStart = new Date(task.date_started || '');
+            const taskEnd = new Date(task.date_due || '');
             
-            if (!taskStart || !taskEnd) return false;
+            if (
+              (taskStart >= timeBlockStart && taskStart < timeBlockEnd) ||
+              (taskEnd > timeBlockStart && taskEnd <= timeBlockEnd) ||
+              (taskStart <= timeBlockStart && taskEnd >= timeBlockEnd)
+            ) {
+              return true;
+            }
             
-            return overlapsWithTimeBlock(taskStart, taskEnd, [{start: timeBlockStart, end: timeBlockEnd}]);
+            return false;
           })
           .sort((a, b) => {
             const dateA = new Date(a.date_started || '').getTime();
@@ -183,24 +152,20 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
           });
         
         if (tasksToReschedule.length > 0) {
-          // Get all time blocks including the new one
-          const timeBlocks = [
-            ...activeTasks.filter(t => isTaskTimeBlock(t) && t.id !== timeBlock.id).map(t => ({
-              start: new Date(t.date_started || ''),
-              end: new Date(t.date_due || '')
-            })),
-            { start: timeBlockStart, end: timeBlockEnd }
-          ].sort((a, b) => a.start.getTime() - b.start.getTime());
+          const nextAvailableTime = new Date(timeBlockEnd.getTime() + 5 * 60 * 1000);
           
-          for (const task of tasksToReschedule) {
+          for (let i = 0; i < tasksToReschedule.length; i++) {
+            const task = tasksToReschedule[i];
             const originalDuration = new Date(task.date_due || '').getTime() - new Date(task.date_started || '').getTime();
-            const nextAvailableTime = findNextAvailableTime(timeBlockEnd, originalDuration, timeBlocks);
+            
+            const newStartTime = new Date(nextAvailableTime.getTime() + (i * 30 * 60 * 1000));
+            const newEndTime = new Date(newStartTime.getTime() + originalDuration);
             
             await supabase
               .from('Tasks')
               .update({
-                date_started: nextAvailableTime.toISOString(),
-                date_due: new Date(nextAvailableTime.getTime() + originalDuration).toISOString()
+                date_started: newStartTime.toISOString(),
+                date_due: newEndTime.toISOString()
               })
               .eq('id', task.id);
           }
@@ -220,7 +185,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     try {
       const targetTask = activeTasks?.find(t => t.id === taskId);
       
-      if (!targetTask || isTaskTimeBlock(targetTask)) {
+      if (isTaskTimeBlock(targetTask)) {
         toast.info("Time blocks can't be started as tasks");
         return;
       }
@@ -229,8 +194,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      // Filter to only get today's non-time-block tasks
       const notStartedTasks = activeTasks?.filter(t => {
         if (isTaskTimeBlock(t)) {
           return false;
@@ -262,7 +225,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         if (updateError) throw updateError;
       }
       
-      // Get all time blocks for scheduling
       const timeBlocks = activeTasks
         ?.filter(t => isTaskTimeBlock(t))
         .map(t => ({
@@ -277,23 +239,37 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         if (task.id === taskId || currentTask && task.id === currentTask.id) continue;
         if (nextStartTime >= tomorrow) break;
         
-        // Calculate duration for the task
-        const taskDuration = 25 * 60 * 1000; // 25 minutes in milliseconds
+        let taskStartTime = new Date(nextStartTime);
+        let taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         
-        // Find the next available time slot that doesn't overlap with time blocks
-        const taskStartTime = findNextAvailableTime(nextStartTime, taskDuration, timeBlocks);
-        const taskEndTime = new Date(taskStartTime.getTime() + taskDuration);
+        let needsRescheduling = true;
+        while (needsRescheduling) {
+          needsRescheduling = false;
+          
+          for (const block of timeBlocks) {
+            if (
+              (taskStartTime >= block.start && taskStartTime < block.end) ||
+              (taskDueTime > block.start && taskDueTime <= block.end) ||
+              (taskStartTime <= block.start && taskDueTime >= block.end)
+            ) {
+              taskStartTime = new Date(block.end.getTime() + 5 * 60 * 1000);
+              taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+              needsRescheduling = true;
+              break;
+            }
+          }
+        }
         
         const {
           error
         } = await supabase.from('Tasks').update({
           date_started: taskStartTime.toISOString(),
-          date_due: taskEndTime.toISOString()
+          date_due: taskDueTime.toISOString()
         }).eq('id', task.id);
         
         if (error) throw error;
         
-        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        nextStartTime = new Date(taskDueTime.getTime() + 5 * 60 * 1000);
       }
       
       queryClient.invalidateQueries({
@@ -303,17 +279,15 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         queryKey: ['active-tasks']
       });
       toast.success('Timer started with selected task');
-      setActiveTaskId(taskId);
     } catch (error) {
       console.error('Error starting task:', error);
       toast.error('Failed to start task');
     }
   };
   
-  const getTodayTasks = (tasks: Task[]): Task[] => {
+  const getTodayTasks = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return [];
     
-    // Filter out backlog tasks
     tasks = tasks.filter(task => task.Progress !== 'Backlog');
     
     const now = new Date();
@@ -395,34 +369,68 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         startTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
       }
       
-      // Preserve time blocks and only shuffle regular tasks
-      const timeBlocksForScheduling = timeBlocks.map(t => ({
-        start: new Date(t.date_started || ''),
-        end: new Date(t.date_due || '')
-      })).sort((a, b) => a.start.getTime() - b.start.getTime());
+      const allTasksToSchedule = [...timeBlocks];
+      
+      for (let i = currentTask ? 1 : 0; i < shuffledTasks.length; i++) {
+        allTasksToSchedule.push(shuffledTasks[i]);
+      }
+      
+      allTasksToSchedule.sort((a, b) => {
+        const aTime = a.details?.isTimeBlock ? new Date(a.date_started).getTime() : 0;
+        const bTime = b.details?.isTimeBlock ? new Date(b.date_started).getTime() : 0;
+        
+        if (a.details?.isTimeBlock && b.details?.isTimeBlock) {
+          return aTime - bTime;
+        }
+        if (a.details?.isTimeBlock) return -1;
+        if (b.details?.isTimeBlock) return 1;
+        
+        return 0;
+      });
       
       let currentScheduleTime = startTime;
       
-      for (const task of shuffledTasks) {
+      for (const task of allTasksToSchedule) {
         if (currentTask && task.id === currentTask.id) continue;
         
-        // Calculate task duration
-        const taskDuration = 25 * 60 * 1000; // 25 minutes in milliseconds
-        
-        // Find next available time slot that doesn't overlap with time blocks
-        const taskStartTime = findNextAvailableTime(currentScheduleTime, taskDuration, timeBlocksForScheduling);
-        const taskEndTime = new Date(taskStartTime.getTime() + taskDuration);
-        
-        await supabase
-          .from('Tasks')
-          .update({
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString(),
-            Progress: task.id === currentTask?.id ? 'In progress' : 'Not started'
-          })
-          .eq('id', task.id);
-        
-        currentScheduleTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        if (task.details?.isTimeBlock) {
+          continue;
+        } else {
+          const timeBlockConflicts = timeBlocks.filter(block => {
+            const blockStart = new Date(block.date_started);
+            const blockEnd = new Date(block.date_due);
+            
+            if (currentScheduleTime >= blockStart && currentScheduleTime < blockEnd) {
+              return true;
+            }
+            
+            const taskEnd = new Date(currentScheduleTime.getTime() + 25 * 60 * 1000);
+            return (taskEnd > blockStart && currentScheduleTime < blockEnd);
+          });
+          
+          if (timeBlockConflicts.length > 0) {
+            const latestBlock = timeBlockConflicts.reduce((latest, block) => {
+              const blockEnd = new Date(block.date_due);
+              return blockEnd > latest ? blockEnd : latest;
+            }, new Date(0));
+            
+            currentScheduleTime = new Date(latestBlock.getTime() + 5 * 60 * 1000);
+          }
+          
+          const taskStartTime = new Date(currentScheduleTime);
+          const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+          
+          await supabase
+            .from('Tasks')
+            .update({
+              date_started: taskStartTime.toISOString(),
+              date_due: taskEndTime.toISOString(),
+              Progress: 'Not started'
+            })
+            .eq('id', task.id);
+          
+          currentScheduleTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        }
       }
       
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -443,9 +451,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   
   const hasActiveTasks = activeTasks && activeTasks.length > 0;
   const hasInProgressTask = activeTasks?.some(t => t.Progress === 'In progress');
-  
-  // Filter out backlog tasks from active tasks for the UI
-  const filteredActiveTasks = activeTasks ? activeTasks.filter(task => task.Progress !== 'Backlog') : [];
   
   return <div className="min-h-screen p-0 space-y-4 md:space-y-8 overflow-x-hidden" style={{
     background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)'
@@ -492,25 +497,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                 />
               </div>
               <div className="task-list">
-                <TaskListComponent 
-                  tasks={filteredActiveTasks} 
-                  onTaskStart={handleTaskStart} 
-                  subtasks={[]} 
-                  taskLists={taskLists} 
-                  activeTaskId={activeTaskId}
-                  expandedTasks={[]}
-                  editingTaskId={null}
-                  editingTaskName={''}
-                  onToggleExpand={() => {}}
-                  onEditStart={() => {}}
-                  onEditCancel={() => {}}
-                  onEditSave={() => {}}
-                  onEditNameChange={() => {}}
-                  onUpdateProgress={() => {}}
-                  onMoveTask={() => {}}
-                  onDeleteTask={() => {}}
-                  onTimelineEdit={() => {}}
-                />
+                <TaskList tasks={activeTasks || []} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
               </div>
             </div>
           </div>

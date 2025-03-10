@@ -88,14 +88,10 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const toggleFullscreen = useCallback(() => {
     if (!timerContainerRef.current) return;
     
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    if (!document.fullscreenElement) {
       setIsFullscreen(true);
       if (timerContainerRef.current.requestFullscreen) {
         timerContainerRef.current.requestFullscreen().catch(err => {
-          console.error(`Error attempting to enable fullscreen: ${err.message}`);
-        });
-      } else if ((timerContainerRef.current as any).webkitRequestFullscreen) {
-        (timerContainerRef.current as any).webkitRequestFullscreen().catch(err => {
           console.error(`Error attempting to enable fullscreen: ${err.message}`);
         });
       }
@@ -105,14 +101,10 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   }, []);
   
   const exitFullscreen = useCallback(() => {
-    if (document.fullscreenElement || document.webkitFullscreenElement) {
+    if (document.fullscreenElement) {
       setIsFullscreen(false);
       if (document.exitFullscreen) {
         document.exitFullscreen().catch(err => {
-          console.error(`Error attempting to exit fullscreen: ${err.message}`);
-        });
-      } else if ((document as any).webkitExitFullscreen) {
-        (document as any).webkitExitFullscreen().catch(err => {
           console.error(`Error attempting to exit fullscreen: ${err.message}`);
         });
       }
@@ -121,15 +113,13 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement || !!(document as any).webkitFullscreenElement);
+      setIsFullscreen(!!document.fullscreenElement);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
     
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
     };
   }, []);
   
@@ -170,7 +160,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       )}>
         <CardContent className="p-6">
           <div className="flex flex-col gap-6">
-            {/* Timer display and current task */}
             <div className="text-center">
               <h2 className="text-3xl md:text-5xl font-bold mb-2 tracking-tight">{formatTime(timeLeft)}</h2>
               <p className={cn(
@@ -180,11 +169,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
                 {isBreak ? "Break Time" : currentTask || "Focus Time"}
               </p>
               
-              {/* Progress bar */}
               <Progress value={progressPercentage} className="h-2 mb-6" />
             </div>
 
-            {/* Controls */}
             <div className="flex justify-center gap-3">
               <Button 
                 size="icon" 
@@ -228,7 +215,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
               )}
             </div>
             
-            {/* Task list (only show if we have tasks) */}
             {tasks.length > 0 && (
               <div className="mt-4">
                 <h3 className="text-lg font-semibold mb-2">Tasks:</h3>

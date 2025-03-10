@@ -64,76 +64,24 @@ export const formatDate = (date: string) => {
 
 /**
  * Helper function to safely check if a task is a time block
- * Handles all possible types of the details field from Supabase
  */
 export const isTaskTimeBlock = (task: any): boolean => {
-  if (!task) return false;
-  
-  // If details is null or undefined
-  if (!task.details) return false;
+  if (!task || !task.details) return false;
   
   // Handle string JSON
   if (typeof task.details === 'string') {
     try {
       const parsedDetails = JSON.parse(task.details);
-      return parsedDetails && typeof parsedDetails === 'object' && parsedDetails.isTimeBlock === true;
+      return !!parsedDetails.isTimeBlock;
     } catch (e) {
       return false;
     }
   }
   
-  // Handle object (could be a Record/object, number, boolean, etc from Json type)
+  // Handle object
   if (typeof task.details === 'object' && task.details !== null) {
-    return 'isTimeBlock' in task.details && task.details.isTimeBlock === true;
+    return !!task.details.isTimeBlock;
   }
   
   return false;
-};
-
-/**
- * Check if a time range overlaps with a time block
- */
-export const overlapsWithTimeBlock = (
-  startTime: Date, 
-  endTime: Date, 
-  timeBlock: { start: Date, end: Date }
-): boolean => {
-  return (
-    (startTime >= timeBlock.start && startTime < timeBlock.end) ||
-    (endTime > timeBlock.start && endTime <= timeBlock.end) ||
-    (startTime <= timeBlock.start && endTime >= timeBlock.end)
-  );
-};
-
-/**
- * Find the next available time slot after time blocks
- */
-export const findNextAvailableTime = (
-  desiredStartTime: Date,
-  taskDuration: number, // in minutes
-  timeBlocks: Array<{ start: Date, end: Date }>
-): Date => {
-  let candidateTime = new Date(desiredStartTime);
-  let found = false;
-  
-  // Sort time blocks by start time
-  const sortedBlocks = [...timeBlocks].sort((a, b) => 
-    a.start.getTime() - b.start.getTime()
-  );
-  
-  while (!found) {
-    found = true;
-    const candidateEndTime = new Date(candidateTime.getTime() + taskDuration * 60 * 1000);
-    
-    for (const block of sortedBlocks) {
-      if (overlapsWithTimeBlock(candidateTime, candidateEndTime, block)) {
-        // Move candidate time to after this block with a 5-minute buffer
-        candidateTime = new Date(block.end.getTime() + 5 * 60 * 1000);
-        found = false;
-        break;
-      }
-    }
-  }
-  
-  return candidateTime;
 };

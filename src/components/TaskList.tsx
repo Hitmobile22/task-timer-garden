@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+
+import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
-import { TaskItem } from './TaskItem';
-import { SubtaskItem } from './SubtaskItem';
+import { TaskItem } from './task/TaskItem';
+import { SubtaskItem } from './task/SubtaskItem';
 
 interface TaskListProps {
   tasks: Task[];

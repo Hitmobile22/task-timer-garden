@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isTaskTimeBlock } from "@/utils/taskUtils";
 
 interface TaskEditModalProps {
   task: Task;
@@ -116,16 +117,17 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     if (task.details) {
       // Handle object details
       if (typeof task.details === 'object' && task.details !== null) {
-        if ('isTimeBlock' in task.details) {
-          updatedDetails.isTimeBlock = task.details.isTimeBlock;
+        // Safety check before accessing isTimeBlock property
+        if (task.details.hasOwnProperty('isTimeBlock')) {
+          updatedDetails['isTimeBlock'] = !!task.details['isTimeBlock'];
         }
       }
       // Handle string details that might contain JSON
       else if (typeof task.details === 'string') {
         try {
           const parsedDetails = JSON.parse(task.details);
-          if (parsedDetails && 'isTimeBlock' in parsedDetails) {
-            updatedDetails.isTimeBlock = parsedDetails.isTimeBlock;
+          if (parsedDetails && parsedDetails.hasOwnProperty('isTimeBlock')) {
+            updatedDetails['isTimeBlock'] = !!parsedDetails['isTimeBlock'];
           }
         } catch (e) {
           // Not valid JSON, ignore

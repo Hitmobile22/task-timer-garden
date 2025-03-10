@@ -68,32 +68,44 @@ export const formatDate = (date: string) => {
 export const isTaskTimeBlock = (task: any): boolean => {
   if (!task || !task.details) return false;
   
+  // Handle direct access for object details
+  if (typeof task.details === 'object' && task.details !== null) {
+    if (typeof task.details.isTimeBlock === 'boolean') {
+      return task.details.isTimeBlock;
+    }
+    
+    // Handle case where details might be another format
+    try {
+      if (task.details.hasOwnProperty('isTimeBlock')) {
+        return !!task.details.isTimeBlock;
+      }
+    } catch (e) {
+      // Ignore errors in property access
+    }
+  }
+  
   // Handle string JSON
   if (typeof task.details === 'string') {
     try {
       const parsedDetails = JSON.parse(task.details);
-      return !!parsedDetails.isTimeBlock;
-    } catch (e) {
-      return false;
-    }
-  }
-  
-  // Handle object
-  if (typeof task.details === 'object' && task.details !== null) {
-    try {
-      if (typeof task.details.isTimeBlock === 'boolean') {
-        return task.details.isTimeBlock;
-      }
-      
-      // Handle case where details might be another format
-      const detailsStr = JSON.stringify(task.details);
-      if (detailsStr.includes('isTimeBlock')) {
-        const parsedDetails = JSON.parse(detailsStr);
+      if (parsedDetails && typeof parsedDetails === 'object') {
         return !!parsedDetails.isTimeBlock;
       }
     } catch (e) {
-      return false;
+      // Not valid JSON, ignore
     }
+  }
+  
+  // Handle other JSON-like formats
+  if (task.details) {
+    const detailsStr = typeof task.details === 'string' 
+      ? task.details 
+      : JSON.stringify(task.details);
+      
+    return detailsStr.includes('"isTimeBlock":true') || 
+           detailsStr.includes("'isTimeBlock':true") ||
+           detailsStr.includes('"isTimeBlock": true') ||
+           detailsStr.includes("'isTimeBlock': true");
   }
   
   return false;

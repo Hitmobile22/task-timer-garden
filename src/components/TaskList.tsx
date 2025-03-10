@@ -273,7 +273,8 @@ const SortableTaskItem = ({
     transform,
     transition
   } = useSortable({
-    id: task.id
+    id: task.id,
+    disabled: isTaskTimeBlock(task)
   });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -281,7 +282,7 @@ const SortableTaskItem = ({
   };
   return <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, {
-      dragHandleProps: {
+      dragHandleProps: isTaskTimeBlock(task) ? {} : {
         ...attributes,
         ...listeners
       }
@@ -289,7 +290,7 @@ const SortableTaskItem = ({
     </div>;
 };
 
-export const TaskList: React.FC<TaskListProps> = ({
+export const TaskListContainer: React.FC<TaskListProps> = ({
   tasks: initialTasks,
   onTaskStart,
   subtasks,
@@ -530,6 +531,12 @@ export const TaskList: React.FC<TaskListProps> = ({
     const activeTask = todayTasks.find(t => t.id === active.id);
     if (activeTask && isTaskTimeBlock(activeTask)) {
       toast.error("Time blocks cannot be reordered");
+      return;
+    }
+    
+    const overTask = todayTasks.find(t => t.id === over.id);
+    if (overTask && isTaskTimeBlock(overTask)) {
+      toast.error("Cannot move tasks to time block positions");
       return;
     }
     
@@ -819,4 +826,4 @@ export const TaskList: React.FC<TaskListProps> = ({
     </div>;
 };
 
-export { TaskList };
+export const TaskList = TaskListContainer;

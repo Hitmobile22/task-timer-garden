@@ -21,6 +21,8 @@ interface TaskListProps {
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onTaskStart?: (taskId: number) => void;
+  activeTaskId?: number;
 }
 
 export const TaskListComponent: React.FC<TaskListProps> = ({
@@ -39,6 +41,8 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onMoveTask,
   onDeleteTask,
   onTimelineEdit,
+  onTaskStart,
+  activeTaskId,
 }) => {
   console.log('TaskListComponent: Received onMoveTask function:', !!onMoveTask);
   console.log('TaskListComponent: Received tasks:', tasks.length, 'items');
@@ -72,6 +76,8 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               onMoveTask={onMoveTask}
               onDeleteTask={onDeleteTask}
               onTimelineEdit={onTimelineEdit}
+              onTaskStart={onTaskStart}
+              activeTaskId={activeTaskId}
             />
             {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
               <SubtaskItem
@@ -93,3 +99,6 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
     </Table>
   );
 };
+
+// Create a named export for TaskList for easier imports
+export const TaskList = TaskListComponent;

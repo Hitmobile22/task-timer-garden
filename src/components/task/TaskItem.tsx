@@ -26,6 +26,8 @@ interface TaskItemProps {
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onTaskStart?: (taskId: number) => void;
+  activeTaskId?: number;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -44,6 +46,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onMoveTask,
   onDeleteTask,
   onTimelineEdit,
+  onTaskStart,
+  activeTaskId,
 }) => {
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
@@ -84,6 +88,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   const isEditing = editingTaskId === task.id;
+  const isActive = activeTaskId === task.id;
 
   const handleSave = () => {
     if (selectedStartDate && selectedEndDate && !isTimeBlock) {
@@ -99,7 +104,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     <React.Fragment>
       <TableRow className={cn(
         task.task_list_id !== 1 ? "border-l-4" : "",
-        isTimeBlock ? "bg-amber-50" : ""
+        isTimeBlock ? "bg-amber-50" : "",
+        isActive ? "bg-blue-50" : ""
       )}
       style={task.task_list_id !== 1 ? {
         borderLeftColor: borderColor
@@ -118,6 +124,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onUpdateProgress={onUpdateProgress}
           onMoveTask={onMoveTask}
           onTimelineEdit={onTimelineEdit}
+          onTaskStart={onTaskStart}
+          isActive={isActive}
         />
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}
@@ -141,6 +149,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onEditSave={handleSave}
           onDeleteTask={onDeleteTask}
           isTimeBlock={isTimeBlock}
+          onTaskStart={onTaskStart}
         />
       </TableRow>
     </React.Fragment>

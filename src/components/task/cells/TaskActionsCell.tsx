@@ -4,7 +4,7 @@ import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Task } from '@/types/task.types';
-import { Edit2, Trash2, MoreHorizontal, ArrowRight, LockIcon, Play } from "lucide-react";
+import { Edit2, Trash2, MoreHorizontal, ArrowRight, LockIcon } from "lucide-react";
 
 interface TaskActionsCellProps {
   task: Task;
@@ -16,7 +16,6 @@ interface TaskActionsCellProps {
   onEditSave: () => void;
   onDeleteTask: (taskId: number) => void;
   isTimeBlock?: boolean;
-  onTaskStart?: (taskId: number) => void;
 }
 
 export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
@@ -29,7 +28,6 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   onEditSave,
   onDeleteTask,
   isTimeBlock = false,
-  onTaskStart,
 }) => {
   return (
     <TableCell className="text-right">
@@ -50,22 +48,9 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
               Time Block
             </Button>
           )}
-          
-          {!isTimeBlock && onTaskStart && (
-            <Button variant="ghost" size="icon" onClick={() => onTaskStart(task.id)}>
-              <Play className="h-4 w-4" />
-            </Button>
-          )}
-          
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => onEditStart(task)} 
-            disabled={isTimeBlock}
-          >
+          <Button variant="ghost" size="icon" onClick={() => onEditStart(task)}>
             <Edit2 className="h-4 w-4" />
           </Button>
-          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">

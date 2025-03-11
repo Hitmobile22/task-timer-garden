@@ -127,3 +127,10 @@ export const isTaskInFuture = (task: any): boolean => {
 export const canTaskBeRescheduled = (task: any): boolean => {
   return !isTaskTimeBlock(task);
 };
+
+/**
+ * Checks if a task is the current active task in progress
+ */
+export const isCurrentTask = (task: any): boolean => {
+  return task?.Progress === 'In progress';
+};

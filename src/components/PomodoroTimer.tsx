@@ -33,6 +33,10 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const timerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const subtaskTextRef = useRef<HTMLDivElement>(null);
+  const fullscreenContainerRef = useRef<HTMLDivElement>(null);
+  
+  const isTransitioning = useRef(false);
+  
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
     queryFn: async () => {
@@ -310,10 +314,17 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       interval = setInterval(() => {
         setTimeLeft((prev) => {
           if (!prev || prev <= 1) {
+            isTransitioning.current = true;
+            
             if (isBreak) {
               setIsBreak(false);
               playSound('task');
               toast.success("Break finished! Starting next task.");
+              
+              setTimeout(() => {
+                isTransitioning.current = false;
+              }, 100);
+              
               return calculateTimeLeft(currentTask);
             } else if (currentTask) {
               if (currentTask.Progress !== 'Backlog' && !isTaskInFuture(currentTask)) {
@@ -321,10 +332,20 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
                 setIsBreak(true);
                 playSound('break');
                 toast.success("Work session complete! Time for a break.");
+                
+                setTimeout(() => {
+                  isTransitioning.current = false;
+                }, 100);
+                
                 return 5 * 60;
               } else {
                 toast.error("Cannot complete this task - it's in backlog or scheduled for the future");
                 setIsRunning(false);
+                
+                setTimeout(() => {
+                  isTransitioning.current = false;
+                }, 100);
+                
                 return prev;
               }
             }
@@ -395,8 +416,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      if (timerRef.current?.requestFullscreen) {
-        timerRef.current.requestFullscreen()
+      if (fullscreenContainerRef.current?.requestFullscreen) {
+        fullscreenContainerRef.current.requestFullscreen()
           .then(() => {
             setIsFullscreen(true);
             console.log("Entered fullscreen mode");
@@ -417,19 +438,22 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      if (!document.fullscreenElement && isFullscreen) {
+        setIsFullscreen(false);
+        console.log("Fullscreen exited externally");
+      }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+  }, [isFullscreen]);
 
   useEffect(() => {
     const shouldRestoreFullscreen = localStorage.getItem('pomodoroFullscreen') === 'true';
     
-    if (shouldRestoreFullscreen && !document.fullscreenElement && timerRef.current) {
+    if (shouldRestoreFullscreen && !document.fullscreenElement && fullscreenContainerRef.current) {
       try {
-        timerRef.current.requestFullscreen()
+        fullscreenContainerRef.current.requestFullscreen()
           .then(() => setIsFullscreen(true))
           .catch(err => {
             console.error(`Error restoring fullscreen: ${err.message}`);
@@ -440,10 +464,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         localStorage.removeItem('pomodoroFullscreen');
       }
     }
-    
-    return () => {
-      // Don't remove the storage key on every unmount, only when explicitly exiting
-    };
   }, []);
 
   useEffect(() => {
@@ -472,8 +492,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   };
 
   return (
-    <div
-      ref={timerRef}
+    <div 
+      ref={fullscreenContainerRef}
       className={`glass p-4 md:p-6 rounded-lg shadow-lg space-y-4 md:space-y-6 animate-slideIn w-full max-w-5xl mx-auto ${isFullscreen ? 'fixed inset-0 flex flex-col justify-center items-center z-50 max-w-none' : ''}`}
     >
       {isFullscreen && <LavaLampBackground 

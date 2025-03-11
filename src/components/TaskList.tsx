@@ -587,12 +587,16 @@ export const TaskList: React.FC<TaskListProps> = ({
   });
 
   if (!isTaskView) {
-    return <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn px-0">
+    return (
+      <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn px-0">
         <h2 className="text-xl font-semibold">Today's Tasks</h2>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
             <ul className="space-y-4">
-              {(dbTasks || []).filter(task => ['Not started', 'In progress'].includes(task.Progress)).map(task => <SortableTaskItem key={task.id} task={task}>
+              {(dbTasks || [])
+                .filter(task => ['Not started', 'In progress'].includes(task.Progress))
+                .map(task => (
+                  <SortableTaskItem key={task.id} task={task}>
                     <TaskItem 
                       task={task} 
                       subtasks={todaySubtasks} 
@@ -601,11 +605,13 @@ export const TaskList: React.FC<TaskListProps> = ({
                       isCurrentTask={task.id === activeTaskId}
                       taskLists={taskLists} 
                     />
-                  </SortableTaskItem>)}
+                  </SortableTaskItem>
+                ))}
             </ul>
           </SortableContext>
         </DndContext>
-      </div>;
+      </div>
+    );
   }
 
   const updateTaskTimes = useMutation({
@@ -679,7 +685,6 @@ export const TaskList: React.FC<TaskListProps> = ({
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
       
-      // Convert to Task type explicitly
       const taskToUpdate: Task = {
         id: selectedTask.id,
         "Task Name": selectedTask["Task Name"] || "",
@@ -763,16 +768,43 @@ export const TaskList: React.FC<TaskListProps> = ({
     return format(new Date(date), 'h:mm a');
   };
 
-  return <div className="w-full max-w-3xl mx-auto space-y-6 p-4 sm:p-6 animate-slideIn">
+  return (
+    <div className="w-full max-w-3xl mx-auto space-y-6 p-4 sm:p-6 animate-slideIn">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-xl font-semibold">Your Tasks</h2>
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
           <div className="relative w-full sm:w-[200px]">
-            <input type="text" placeholder="Search tasks..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary" />
+            <input 
+              type="text" 
+              placeholder="Search tasks..." 
+              value={searchQuery} 
+              onChange={e => setSearchQuery(e.target.value)} 
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary" 
+            />
           </div>
         </div>
       </div>
       
       <div className="bg-white/50 backdrop-blur-sm rounded-xl p-4 shadow-sm">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={filteredTasks.map(task => task.id)} strategy={vertical
+          <SortableContext items={filteredTasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
+            <ul className="space-y-4">
+              {filteredTasks.map(task => (
+                <SortableTaskItem key={task.id} task={task}>
+                  <TaskItem
+                    task={task}
+                    subtasks={todaySubtasks}
+                    updateTaskProgress={updateTaskProgress}
+                    onTaskStart={onTaskStart}
+                    isCurrentTask={task.id === activeTaskId}
+                    taskLists={taskLists}
+                  />
+                </SortableTaskItem>
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      </div>
+    </div>
+  );
+};

@@ -679,15 +679,27 @@ export const TaskList: React.FC<TaskListProps> = ({
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
       
+      // Convert to Task type explicitly
+      const taskToUpdate: Task = {
+        id: selectedTask.id,
+        "Task Name": selectedTask["Task Name"] || "",
+        Progress: "In progress",
+        task_list_id: selectedTask.task_list_id,
+        project_id: selectedTask.project_id || null,
+        date_started: currentTime.toISOString(),
+        date_due: new Date(currentTime.getTime() + 25 * 60000).toISOString(),
+        details: selectedTask.details
+      };
+      
       const { error: startError } = await supabase
         .from('Tasks')
         .update({
-          Progress: 'In progress',
-          date_started: currentTime.toISOString(),
-          date_due: new Date(currentTime.getTime() + 25 * 60000).toISOString()
+          Progress: taskToUpdate.Progress,
+          date_started: taskToUpdate.date_started,
+          date_due: taskToUpdate.date_due
         })
         .eq('id', taskId);
-        
+      
       if (startError) throw startError;
       
       const otherTasks = todayTasks
@@ -763,59 +775,4 @@ export const TaskList: React.FC<TaskListProps> = ({
       
       <div className="bg-white/50 backdrop-blur-sm rounded-xl p-4 shadow-sm">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={filteredTasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
-            <ul className="space-y-3">
-              {filteredTasks.map(task => <SortableTaskItem key={task.id} task={task}>
-                  <li className="space-y-2">
-                    <div className={cn("flex items-center gap-3 p-3 rounded-lg transition-colors border border-gray-100", task.Progress === 'Completed' ? "bg-gray-50/80" : "bg-white hover:bg-gray-50")}>
-                      <div className="flex gap-2">
-                        {task.task_list_id !== 1 && taskLists?.find(l => l.id === task.task_list_id) && <Circle className="h-3 w-3 flex-shrink-0" style={{
-                      color: taskLists.find(l => l.id === task.task_list_id)?.color || undefined
-                    }} fill="currentColor" />}
-                        <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-8 w-8 rounded-full", task.Progress === 'Completed' ? "bg-green-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
-                      id: task.id
-                    })}>
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        {task.Progress !== 'Completed' && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" onClick={() => handleTaskStart(task.id)}>
-                            <Play className="h-4 w-4" />
-                          </Button>}
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={cn("font-medium block truncate", task.Progress === 'Completed' && "line-through text-gray-500")}>
-                            {task["Task Name"]}
-                          </span>
-                          {task.Progress !== 'Completed' && <span className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap">
-                              <Clock className="h-3 w-3" />
-                              {formatTaskDateTime(task.date_started)}
-                            </span>}
-                        </div>
-                      </div>
-                    </div>
-
-                    {subtasks && subtasks.filter(st => st["Parent Task ID"] === task.id).length > 0 && <ul className="pl-6 space-y-2">
-                        {subtasks.filter(subtask => subtask["Parent Task ID"] === task.id).sort((a, b) => {
-                    if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
-                    if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
-                    return 0;
-                  }).map(subtask => <li key={subtask.id} className={cn("flex items-center gap-3 p-2.5 rounded-lg transition-colors border border-gray-100", subtask.Progress === 'Completed' ? "bg-gray-50/80" : "bg-white hover:bg-gray-50")}>
-                              <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-6 w-6 rounded-full", subtask.Progress === 'Completed' ? "bg-green-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
-                      id: subtask.id,
-                      isSubtask: true
-                    })}>
-                                <Check className="h-3 w-3" />
-                              </Button>
-                              <span className={cn("text-sm truncate", subtask.Progress === 'Completed' && "line-through text-gray-500")}>
-                                {subtask["Task Name"]}
-                              </span>
-                            </li>)}
-                      </ul>}
-                  </li>
-                </SortableTaskItem>)}
-            </ul>
-          </SortableContext>
-        </DndContext>
-      </div>
-    </div>;
-};
+          <SortableContext items={filteredTasks.map(task => task.id)} strategy={vertical

@@ -1,6 +1,7 @@
 
 import { format } from 'date-fns';
 import { TASK_LIST_COLORS } from '@/constants/taskColors';
+import { Json } from '@/integrations/supabase/types';
 
 export const generateRandomColor = () => {
   const hue = Math.random() * 360;
@@ -87,6 +88,13 @@ export const isTaskTimeBlock = (task: any): boolean => {
   
   // Handle other types (number, boolean, etc.)
   return false;
+};
+
+/**
+ * Safely checks if a task is in backlog
+ */
+export const isTaskInBacklog = (task: any): boolean => {
+  return task?.Progress === 'Backlog';
 };
 
 /**

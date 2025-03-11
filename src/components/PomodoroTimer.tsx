@@ -10,7 +10,7 @@ import { Maximize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
 import { LavaLampBackground } from './pomodoro/LavaLampBackground';
-import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
+import { isTaskTimeBlock, isTaskInFuture, isTaskInBacklog } from '@/utils/taskUtils';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -60,8 +60,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   });
 
   const currentTask = activeTaskId
-    ? activeTasks?.find(t => t.id === activeTaskId && !isTaskInFuture(t) && t.Progress !== 'Backlog')
-    : activeTasks?.find(t => (t.Progress === 'In progress' || t.Progress === 'Not started') && !isTaskInFuture(t) && t.Progress !== 'Backlog');
+    ? activeTasks?.find(t => t.id === activeTaskId && !isTaskInFuture(t) && !isTaskInBacklog(t))
+    : activeTasks?.find(t => (t.Progress === 'In progress' || t.Progress === 'Not started') && !isTaskInFuture(t) && !isTaskInBacklog(t));
 
   const { data: subtasks } = useQuery({
     queryKey: ['subtasks', currentTask?.id],

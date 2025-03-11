@@ -1,4 +1,6 @@
 
+import { Json } from '@/integrations/supabase/types';
+
 export type Task = {
   id: number;
   "Task Name": string;
@@ -7,7 +9,7 @@ export type Task = {
   date_due?: string;
   task_list_id: number | null;
   project_id?: number | null;
-  details?: Record<string, any> | string | null;
+  details?: Json | Record<string, any> | string | null;
 };
 
 export type Subtask = {

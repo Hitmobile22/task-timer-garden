@@ -10,7 +10,7 @@ import { Maximize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
 import { LavaLampBackground } from './pomodoro/LavaLampBackground';
-import { isTaskTimeBlock } from '@/utils/taskUtils';
+import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -62,27 +62,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const currentTask = activeTaskId
     ? activeTasks?.find(t => t.id === activeTaskId && !isTaskInFuture(t) && t.Progress !== 'Backlog')
     : activeTasks?.find(t => (t.Progress === 'In progress' || t.Progress === 'Not started') && !isTaskInFuture(t) && t.Progress !== 'Backlog');
-
-  const isTaskInFuture = (task: any) => {
-    if (!task || !task.date_started) return false;
-    
-    const taskStartDate = new Date(task.date_started);
-    const now = new Date();
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    if (now.getHours() >= 21 || now.getHours() < 5) {
-      const tomorrow5AM = new Date(tomorrow);
-      tomorrow5AM.setHours(5, 0, 0, 0);
-      
-      return taskStartDate > tomorrow5AM;
-    }
-    
-    return taskStartDate >= tomorrow;
-  };
 
   const { data: subtasks } = useQuery({
     queryKey: ['subtasks', currentTask?.id],
@@ -438,9 +417,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!document.fullscreenElement;
-      setIsFullscreen(isCurrentlyFullscreen);
-      console.log("Fullscreen state changed:", isCurrentlyFullscreen);
+      setIsFullscreen(!!document.fullscreenElement);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -568,3 +545,4 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     </div>
   );
 };
+

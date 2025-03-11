@@ -119,4 +119,3 @@ export const isTaskInFuture = (task: any): boolean => {
 export const canTaskBeRescheduled = (task: any): boolean => {
   return !isTaskTimeBlock(task);
 };
-

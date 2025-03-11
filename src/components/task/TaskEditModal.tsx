@@ -108,15 +108,15 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     
     // Prepare details for update
-    const updatedDetails = {
-      ...(details as object),
+    const updatedDetails: Record<string, any> = {
+      ...(typeof details === 'object' ? details : {}),
     };
     
     // Preserve isTimeBlock flag if it exists
     if (task.details) {
       // Handle object details
       if (typeof task.details === 'object' && task.details !== null) {
-        if ('isTimeBlock' in task.details) {
+        if (task.details.hasOwnProperty('isTimeBlock')) {
           updatedDetails.isTimeBlock = task.details.isTimeBlock;
         }
       }
@@ -124,7 +124,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       else if (typeof task.details === 'string') {
         try {
           const parsedDetails = JSON.parse(task.details);
-          if (parsedDetails && 'isTimeBlock' in parsedDetails) {
+          if (parsedDetails && parsedDetails.hasOwnProperty('isTimeBlock')) {
             updatedDetails.isTimeBlock = parsedDetails.isTimeBlock;
           }
         } catch (e) {

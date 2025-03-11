@@ -40,13 +40,13 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         .from('Tasks')
         .select('*')
         .in('Progress', ['Not started', 'In progress'])
-        .neq('Progress', 'Backlog')
         .order('date_started', { ascending: true });
 
       if (error) throw error;
       return data || [];
     },
   });
+
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
     queryFn: async () => {
@@ -545,4 +545,3 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     </div>
   );
 };
-

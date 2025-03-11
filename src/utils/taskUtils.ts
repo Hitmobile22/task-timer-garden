@@ -72,7 +72,8 @@ export const isTaskTimeBlock = (task: any): boolean => {
   if (typeof task.details === 'string') {
     try {
       const parsedDetails = JSON.parse(task.details);
-      return !!parsedDetails.isTimeBlock;
+      return Object.prototype.hasOwnProperty.call(parsedDetails, 'isTimeBlock') && 
+             !!parsedDetails.isTimeBlock;
     } catch (e) {
       return false;
     }

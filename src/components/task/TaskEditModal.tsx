@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -66,28 +65,23 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       setSelectedStartDate(task.date_started ? new Date(task.date_started) : new Date());
       setSelectedEndDate(task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000));
       
-      // Check if details exists and if it contains rich text editor content
       if (task.details) {
         if (typeof task.details === 'object' && task.details !== null) {
           if (task.details.type && task.details.content) {
-            // It's rich text editor content
             setDetails(task.details as unknown as EditorContent);
           } else {
-            // It's other details, but we still need to initialize the editor
             setDetails({
               type: 'doc',
               content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
             });
           }
         } else {
-          // No details, initialize with empty editor content
           setDetails({
             type: 'doc',
             content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
           });
         }
       } else {
-        // No details, initialize with empty editor content
         setDetails({
           type: 'doc',
           content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
@@ -107,21 +101,16 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     onMoveTask(task.id, tempListId);
     onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     
-    // Prepare details for update
     const updatedDetails: Record<string, any> = {
       ...(typeof details === 'object' ? details : {}),
     };
     
-    // Preserve isTimeBlock flag if it exists
     if (task.details) {
-      // Handle object details
       if (typeof task.details === 'object' && task.details !== null) {
         if (Object.prototype.hasOwnProperty.call(task.details, 'isTimeBlock')) {
           updatedDetails.isTimeBlock = task.details.isTimeBlock;
         }
-      }
-      // Handle string details that might contain JSON
-      else if (typeof task.details === 'string') {
+      } else if (typeof task.details === 'string') {
         try {
           const parsedDetails = JSON.parse(task.details);
           if (parsedDetails && Object.prototype.hasOwnProperty.call(parsedDetails, 'isTimeBlock')) {
@@ -151,7 +140,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     return format(date, 'M/d h:mm a');
   };
 
-  // Prevent event propagation completely for the calendar and its container
   const preventPropagation = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
   };

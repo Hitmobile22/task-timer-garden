@@ -15,7 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Task, Subtask } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
-import { isTaskTimeBlock } from '@/utils/taskUtils';
+import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
 
 interface SubTask {
   name: string;

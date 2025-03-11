@@ -386,10 +386,16 @@ export const TaskList: React.FC<TaskListProps> = ({
       const todayTasks = getTodayTasks(tasks);
       if (todayTasks.length === 0) return;
       
-      const currentTask = todayTasks.find(t => t.Progress === 'In progress');
-      const movedTask = todayTasks.find(t => t.id === movedTaskId);
-      const oldIndex = todayTasks.findIndex(t => t.id === movedTaskId);
-      const newIndex = todayTasks.findIndex(t => t.id === movedTaskId);
+      const timeBlocks = todayTasks.filter(t => isTaskTimeBlock(t));
+      const regularTasks = todayTasks.filter(t => !isTaskTimeBlock(t));
+      
+      const currentTask = regularTasks.find(t => t.Progress === 'In progress');
+      const movedTask = regularTasks.find(t => t.id === movedTaskId);
+      
+      if (!movedTask) return;
+      
+      const oldIndex = regularTasks.findIndex(t => t.id === movedTaskId);
+      const newIndex = regularTasks.findIndex(t => t.id === movedTaskId);
       const isMovingToFirst = newIndex === 0;
       const isMovingCurrentTask = currentTask && movedTaskId === currentTask.id;
       
@@ -399,8 +405,14 @@ export const TaskList: React.FC<TaskListProps> = ({
         oldIndex,
         newIndex,
         isMovingToFirst,
-        isMovingCurrentTask
+        isMovingCurrentTask,
+        isTimeBlock: isTaskTimeBlock(movedTask)
       });
+      
+      if (isTaskTimeBlock(movedTask)) {
+        console.log('Skipping reordering for time block');
+        return;
+      }
       
       const shouldUpdateCurrentTask = isMovingCurrentTask || isMovingToFirst;
       const currentTime = new Date();
@@ -410,13 +422,19 @@ export const TaskList: React.FC<TaskListProps> = ({
         nextStartTime = new Date(new Date(currentTask.date_started).getTime() + 30 * 60 * 1000);
       }
       
+      timeBlocks.sort((a, b) => {
+        const aStart = new Date(a.date_started).getTime();
+        const bStart = new Date(b.date_started).getTime();
+        return aStart - bStart;
+      });
+      
       const updates = [];
       
-      for (const task of todayTasks) {
+      for (const task of regularTasks) {
         if (task.Progress === 'Completed') continue;
         
         const isCurrentTask = currentTask && task.id === currentTask.id;
-        const isFirst = todayTasks.indexOf(task) === 0;
+        const isFirst = regularTasks.indexOf(task) === 0;
         let taskStartTime: Date;
         let taskEndTime: Date;
         
@@ -430,6 +448,28 @@ export const TaskList: React.FC<TaskListProps> = ({
           } else {
             taskStartTime = new Date(nextStartTime);
           }
+          
+          let needsRescheduling = true;
+          while (needsRescheduling) {
+            needsRescheduling = false;
+            for (const timeBlock of timeBlocks) {
+              const blockStart = new Date(timeBlock.date_started);
+              const blockEnd = new Date(timeBlock.date_due);
+              
+              const candidateEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+              
+              if (
+                (taskStartTime >= blockStart && taskStartTime < blockEnd) ||
+                (candidateEndTime > blockStart && candidateEndTime <= blockEnd) ||
+                (taskStartTime <= blockStart && candidateEndTime >= blockEnd)
+              ) {
+                taskStartTime = new Date(blockEnd.getTime() + 5 * 60 * 1000);
+                needsRescheduling = true;
+                break;
+              }
+            }
+          }
+          
           taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
           nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
@@ -488,19 +528,30 @@ export const TaskList: React.FC<TaskListProps> = ({
     const todayTasks = getTodayTasks(dbTasks);
     if (todayTasks.length === 0) return;
     
-    const oldIndex = todayTasks.findIndex(t => t.id === active.id);
-    const newIndex = todayTasks.findIndex(t => t.id === over.id);
+    const draggedTask = todayTasks.find(t => t.id === active.id);
+    if (isTaskTimeBlock(draggedTask)) {
+      toast.info("Time blocks can't be reordered");
+      return;
+    }
     
-    const reorderedTasks = [...todayTasks];
+    const tasksWithoutTimeBlocks = todayTasks.filter(t => !isTaskTimeBlock(t));
+    const timeBlocks = todayTasks.filter(t => isTaskTimeBlock(t));
+    
+    const oldIndex = tasksWithoutTimeBlocks.findIndex(t => t.id === active.id);
+    const newIndex = tasksWithoutTimeBlocks.findIndex(t => t.id === over.id);
+    
+    const reorderedTasks = [...tasksWithoutTimeBlocks];
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
     
-    const currentTask = reorderedTasks.find(t => t.Progress === 'In progress');
+    const allTasks = [...reorderedTasks, ...timeBlocks];
+    
+    const currentTask = allTasks.find(t => t.Progress === 'In progress');
     const isMovingToFirst = newIndex === 0;
     const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
     
     await updateTaskOrder.mutate({
-      tasks: reorderedTasks,
+      tasks: allTasks,
       shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
       movedTaskId: movedTask.id
     });

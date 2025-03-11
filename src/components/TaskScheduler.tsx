@@ -369,68 +369,54 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         startTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
       }
       
-      const allTasksToSchedule = [...timeBlocks];
+      const nonTimeBlockTasks = shuffledTasks.filter(t => !isTaskTimeBlock(t));
       
-      for (let i = currentTask ? 1 : 0; i < shuffledTasks.length; i++) {
-        allTasksToSchedule.push(shuffledTasks[i]);
-      }
-      
-      allTasksToSchedule.sort((a, b) => {
-        const aTime = a.details?.isTimeBlock ? new Date(a.date_started).getTime() : 0;
-        const bTime = b.details?.isTimeBlock ? new Date(b.date_started).getTime() : 0;
-        
-        if (a.details?.isTimeBlock && b.details?.isTimeBlock) {
-          return aTime - bTime;
-        }
-        if (a.details?.isTimeBlock) return -1;
-        if (b.details?.isTimeBlock) return 1;
-        
-        return 0;
+      timeBlocks.sort((a, b) => {
+        const aTime = new Date(a.date_started).getTime();
+        const bTime = new Date(b.date_started).getTime();
+        return aTime - bTime;
       });
       
       let currentScheduleTime = startTime;
       
-      for (const task of allTasksToSchedule) {
+      for (const task of nonTimeBlockTasks) {
         if (currentTask && task.id === currentTask.id) continue;
         
-        if (task.details?.isTimeBlock) {
-          continue;
-        } else {
-          const timeBlockConflicts = timeBlocks.filter(block => {
-            const blockStart = new Date(block.date_started);
+        const timeBlockConflicts = timeBlocks.filter(block => {
+          const blockStart = new Date(block.date_started);
+          const blockEnd = new Date(block.date_due);
+          
+          const taskEnd = new Date(currentScheduleTime.getTime() + 25 * 60 * 1000);
+          
+          return (
+            (currentScheduleTime >= blockStart && currentScheduleTime < blockEnd) ||
+            (taskEnd > blockStart && taskEnd <= blockEnd) ||
+            (currentScheduleTime <= blockStart && taskEnd >= blockEnd)
+          );
+        });
+        
+        if (timeBlockConflicts.length > 0) {
+          const latestBlock = timeBlockConflicts.reduce((latest, block) => {
             const blockEnd = new Date(block.date_due);
-            
-            if (currentScheduleTime >= blockStart && currentScheduleTime < blockEnd) {
-              return true;
-            }
-            
-            const taskEnd = new Date(currentScheduleTime.getTime() + 25 * 60 * 1000);
-            return (taskEnd > blockStart && currentScheduleTime < blockEnd);
-          });
+            return blockEnd > latest ? blockEnd : latest;
+          }, new Date(0));
           
-          if (timeBlockConflicts.length > 0) {
-            const latestBlock = timeBlockConflicts.reduce((latest, block) => {
-              const blockEnd = new Date(block.date_due);
-              return blockEnd > latest ? blockEnd : latest;
-            }, new Date(0));
-            
-            currentScheduleTime = new Date(latestBlock.getTime() + 5 * 60 * 1000);
-          }
-          
-          const taskStartTime = new Date(currentScheduleTime);
-          const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
-          
-          await supabase
-            .from('Tasks')
-            .update({
-              date_started: taskStartTime.toISOString(),
-              date_due: taskEndTime.toISOString(),
-              Progress: 'Not started'
-            })
-            .eq('id', task.id);
-          
-          currentScheduleTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+          currentScheduleTime = new Date(latestBlock.getTime() + 5 * 60 * 1000);
         }
+        
+        const taskStartTime = new Date(currentScheduleTime);
+        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        
+        await supabase
+          .from('Tasks')
+          .update({
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString(),
+            Progress: 'Not started'
+          })
+          .eq('id', task.id);
+        
+        currentScheduleTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
       }
       
       queryClient.invalidateQueries({ queryKey: ['tasks'] });

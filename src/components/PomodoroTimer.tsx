@@ -10,6 +10,7 @@ import { Maximize2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Subtask } from '@/types/task.types';
 import { LavaLampBackground } from './pomodoro/LavaLampBackground';
+import { isTaskTimeBlock } from '@/utils/taskUtils';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -59,8 +60,29 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   });
 
   const currentTask = activeTaskId
-    ? activeTasks?.find(t => t.id === activeTaskId)
-    : activeTasks?.find(t => t.Progress === 'In progress' || t.Progress === 'Not started');
+    ? activeTasks?.find(t => t.id === activeTaskId && !isTaskInFuture(t) && t.Progress !== 'Backlog')
+    : activeTasks?.find(t => (t.Progress === 'In progress' || t.Progress === 'Not started') && !isTaskInFuture(t) && t.Progress !== 'Backlog');
+
+  const isTaskInFuture = (task: any) => {
+    if (!task || !task.date_started) return false;
+    
+    const taskStartDate = new Date(task.date_started);
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (now.getHours() >= 21 || now.getHours() < 5) {
+      const tomorrow5AM = new Date(tomorrow);
+      tomorrow5AM.setHours(5, 0, 0, 0);
+      
+      return taskStartDate > tomorrow5AM;
+    }
+    
+    return taskStartDate >= tomorrow;
+  };
 
   const { data: subtasks } = useQuery({
     queryKey: ['subtasks', currentTask?.id],
@@ -137,7 +159,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
     const now = new Date();
     return activeTasks.find(task => {
-      if (task.Progress === 'Backlog') return false;
+      if (task.Progress === 'Backlog' || isTaskInFuture(task)) return false;
       
       const startTime = new Date(task.date_started);
       const timeDiff = startTime.getTime() - now.getTime();
@@ -200,6 +222,11 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   const updateTaskProgress = useMutation({
     mutationFn: async (taskId: number) => {
+      const taskToComplete = activeTasks?.find(t => t.id === taskId);
+      if (!taskToComplete || taskToComplete.Progress === 'Backlog' || isTaskInFuture(taskToComplete)) {
+        throw new Error("Cannot complete a backlog or future task");
+      }
+      
       const { error } = await supabase
         .from('Tasks')
         .update({ Progress: 'Completed' })
@@ -213,6 +240,10 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Task completed');
     },
+    onError: (error) => {
+      console.error('Error completing task:', error);
+      toast.error('Cannot complete this task - it may be in backlog or scheduled for a future date');
+    }
   });
 
   const resetTaskSchedule = useMutation({
@@ -282,8 +313,14 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   useEffect(() => {
     if ((autoStart || activeTaskId) && activeTasks && activeTasks.length > 0 && !isRunning) {
-      setIsRunning(true);
-      toast.info("Timer started automatically");
+      const validTaskExists = activeTasks.some(t => 
+        t.Progress !== 'Backlog' && !isTaskInFuture(t)
+      );
+      
+      if (validTaskExists) {
+        setIsRunning(true);
+        toast.info("Timer started automatically");
+      }
     }
   }, [autoStart, activeTaskId, activeTasks?.length]);
 
@@ -300,11 +337,17 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
               toast.success("Break finished! Starting next task.");
               return calculateTimeLeft(currentTask);
             } else if (currentTask) {
-              updateTaskProgress.mutate(currentTask.id);
-              setIsBreak(true);
-              playSound('break');
-              toast.success("Work session complete! Time for a break.");
-              return 5 * 60;
+              if (currentTask.Progress !== 'Backlog' && !isTaskInFuture(currentTask)) {
+                updateTaskProgress.mutate(currentTask.id);
+                setIsBreak(true);
+                playSound('break');
+                toast.success("Work session complete! Time for a break.");
+                return 5 * 60;
+              } else {
+                toast.error("Cannot complete this task - it's in backlog or scheduled for the future");
+                setIsRunning(false);
+                return prev;
+              }
             }
           } else if (!isBreak) {
             playSound('tick');
@@ -375,13 +418,19 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     if (!document.fullscreenElement) {
       if (timerRef.current?.requestFullscreen) {
         timerRef.current.requestFullscreen()
-          .then(() => setIsFullscreen(true))
+          .then(() => {
+            setIsFullscreen(true);
+            console.log("Entered fullscreen mode");
+          })
           .catch(err => console.error(`Error attempting to enable fullscreen: ${err.message}`));
       }
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen()
-          .then(() => setIsFullscreen(false))
+          .then(() => {
+            setIsFullscreen(false);
+            console.log("Exited fullscreen mode");
+          })
           .catch(err => console.error(`Error attempting to exit fullscreen: ${err.message}`));
       }
     }
@@ -389,7 +438,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isCurrentlyFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isCurrentlyFullscreen);
+      console.log("Fullscreen state changed:", isCurrentlyFullscreen);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -397,25 +448,34 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isFullscreen) {
-      localStorage.setItem('pomodoroFullscreen', 'true');
-    } else if (localStorage.getItem('pomodoroFullscreen') === 'true' && !document.fullscreenElement) {
-      if (timerRef.current?.requestFullscreen) {
+    const shouldRestoreFullscreen = localStorage.getItem('pomodoroFullscreen') === 'true';
+    
+    if (shouldRestoreFullscreen && !document.fullscreenElement && timerRef.current) {
+      try {
         timerRef.current.requestFullscreen()
           .then(() => setIsFullscreen(true))
           .catch(err => {
-            console.error(`Error attempting to restore fullscreen: ${err.message}`);
+            console.error(`Error restoring fullscreen: ${err.message}`);
             localStorage.removeItem('pomodoroFullscreen');
           });
+      } catch (err) {
+        console.error(`Error attempting to restore fullscreen: ${err}`);
+        localStorage.removeItem('pomodoroFullscreen');
       }
     }
-  }, [isFullscreen, currentTask, isBreak]);
-
-  useEffect(() => {
+    
     return () => {
-      localStorage.removeItem('pomodoroFullscreen');
+      // Don't remove the storage key on every unmount, only when explicitly exiting
     };
   }, []);
+
+  useEffect(() => {
+    if (isFullscreen) {
+      localStorage.setItem('pomodoroFullscreen', 'true');
+    } else if (localStorage.getItem('pomodoroFullscreen') === 'true') {
+      localStorage.removeItem('pomodoroFullscreen');
+    }
+  }, [isFullscreen]);
 
   if (!isVisible) return null;
 

@@ -85,3 +85,38 @@ export const isTaskTimeBlock = (task: any): boolean => {
   
   return false;
 };
+
+/**
+ * Checks if a task is scheduled for the future (beyond today)
+ */
+export const isTaskInFuture = (task: any): boolean => {
+  if (!task || !task.date_started) return false;
+  
+  const taskStartDate = new Date(task.date_started);
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  // Late night logic (after 9PM until 5AM)
+  if (now.getHours() >= 21 || now.getHours() < 5) {
+    const tomorrow5AM = new Date(tomorrow);
+    tomorrow5AM.setHours(5, 0, 0, 0);
+    
+    // During late night, consider tasks scheduled within this period as "today's tasks"
+    return taskStartDate > tomorrow5AM;
+  }
+  
+  // During normal hours, consider anything for tomorrow or later as "future"
+  return taskStartDate >= tomorrow;
+};
+
+/**
+ * Determines if a task can be rescheduled or not (time blocks cannot be rescheduled)
+ */
+export const canTaskBeRescheduled = (task: any): boolean => {
+  return !isTaskTimeBlock(task);
+};
+

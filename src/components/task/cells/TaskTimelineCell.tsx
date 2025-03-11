@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Clock } from "lucide-react";
+import { Clock, Lock } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -13,6 +13,7 @@ interface TaskTimelineCellProps {
   startDate: Date | undefined;
   endDate: Date | undefined;
   isEditing: boolean;
+  isTimeBlock?: boolean;
   onTimelineUpdate: (startDate?: Date, endDate?: Date) => void;
 }
 
@@ -20,6 +21,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
   startDate: selectedStartDate,
   endDate: selectedEndDate,
   isEditing,
+  isTimeBlock = false,
   onTimelineUpdate,
 }) => {
   const [tempStartDate, setTempStartDate] = React.useState<Date | undefined>(selectedStartDate);
@@ -43,16 +45,21 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
     return format(date, 'M/d h:mm a');
   };
 
-  if (!isEditing) {
+  if (!isEditing || isTimeBlock) {
     return (
       <TableCell>
         <div className="space-y-1">
-          <div className="text-sm">
+          <div className="text-sm flex items-center gap-1">
+            {isTimeBlock && <Lock className="h-3 w-3 text-muted-foreground" />}
             Start: {selectedStartDate ? formatDateTime(selectedStartDate) : 'Not set'}
           </div>
-          <div className="text-sm">
+          <div className="text-sm flex items-center gap-1">
+            {isTimeBlock && <Lock className="h-3 w-3 text-muted-foreground" />}
             Due: {selectedEndDate ? formatDateTime(selectedEndDate) : 'Not set'}
           </div>
+          {isTimeBlock && (
+            <div className="text-xs text-muted-foreground mt-1">Time block (cannot be moved)</div>
+          )}
         </div>
       </TableCell>
     );

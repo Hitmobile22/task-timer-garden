@@ -14,9 +14,8 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
-import { getTaskListColor, extractSolidColorFromGradient } from '@/utils/taskUtils';
+import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
-import { isTaskTimeBlock } from '@/utils/taskUtils';
 
 interface SubtaskData {
   id: number;

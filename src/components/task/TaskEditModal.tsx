@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -66,16 +67,46 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       setSelectedEndDate(task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000));
       
       if (task.details) {
-        if (typeof task.details === 'object' && task.details !== null) {
-          if (task.details.type && task.details.content) {
-            setDetails(task.details as unknown as EditorContent);
+        try {
+          // Handle string format
+          if (typeof task.details === 'string') {
+            try {
+              const parsed = JSON.parse(task.details);
+              if (parsed && typeof parsed === 'object' && 'type' in parsed && 'content' in parsed) {
+                setDetails(parsed as EditorContent);
+              } else {
+                setDetails({
+                  type: 'doc',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
+                });
+              }
+            } catch {
+              // Not valid JSON, use default
+              setDetails({
+                type: 'doc',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: task.details }] }]
+              });
+            }
+          } 
+          // Handle object format
+          else if (typeof task.details === 'object' && task.details !== null) {
+            if ('type' in task.details && 'content' in task.details) {
+              setDetails(task.details as unknown as EditorContent);
+            } else {
+              setDetails({
+                type: 'doc',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
+              });
+            }
           } else {
+            // Default empty state
             setDetails({
               type: 'doc',
               content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
             });
           }
-        } else {
+        } catch (e) {
+          console.error("Error parsing task details:", e);
           setDetails({
             type: 'doc',
             content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
@@ -105,22 +136,28 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       ...(typeof details === 'object' ? details : {}),
     };
     
+    let isTimeBlock = false;
+    
     if (task.details) {
       if (typeof task.details === 'object' && task.details !== null) {
-        if (Object.prototype.hasOwnProperty.call(task.details, 'isTimeBlock')) {
-          updatedDetails.isTimeBlock = task.details.isTimeBlock;
+        // Safe property access with type checking
+        if ('isTimeBlock' in task.details && typeof task.details.isTimeBlock === 'boolean') {
+          isTimeBlock = task.details.isTimeBlock;
         }
       } else if (typeof task.details === 'string') {
         try {
           const parsedDetails = JSON.parse(task.details);
-          if (parsedDetails && Object.prototype.hasOwnProperty.call(parsedDetails, 'isTimeBlock')) {
-            updatedDetails.isTimeBlock = parsedDetails.isTimeBlock;
+          if (parsedDetails && typeof parsedDetails === 'object' && 'isTimeBlock' in parsedDetails) {
+            isTimeBlock = Boolean(parsedDetails.isTimeBlock);
           }
         } catch (e) {
           // Not valid JSON, ignore
         }
       }
     }
+    
+    // Preserve the isTimeBlock property
+    updatedDetails.isTimeBlock = isTimeBlock;
     
     try {
       await supabase

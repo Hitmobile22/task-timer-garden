@@ -1,4 +1,3 @@
-
 import { format } from 'date-fns';
 import { TASK_LIST_COLORS } from '@/constants/taskColors';
 import { Json } from '@/integrations/supabase/types';
@@ -73,8 +72,7 @@ export const isTaskTimeBlock = (task: any): boolean => {
   if (typeof task.details === 'string') {
     try {
       const parsedDetails = JSON.parse(task.details);
-      return Object.prototype.hasOwnProperty.call(parsedDetails, 'isTimeBlock') && 
-             !!parsedDetails.isTimeBlock;
+      return 'isTimeBlock' in parsedDetails && Boolean(parsedDetails.isTimeBlock);
     } catch (e) {
       return false;
     }
@@ -82,8 +80,7 @@ export const isTaskTimeBlock = (task: any): boolean => {
   
   // Handle object
   if (typeof task.details === 'object' && task.details !== null) {
-    return Object.prototype.hasOwnProperty.call(task.details, 'isTimeBlock') && 
-           !!task.details.isTimeBlock;
+    return 'isTimeBlock' in task.details && Boolean(task.details.isTimeBlock);
   }
   
   // Handle other types (number, boolean, etc.)

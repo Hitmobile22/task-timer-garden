@@ -80,9 +80,11 @@ export const isTaskTimeBlock = (task: any): boolean => {
   
   // Handle object
   if (typeof task.details === 'object' && task.details !== null) {
-    return !!task.details.isTimeBlock;
+    return Object.prototype.hasOwnProperty.call(task.details, 'isTimeBlock') && 
+           !!task.details.isTimeBlock;
   }
   
+  // Handle other types (number, boolean, etc.)
   return false;
 };
 

@@ -116,7 +116,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     if (task.details) {
       // Handle object details
       if (typeof task.details === 'object' && task.details !== null) {
-        if (task.details.hasOwnProperty('isTimeBlock')) {
+        if (Object.prototype.hasOwnProperty.call(task.details, 'isTimeBlock')) {
           updatedDetails.isTimeBlock = task.details.isTimeBlock;
         }
       }
@@ -124,7 +124,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       else if (typeof task.details === 'string') {
         try {
           const parsedDetails = JSON.parse(task.details);
-          if (parsedDetails && parsedDetails.hasOwnProperty('isTimeBlock')) {
+          if (parsedDetails && Object.prototype.hasOwnProperty.call(parsedDetails, 'isTimeBlock')) {
             updatedDetails.isTimeBlock = parsedDetails.isTimeBlock;
           }
         } catch (e) {

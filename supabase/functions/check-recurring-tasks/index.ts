@@ -92,9 +92,10 @@ Deno.serve(async (req) => {
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
       
+      // Critical fix: Get accurate count of existing tasks created today
       const { data: existingTasks, error: existingTasksError } = await supabaseClient
         .from('Tasks')
-        .select('id')
+        .select('id, "Task Name"')
         .eq('task_list_id', setting.task_list_id)
         .gte('created_at', startOfToday.toISOString());
 
@@ -118,7 +119,23 @@ Deno.serve(async (req) => {
       const taskDate = new Date();
       const baseTaskName = `${taskListData.name} - Task`;
       
+      // Get the highest task number to prevent duplicate numbering
+      let highestTaskNumber = 0;
+      if (existingTasks && existingTasks.length > 0) {
+        for (const task of existingTasks) {
+          const taskName = task["Task Name"] || "";
+          const match = taskName.match(/Task\s+(\d+)$/);
+          if (match && match[1]) {
+            const taskNumber = parseInt(match[1]);
+            if (taskNumber > highestTaskNumber) {
+              highestTaskNumber = taskNumber;
+            }
+          }
+        }
+      }
+      
       for (let i = 0; i < tasksToGenerate; i++) {
+        const taskNumber = highestTaskNumber + i + 1;
         const taskStartTime = new Date(taskDate);
         taskStartTime.setHours(9 + i * 2, 0, 0, 0); // Start at 9am, 2-hour increments
         
@@ -128,7 +145,7 @@ Deno.serve(async (req) => {
         const { data: taskData, error: taskError } = await supabaseClient
           .from('Tasks')
           .insert({
-            "Task Name": `${baseTaskName} ${existingCount + i + 1}`,
+            "Task Name": `${baseTaskName} ${taskNumber}`,
             Progress: "Not started",
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),

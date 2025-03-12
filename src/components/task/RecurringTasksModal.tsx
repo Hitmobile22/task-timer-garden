@@ -9,10 +9,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
@@ -52,6 +58,9 @@ const DAYS_OF_WEEK = [
   'Sunday',
 ];
 
+// Array of daily task count options (1-10)
+const DAILY_TASK_COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
+
 export const RecurringTasksModal = ({
   open,
   onClose,
@@ -85,6 +94,7 @@ export const RecurringTasksModal = ({
 
         if (settingsData) {
           console.log('Loaded recurring task settings:', settingsData);
+          // Update the settings state with the fetched data
           setSettings({
             enabled: settingsData.enabled,
             dailyTaskCount: settingsData.daily_task_count,
@@ -92,6 +102,7 @@ export const RecurringTasksModal = ({
           });
         } else {
           // Reset to defaults if no settings found
+          console.log('No settings found, using defaults');
           setSettings({
             enabled: false,
             dailyTaskCount: 1,
@@ -113,12 +124,14 @@ export const RecurringTasksModal = ({
     e.preventDefault();
     
     try {
-      // First, disable settings if they exist
-      const { data: existingSettings } = await supabase
+      // First, check if settings exist
+      const { data: existingSettings, error: checkError } = await supabase
         .from('recurring_task_settings')
         .select('id')
         .eq('task_list_id', listId)
         .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') throw checkError;
 
       if (existingSettings) {
         // Update existing settings
@@ -216,20 +229,27 @@ export const RecurringTasksModal = ({
             </div>
             <div className="space-y-2">
               <Label htmlFor="daily-count">Daily Task Count</Label>
-              <Input
-                id="daily-count"
-                type="number"
-                min="1"
-                max="10"
-                value={settings.dailyTaskCount}
-                onChange={(e) =>
+              <Select
+                value={settings.dailyTaskCount.toString()}
+                onValueChange={(value) =>
                   setSettings((prev) => ({
                     ...prev,
-                    dailyTaskCount: parseInt(e.target.value) || 1,
+                    dailyTaskCount: parseInt(value) || 1,
                   }))
                 }
                 disabled={!settings.enabled}
-              />
+              >
+                <SelectTrigger id="daily-count" className="w-full">
+                  <SelectValue placeholder="Select daily task count" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DAILY_TASK_COUNT_OPTIONS.map((count) => (
+                    <SelectItem key={count} value={count.toString()}>
+                      {count}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Days of Week</Label>

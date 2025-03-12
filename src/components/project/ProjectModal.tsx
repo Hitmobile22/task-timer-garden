@@ -45,6 +45,9 @@ interface ProjectModalProps {
   };
 }
 
+// Array of daily task count options (1-10)
+const DAILY_TASK_COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
+
 export const ProjectModal: React.FC<ProjectModalProps> = ({
   open,
   onClose,
@@ -258,14 +261,22 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             {isRecurring && (
               <div className="pl-4 pt-2 space-y-2">
                 <Label htmlFor="daily-task-count" className="text-sm font-medium">Daily Task Count</Label>
-                <Input
-                  id="daily-task-count"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={recurringTaskCount}
-                  onChange={(e) => setRecurringTaskCount(Number(e.target.value) || 1)}
-                />
+                <Select
+                  value={recurringTaskCount.toString()}
+                  onValueChange={(value) => setRecurringTaskCount(Number(value) || 1)}
+                  disabled={!isRecurring}
+                >
+                  <SelectTrigger id="daily-task-count" className="w-full">
+                    <SelectValue placeholder="Select daily task count" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DAILY_TASK_COUNT_OPTIONS.map((count) => (
+                      <SelectItem key={count} value={count.toString()}>
+                        {count}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
                   Tasks will be generated daily between start and due dates.
                 </p>

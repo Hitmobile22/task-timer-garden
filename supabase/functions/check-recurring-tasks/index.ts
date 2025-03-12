@@ -92,21 +92,33 @@ Deno.serve(async (req) => {
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
       
-      if (taskListData.last_tasks_added_at) {
-        const lastAdded = new Date(taskListData.last_tasks_added_at);
-        if (lastAdded >= startOfToday) {
-          console.log(`Tasks already generated today for list ${taskListData.name} (${setting.task_list_id})`);
-          continue;
-        }
+      const { data: existingTasks, error: existingTasksError } = await supabaseClient
+        .from('Tasks')
+        .select('id')
+        .eq('task_list_id', setting.task_list_id)
+        .gte('created_at', startOfToday.toISOString());
+
+      if (existingTasksError) {
+        console.error(`Error checking existing tasks for list ${taskListData.name}:`, existingTasksError);
+        continue;
       }
-      
-      // Generate the tasks
-      console.log(`Generating ${setting.daily_task_count} tasks for list ${taskListData.name} (${setting.task_list_id})`);
+
+      const existingCount = existingTasks?.length || 0;
+      console.log(`Found ${existingCount} existing tasks for list ${taskListData.name}`);
+
+      if (existingCount >= setting.daily_task_count) {
+        console.log(`Tasks already generated today for list ${taskListData.name} (${setting.task_list_id})`);
+        continue;
+      }
+
+      // Generate only the needed number of tasks
+      const tasksToGenerate = setting.daily_task_count - existingCount;
+      console.log(`Generating ${tasksToGenerate} tasks for list ${taskListData.name} (${setting.task_list_id})`);
       
       const taskDate = new Date();
       const baseTaskName = `${taskListData.name} - Task`;
       
-      for (let i = 0; i < setting.daily_task_count; i++) {
+      for (let i = 0; i < tasksToGenerate; i++) {
         const taskStartTime = new Date(taskDate);
         taskStartTime.setHours(9 + i * 2, 0, 0, 0); // Start at 9am, 2-hour increments
         
@@ -116,11 +128,12 @@ Deno.serve(async (req) => {
         const { data: taskData, error: taskError } = await supabaseClient
           .from('Tasks')
           .insert({
-            "Task Name": `${baseTaskName} ${i + 1}`,
+            "Task Name": `${baseTaskName} ${existingCount + i + 1}`,
             Progress: "Not started",
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),
-            task_list_id: setting.task_list_id
+            task_list_id: setting.task_list_id,
+            order: existingCount + i,
           })
           .select()
           .single();

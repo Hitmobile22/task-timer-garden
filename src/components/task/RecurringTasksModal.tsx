@@ -84,7 +84,7 @@ export const RecurringTasksModal = ({
         if (error && error.code !== 'PGRST116') throw error;
 
         if (settingsData) {
-          console.log('Loaded settings:', settingsData);
+          console.log('Loaded recurring task settings:', settingsData);
           setSettings({
             enabled: settingsData.enabled,
             dailyTaskCount: settingsData.daily_task_count,
@@ -111,24 +111,57 @@ export const RecurringTasksModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     try {
-      console.log('Saving settings:', {
-        task_list_id: listId,
-        enabled: settings.enabled,
-        daily_task_count: settings.dailyTaskCount,
-        days_of_week: settings.daysOfWeek,
-      });
-      
-      const { error } = await supabase
+      // First, disable settings if they exist
+      const { data: existingSettings } = await supabase
         .from('recurring_task_settings')
-        .upsert({
-          task_list_id: listId,
-          enabled: settings.enabled,
-          daily_task_count: settings.dailyTaskCount,
-          days_of_week: settings.daysOfWeek,
-        });
+        .select('id')
+        .eq('task_list_id', listId)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (existingSettings) {
+        // Update existing settings
+        const { error } = await supabase
+          .from('recurring_task_settings')
+          .update({
+            enabled: settings.enabled,
+            daily_task_count: settings.dailyTaskCount,
+            days_of_week: settings.daysOfWeek,
+          })
+          .eq('task_list_id', listId);
+
+        if (error) throw error;
+      } else {
+        // Insert new settings
+        const { error } = await supabase
+          .from('recurring_task_settings')
+          .insert({
+            task_list_id: listId,
+            enabled: settings.enabled,
+            daily_task_count: settings.dailyTaskCount,
+            days_of_week: settings.daysOfWeek,
+          });
+
+        if (error) throw error;
+      }
+
+      // If settings are disabled, clean up any existing recurring tasks
+      if (!settings.enabled) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const { error: cleanupError } = await supabase
+          .from('Tasks')
+          .delete()
+          .eq('task_list_id', listId)
+          .gte('created_at', today.toISOString());
+
+        if (cleanupError) {
+          console.error('Error cleaning up tasks:', cleanupError);
+          // Don't throw here as it's not critical
+        }
+      }
 
       onSubmit(settings);
       onClose();
@@ -141,7 +174,6 @@ export const RecurringTasksModal = ({
           if (checkError) throw checkError;
         } catch (checkError) {
           console.error('Error checking recurring tasks:', checkError);
-          // Don't show error toast here as it's not critical for the user
         }
       }
     } catch (error) {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
@@ -35,6 +36,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const subtaskTextRef = useRef<HTMLDivElement>(null);
   const fullscreenContainerRef = useRef<HTMLDivElement>(null);
   
+  // Ref to track if we're in a state transition to prevent fullscreen disruption
   const isTransitioning = useRef(false);
   
   const { data: activeTasks } = useQuery({
@@ -317,17 +319,34 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
             isTransitioning.current = true;
             
             if (isBreak) {
+              // Fix: Preserve fullscreen state during transition
+              const currentFullscreenState = !!document.fullscreenElement;
+              
               setIsBreak(false);
               playSound('task');
               toast.success("Break finished! Starting next task.");
               
               setTimeout(() => {
                 isTransitioning.current = false;
+                
+                // If we were in fullscreen but lost it during the transition, restore it
+                if (currentFullscreenState && !document.fullscreenElement && fullscreenContainerRef.current) {
+                  try {
+                    fullscreenContainerRef.current.requestFullscreen().catch(err => {
+                      console.error("Error restoring fullscreen:", err);
+                    });
+                  } catch (err) {
+                    console.error("Error attempting to restore fullscreen:", err);
+                  }
+                }
               }, 100);
               
               return calculateTimeLeft(currentTask);
             } else if (currentTask) {
               if (currentTask.Progress !== 'Backlog' && !isTaskInFuture(currentTask)) {
+                // Fix: Preserve fullscreen state during transition
+                const currentFullscreenState = !!document.fullscreenElement;
+                
                 updateTaskProgress.mutate(currentTask.id);
                 setIsBreak(true);
                 playSound('break');
@@ -335,6 +354,17 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
                 
                 setTimeout(() => {
                   isTransitioning.current = false;
+                  
+                  // If we were in fullscreen but lost it during the transition, restore it
+                  if (currentFullscreenState && !document.fullscreenElement && fullscreenContainerRef.current) {
+                    try {
+                      fullscreenContainerRef.current.requestFullscreen().catch(err => {
+                        console.error("Error restoring fullscreen:", err);
+                      });
+                    } catch (err) {
+                      console.error("Error attempting to restore fullscreen:", err);
+                    }
+                  }
                 }, 100);
                 
                 return 5 * 60;
@@ -436,34 +466,20 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
   };
 
+  // Add a listener for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && isFullscreen) {
-        setIsFullscreen(false);
-        console.log("Fullscreen exited externally");
+      // Only update our state if we're not in a task/break transition
+      if (!isTransitioning.current) {
+        setIsFullscreen(!!document.fullscreenElement);
+        console.log("Fullscreen state updated externally:", !!document.fullscreenElement);
+      } else {
+        console.log("Ignoring fullscreen change during transition");
       }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    const shouldRestoreFullscreen = localStorage.getItem('pomodoroFullscreen') === 'true';
-    
-    if (shouldRestoreFullscreen && !document.fullscreenElement && fullscreenContainerRef.current) {
-      try {
-        fullscreenContainerRef.current.requestFullscreen()
-          .then(() => setIsFullscreen(true))
-          .catch(err => {
-            console.error(`Error restoring fullscreen: ${err.message}`);
-            localStorage.removeItem('pomodoroFullscreen');
-          });
-      } catch (err) {
-        console.error(`Error attempting to restore fullscreen: ${err}`);
-        localStorage.removeItem('pomodoroFullscreen');
-      }
-    }
   }, []);
 
   useEffect(() => {

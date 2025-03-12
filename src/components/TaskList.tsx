@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -135,6 +136,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const hasSubtasks = subtasks?.some(st => st["Parent Task ID"] === task.id);
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
+  const isTimeBlock = isTaskTimeBlock(task);
   
   const taskListColor = task.task_list_id && taskLists ? 
     getTaskListColor(task.task_list_id, taskLists) : 
@@ -188,7 +190,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
       <div 
         className={cn(
           "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", 
-          isCurrentTask ? "bg-white" : "bg-white/50 hover:bg-white/80",
+          isCurrentTask ? "bg-white" : isTimeBlock ? "bg-[#FF5030]/20 hover:bg-[#FF5030]/30" : "bg-white/50 hover:bg-white/80",
           task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? "border-l-4" : ""
         )}
         style={task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? {

@@ -27,7 +27,7 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
   if (isTimeBlock) {
     return (
       <TableCell>
-        <Badge variant="secondary" className="bg-gray-200 text-gray-700">
+        <Badge variant="outline" className="bg-[#FF5030]/20 text-[#FF5030] border-[#FF5030]/30">
           Time Block
         </Badge>
       </TableCell>

@@ -99,7 +99,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     <React.Fragment>
       <TableRow className={cn(
         task.task_list_id !== 1 ? "border-l-4" : "",
-        isTimeBlock ? "bg-muted/30" : ""
+        isTimeBlock ? "bg-[#FF5030]/20" : ""
       )}
       style={task.task_list_id !== 1 ? {
         borderLeftColor: borderColor

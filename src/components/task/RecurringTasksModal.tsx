@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   Dialog,
@@ -58,7 +57,6 @@ const DAYS_OF_WEEK = [
   'Sunday',
 ];
 
-// Array of daily task count options (1-10)
 const DAILY_TASK_COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 export const RecurringTasksModal = ({
@@ -67,16 +65,14 @@ export const RecurringTasksModal = ({
   onSubmit,
   listName,
   listId,
-  initialSettings,
 }: RecurringTasksModalProps) => {
-  const [settings, setSettings] = useState<RecurringTaskSettings>(
-    initialSettings || {
-      enabled: false,
-      dailyTaskCount: 1,
-      daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-    }
-  );
+  const [settings, setSettings] = useState<RecurringTaskSettings>({
+    enabled: false,
+    dailyTaskCount: 1,
+    daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+  });
   const [isLoading, setIsLoading] = useState(true);
+  const [currentSettingId, setCurrentSettingId] = useState<number | null>(null);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -84,17 +80,20 @@ export const RecurringTasksModal = ({
       
       setIsLoading(true);
       try {
+        // Get the most recent settings for this task list
         const { data: settingsData, error } = await supabase
           .from('recurring_task_settings')
           .select('*')
           .eq('task_list_id', listId)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle<DatabaseRecurringTaskSettings>();
 
-        if (error && error.code !== 'PGRST116') throw error;
+        if (error) throw error;
 
         if (settingsData) {
           console.log('Loaded recurring task settings:', settingsData);
-          // Update the settings state with the fetched data
+          setCurrentSettingId(settingsData.id);
           setSettings({
             enabled: settingsData.enabled,
             dailyTaskCount: settingsData.daily_task_count,
@@ -103,6 +102,7 @@ export const RecurringTasksModal = ({
         } else {
           // Reset to defaults if no settings found
           console.log('No settings found, using defaults');
+          setCurrentSettingId(null);
           setSettings({
             enabled: false,
             dailyTaskCount: 1,
@@ -124,17 +124,8 @@ export const RecurringTasksModal = ({
     e.preventDefault();
     
     try {
-      // First, check if settings exist
-      const { data: existingSettings, error: checkError } = await supabase
-        .from('recurring_task_settings')
-        .select('id')
-        .eq('task_list_id', listId)
-        .maybeSingle();
-
-      if (checkError && checkError.code !== 'PGRST116') throw checkError;
-
-      if (existingSettings) {
-        // Update existing settings
+      // If we have an existing setting ID, update it
+      if (currentSettingId) {
         const { error } = await supabase
           .from('recurring_task_settings')
           .update({
@@ -142,11 +133,11 @@ export const RecurringTasksModal = ({
             daily_task_count: settings.dailyTaskCount,
             days_of_week: settings.daysOfWeek,
           })
-          .eq('task_list_id', listId);
+          .eq('id', currentSettingId);
 
         if (error) throw error;
       } else {
-        // Insert new settings
+        // Otherwise, insert new settings
         const { error } = await supabase
           .from('recurring_task_settings')
           .insert({
@@ -159,7 +150,7 @@ export const RecurringTasksModal = ({
         if (error) throw error;
       }
 
-      // If settings are disabled, clean up any existing recurring tasks
+      // Clean up any existing tasks if settings are disabled
       if (!settings.enabled) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -168,11 +159,11 @@ export const RecurringTasksModal = ({
           .from('Tasks')
           .delete()
           .eq('task_list_id', listId)
-          .gte('created_at', today.toISOString());
+          .gte('created_at', today.toISOString())
+          .eq('Progress', 'Not started');
 
         if (cleanupError) {
           console.error('Error cleaning up tasks:', cleanupError);
-          // Don't throw here as it's not critical
         }
       }
 

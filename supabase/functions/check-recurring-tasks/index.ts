@@ -102,37 +102,39 @@ Deno.serve(async (req) => {
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
       
-      // Get accurate count of existing tasks created today
-      const { data: existingTasks, error: existingTasksError } = await supabaseClient
+      // Get ALL existing tasks for today (created today OR with today's start date),
+      // including completed and deleted ones to avoid respawning them
+      const { data: allTasksForToday, error: allTasksError } = await supabaseClient
         .from('Tasks')
-        .select('id, "Task Name"')
+        .select('id, "Task Name", Progress')
         .eq('task_list_id', setting.task_list_id)
-        .gte('created_at', startOfToday.toISOString());
+        .or(`created_at.gte.${startOfToday.toISOString()},date_started.gte.${startOfToday.toISOString()},date_started.lt.${new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000).toISOString()}`);
 
-      if (existingTasksError) {
-        console.error(`Error checking existing tasks for list ${taskListData.name}:`, existingTasksError);
+      if (allTasksError) {
+        console.error(`Error checking all tasks for list ${taskListData.name}:`, allTasksError);
         continue;
       }
 
-      const existingCount = existingTasks?.length || 0;
-      console.log(`Found ${existingCount} existing tasks for list ${taskListData.name}`);
+      const allTasksCount = allTasksForToday?.length || 0;
+      console.log(`Found ${allTasksCount} total tasks for list ${taskListData.name} for today (including deleted/completed)`);
 
-      if (existingCount >= setting.daily_task_count) {
-        console.log(`Tasks already generated today for list ${taskListData.name} (${setting.task_list_id})`);
+      // If we already have enough tasks for today (created, completed, or deleted), skip
+      if (allTasksCount >= setting.daily_task_count) {
+        console.log(`Already have ${allTasksCount} tasks for list ${taskListData.name} (${setting.task_list_id}), which meets or exceeds the required ${setting.daily_task_count}`);
         continue;
       }
 
-      // Generate only the needed number of tasks
-      const tasksToGenerate = setting.daily_task_count - existingCount;
-      console.log(`Generating ${tasksToGenerate} tasks for list ${taskListData.name} (${setting.task_list_id})`);
+      // Only generate the difference between what we should have and what we already have
+      const tasksToGenerate = setting.daily_task_count - allTasksCount;
+      console.log(`Generating ${tasksToGenerate} more tasks for list ${taskListData.name} (${setting.task_list_id})`);
       
       const taskDate = new Date();
       const baseTaskName = `${taskListData.name} - Task`;
       
       // Get the highest task number to prevent duplicate numbering
       let highestTaskNumber = 0;
-      if (existingTasks && existingTasks.length > 0) {
-        for (const task of existingTasks) {
+      if (allTasksForToday && allTasksForToday.length > 0) {
+        for (const task of allTasksForToday) {
           const taskName = task["Task Name"] || "";
           const match = taskName.match(/Task\s+(\d+)$/);
           if (match && match[1]) {
@@ -160,7 +162,7 @@ Deno.serve(async (req) => {
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),
             task_list_id: setting.task_list_id,
-            order: existingCount + i,
+            order: allTasksCount + i,
           })
           .select()
           .single();

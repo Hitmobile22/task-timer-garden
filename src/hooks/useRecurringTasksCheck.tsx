@@ -1,10 +1,11 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const isCheckingRef = useRef(false);
   const queryClient = useQueryClient();
 
   const { data: settings } = useQuery({
@@ -22,6 +23,12 @@ export const useRecurringTasksCheck = () => {
 
   useEffect(() => {
     const checkRecurringTasks = async () => {
+      // Prevent concurrent checks
+      if (isCheckingRef.current) {
+        console.log('Already checking recurring tasks, skipping');
+        return;
+      }
+
       // Early morning check (before 7am don't generate tasks)
       const currentHour = new Date().getHours();
       if (currentHour < 7) {
@@ -40,6 +47,7 @@ export const useRecurringTasksCheck = () => {
 
       if (settings && settings.length > 0) {
         try {
+          isCheckingRef.current = true;
           console.log('Checking recurring tasks...');
           const { data, error } = await supabase.functions.invoke('check-recurring-tasks');
           
@@ -55,6 +63,8 @@ export const useRecurringTasksCheck = () => {
           queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
         } catch (error) {
           console.error('Error checking recurring tasks:', error);
+        } finally {
+          isCheckingRef.current = false;
         }
       }
     };

@@ -28,6 +28,15 @@ export const useRecurringTasksCheck = () => {
         console.log('Before 7am, skipping task generation check');
         return;
       }
+      
+      // Prevent checking too frequently - once per hour is enough
+      if (lastChecked) {
+        const timeSinceLastCheck = new Date().getTime() - lastChecked.getTime();
+        if (timeSinceLastCheck < 60 * 60 * 1000) { // less than 1 hour
+          console.log('Tasks checked recently, skipping check');
+          return;
+        }
+      }
 
       if (settings && settings.length > 0) {
         try {
@@ -51,11 +60,14 @@ export const useRecurringTasksCheck = () => {
     };
 
     // Check on mount if there are any enabled recurring task settings
-    if (!lastChecked && settings && settings.length > 0) {
+    // and we haven't checked in the last hour
+    if ((!lastChecked || 
+        (new Date().getTime() - lastChecked.getTime() > 60 * 60 * 1000)) && 
+        settings && settings.length > 0) {
       checkRecurringTasks();
     }
 
-    // Also set up an interval to check periodically (once per hour)
+    // Set up an interval to check periodically (once per hour)
     const interval = setInterval(() => {
       const currentHour = new Date().getHours();
       // Only check during daytime hours (7am-10pm)

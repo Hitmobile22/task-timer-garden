@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   Dialog,
@@ -80,24 +81,28 @@ export const RecurringTasksModal = ({
       
       setIsLoading(true);
       try {
-        // Get the most recent settings for this task list
-        const { data: settingsData, error } = await supabase
+        // Find all settings for this task list and get the most recent one
+        const { data: allSettings, error } = await supabase
           .from('recurring_task_settings')
           .select('*')
           .eq('task_list_id', listId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle<DatabaseRecurringTaskSettings>();
+          .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        if (settingsData) {
-          console.log('Loaded recurring task settings:', settingsData);
-          setCurrentSettingId(settingsData.id);
+        // Get the most recent one that's still active
+        const activeSettings = allSettings?.find(s => s.enabled);
+        
+        // If no active settings, use the most recent one
+        const mostRecentSetting = activeSettings || (allSettings && allSettings.length > 0 ? allSettings[0] : null);
+
+        if (mostRecentSetting) {
+          console.log('Loaded recurring task settings:', mostRecentSetting);
+          setCurrentSettingId(mostRecentSetting.id);
           setSettings({
-            enabled: settingsData.enabled,
-            dailyTaskCount: settingsData.daily_task_count,
-            daysOfWeek: settingsData.days_of_week,
+            enabled: mostRecentSetting.enabled,
+            dailyTaskCount: mostRecentSetting.daily_task_count,
+            daysOfWeek: mostRecentSetting.days_of_week,
           });
         } else {
           // Reset to defaults if no settings found

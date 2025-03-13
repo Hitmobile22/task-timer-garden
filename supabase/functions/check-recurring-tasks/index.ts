@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
     
     // For each settings entry, get the task list and check if tasks need to be generated
     const generatedTasks = [];
+    const processedTaskLists = new Set(); // Track which task lists we've already processed
     
     for (const setting of settings) {
       // Verify the setting is actually enabled
@@ -75,6 +76,15 @@ Deno.serve(async (req) => {
         console.log(`Settings ID ${setting.id} is marked as not enabled, skipping`);
         continue;
       }
+
+      // Skip if we've already processed this task list
+      if (processedTaskLists.has(setting.task_list_id)) {
+        console.log(`Task list ${setting.task_list_id} already processed, skipping duplicate settings`);
+        continue;
+      }
+      
+      // Add this task list to our processed set
+      processedTaskLists.add(setting.task_list_id);
       
       // Get the associated task list
       const { data: taskListData, error: taskListError } = await supabaseClient
@@ -92,7 +102,7 @@ Deno.serve(async (req) => {
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
       
-      // Critical fix: Get accurate count of existing tasks created today
+      // Get accurate count of existing tasks created today
       const { data: existingTasks, error: existingTasksError } = await supabaseClient
         .from('Tasks')
         .select('id, "Task Name"')

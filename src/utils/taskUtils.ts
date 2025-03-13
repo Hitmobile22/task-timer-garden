@@ -16,40 +16,32 @@ export const getTaskListColor = (listId: number, taskLists: any[]) => {
   return list?.color || TASK_LIST_COLORS['Default'];
 };
 
-// Helper to extract a solid color from a gradient string
 export const extractSolidColorFromGradient = (gradient: string): string => {
   if (!gradient) return '#8E9196'; // Fallback color
   
-  // Try to extract hex color
   const hexMatch = gradient.match(/#[a-fA-F0-9]{6}/g);
   if (hexMatch && hexMatch.length > 0) {
     return hexMatch[0];
   }
   
-  // Try to extract hsla color and convert to hex
   const hslaMatch = gradient.match(/hsla\(\s*(\d+\.?\d*)\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)%\s*,\s*(\d+\.?\d*)\s*\)/);
   if (hslaMatch) {
     const h = parseFloat(hslaMatch[1]);
-    // Use new variables instead of modifying the const variables
     const sPercent = parseFloat(hslaMatch[2]);
     const lPercent = parseFloat(hslaMatch[3]);
     
-    // Convert percentages to decimal values
     const sDecimal = sPercent / 100;
     const lDecimal = lPercent / 100;
     
-    // Convert HSLA to RGB
     const k = (n: number) => (n + h / 30) % 12;
     const a = sDecimal * Math.min(lDecimal, 1 - lDecimal);
     const f = (n: number) => lDecimal - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
     const rgb = [255 * f(0), 255 * f(8), 255 * f(4)];
     
-    // Convert to hex
     const hex = `#${rgb.map(x => Math.round(x).toString(16).padStart(2, '0')).join('')}`;
     return hex;
   }
   
-  // Try to extract rgb/rgba
   const rgbMatch = gradient.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*\d*\.?\d+\s*)?\)/g);
   if (rgbMatch && rgbMatch.length > 0) {
     return rgbMatch[0];
@@ -68,7 +60,6 @@ export const formatDate = (date: string) => {
 export const isTaskTimeBlock = (task: any): boolean => {
   if (!task || !task.details) return false;
   
-  // Handle string JSON
   if (typeof task.details === 'string') {
     try {
       const parsedDetails = JSON.parse(task.details);
@@ -78,12 +69,10 @@ export const isTaskTimeBlock = (task: any): boolean => {
     }
   }
   
-  // Handle object
   if (typeof task.details === 'object' && task.details !== null) {
     return 'isTimeBlock' in task.details && Boolean(task.details.isTimeBlock);
   }
   
-  // Handle other types (number, boolean, etc.)
   return false;
 };
 
@@ -108,24 +97,21 @@ export const isTaskInFuture = (task: any): boolean => {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   
-  // Late night logic (after 9PM until 5AM)
   if (now.getHours() >= 21 || now.getHours() < 5) {
     const tomorrow5AM = new Date(tomorrow);
     tomorrow5AM.setHours(5, 0, 0, 0);
     
-    // During late night, consider tasks scheduled within this period as "today's tasks"
     return taskStartDate > tomorrow5AM;
   }
   
-  // During normal hours, consider anything for tomorrow or later as "future"
   return taskStartDate >= tomorrow;
 };
 
 /**
- * Determines if a task can be rescheduled or not (time blocks cannot be rescheduled)
+ * Determines if a task can be rescheduled or not (time blocks can still be rescheduled)
  */
 export const canTaskBeRescheduled = (task: any): boolean => {
-  return !isTaskTimeBlock(task);
+  return true;
 };
 
 /**

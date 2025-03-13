@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -83,9 +84,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const inProgressTask = activeTasks.find(task => task.Progress === 'In progress');
       setTimerStarted(!!inProgressTask);
       
-      const firstRegularTask = activeTasks.find(task => !isTaskTimeBlock(task));
-      if (firstRegularTask) {
-        setActiveTaskId(firstRegularTask.id);
+      // Allow time blocks to be selected as the active task too
+      const firstTask = activeTasks.find(task => !isTaskInFuture(task) && task.Progress !== 'Backlog');
+      if (firstTask) {
+        setActiveTaskId(firstTask.id);
       }
     } else {
       setShowTimer(true);
@@ -185,19 +187,21 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     try {
       const targetTask = activeTasks?.find(t => t.id === taskId);
       
-      if (isTaskTimeBlock(targetTask)) {
-        toast.info("Time blocks can't be started as tasks");
-        return;
-      }
+      // Remove this check to allow time blocks to be started as tasks
+      // if (isTaskTimeBlock(targetTask)) {
+      //   toast.info("Time blocks can't be started as tasks");
+      //   return;
+      // }
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const notStartedTasks = activeTasks?.filter(t => {
-        if (isTaskTimeBlock(t)) {
-          return false;
-        }
+        // Allow time blocks to be scheduled with other tasks
+        // if (isTaskTimeBlock(t)) {
+        //   return false;
+        // }
         
         const taskDate = t.date_started ? new Date(t.date_started) : null;
         const isValidProgress = t.Progress === 'Not started' || t.Progress === 'In progress';

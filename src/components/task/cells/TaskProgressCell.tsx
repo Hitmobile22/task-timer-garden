@@ -24,16 +24,6 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
     setTempProgress(task.Progress);
   }, [task.Progress, isEditing]);
 
-  if (isTimeBlock) {
-    return (
-      <TableCell>
-        <Badge variant="outline" className="bg-[#FF5030]/20 text-[#FF5030] border-[#FF5030]/30">
-          Time Block
-        </Badge>
-      </TableCell>
-    );
-  }
-
   return (
     <TableCell>
       {isEditing ? (
@@ -55,7 +45,18 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
           </SelectContent>
         </Select>
       ) : (
-        <span className="text-sm">{task.Progress}</span>
+        <>
+          {isTimeBlock ? (
+            <div className="flex items-center">
+              <Badge variant="outline" className="bg-[#FF5030]/20 text-[#FF5030] border-[#FF5030]/30">
+                Time Block
+              </Badge>
+              <span className="ml-2 text-sm">{task.Progress}</span>
+            </div>
+          ) : (
+            <span className="text-sm">{task.Progress}</span>
+          )}
+        </>
       )}
     </TableCell>
   );

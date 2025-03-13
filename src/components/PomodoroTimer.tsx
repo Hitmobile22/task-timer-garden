@@ -159,6 +159,13 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     const dueTime = new Date(task.date_due);
     const diffInSeconds = Math.floor((dueTime.getTime() - now.getTime()) / 1000);
 
+    // For time blocks, use the actual time duration instead of defaulting to 25 minutes
+    if (isTaskTimeBlock(task)) {
+      if (diffInSeconds <= 0) return 25 * 60; // Default if negative time
+      return diffInSeconds > 0 ? diffInSeconds : 25 * 60;
+    }
+
+    // For regular tasks
     if (diffInSeconds <= 0 || diffInSeconds > 25 * 60) {
       return 25 * 60;
     }
@@ -520,7 +527,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
       <div className="space-y-2 w-full">
         <h2 className="text-2xl font-semibold text-primary">
-          {isBreak ? 'Break Time' : 'Work Session'}
+          {isBreak ? 'Break Time' : (isTaskTimeBlock(currentTask) ? 'Time Block' : 'Work Session')}
         </h2>
         {currentTask && !isBreak && (
           <p className="text-primary/80">

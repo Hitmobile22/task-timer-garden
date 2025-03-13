@@ -31,11 +31,8 @@ export const GoogleCalendarIntegration = () => {
     try {
       setIsLoading(true);
       
-      // Generate a temporary user ID for the demo
-      const userId = `user_${Math.random().toString(36).substring(2, 9)}`;
-      
       const { data, error } = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'auth', userId }
+        body: { action: 'auth', useSharedCalendar: true }
       });
       
       if (error) throw error;

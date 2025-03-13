@@ -18,15 +18,15 @@ const supabase = createClient(
   SUPABASE_SERVICE_ROLE_KEY!
 )
 
-async function getGoogleAuthURL(userId: string) {
+async function getGoogleAuthURL() {
   const redirectUri = `${SUPABASE_URL}/functions/v1/google-calendar/callback`
   const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events')
-  const state = encodeURIComponent(userId) // Encode the user ID in the state parameter
+  const state = encodeURIComponent('shared_calendar') // Use a fixed identifier instead of user ID
   
   return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_OAUTH_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${state}`
 }
 
-async function handleCallback(code: string, userId: string) {
+async function handleCallback(code: string) {
   console.log('Handling callback with code:', code);
   const redirectUri = `${SUPABASE_URL}/functions/v1/google-calendar/callback`
   const tokenUrl = 'https://oauth2.googleapis.com/token'
@@ -69,11 +69,11 @@ serve(async (req) => {
     console.log('Received request for path:', url.pathname);
     
     if (req.method === 'POST') {
-      const { action, userId } = await req.json()
-      console.log('Received POST request with body:', { action, userId });
+      const { action } = await req.json()
+      console.log('Received POST request with body:', { action });
       
-      if (action === 'auth' && userId) {
-        const authUrl = await getGoogleAuthURL(userId)
+      if (action === 'auth') {
+        const authUrl = await getGoogleAuthURL()
         console.log('Generated auth URL:', authUrl);
         return new Response(
           JSON.stringify({ url: authUrl }),
@@ -84,20 +84,18 @@ serve(async (req) => {
     
     if (url.pathname.endsWith('/callback')) {
       const code = url.searchParams.get('code')
-      const state = url.searchParams.get('state') // Get the user ID from the state parameter
+      const state = url.searchParams.get('state') // Should be 'shared_calendar'
       
-      if (!code || !state) {
-        throw new Error('No code or state provided')
+      if (!code) {
+        throw new Error('No code provided')
       }
 
-      const userId = decodeURIComponent(state)
-      const tokenData = await handleCallback(code, userId)
+      const tokenData = await handleCallback(code)
       
-      // Store the refresh token in the database with the user ID
+      // Store the refresh token in the database without user_id (shared)
       const { data, error } = await supabase
         .from('google_calendar_settings')
         .upsert({
-          user_id: userId,
           refresh_token: tokenData.refresh_token,
           sync_enabled: true,
           last_sync_time: new Date().toISOString(),
@@ -109,7 +107,7 @@ serve(async (req) => {
         throw error
       }
 
-      console.log('Successfully stored refresh token for user:', userId);
+      console.log('Successfully stored refresh token for shared calendar');
 
       return new Response(
         `<html><body><script>window.close()</script></body></html>`,

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -12,6 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { MenuBar } from "@/components/MenuBar";
+import { GoogleCalendarIntegration } from "@/components/task/GoogleCalendarIntegration";
 
 type Task = {
   id: number;
@@ -227,6 +229,10 @@ const Calendar = () => {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg max-w-[1400px] mx-auto">
+          <div className="flex justify-end mb-4">
+            <GoogleCalendarIntegration />
+          </div>
+          
           <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
             <div className="flex flex-col space-y-6">
               <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-center justify-between'}`}>

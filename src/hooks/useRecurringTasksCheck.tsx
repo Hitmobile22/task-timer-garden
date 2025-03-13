@@ -7,6 +7,7 @@ export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const isCheckingRef = useRef(false);
   const queryClient = useQueryClient();
+  const lastCheckTimeRef = useRef<number | null>(null);
 
   const { data: settings } = useQuery({
     queryKey: ['recurring-task-settings'],
@@ -37,12 +38,10 @@ export const useRecurringTasksCheck = () => {
       }
       
       // Prevent checking too frequently - once per hour is enough
-      if (lastChecked) {
-        const timeSinceLastCheck = new Date().getTime() - lastChecked.getTime();
-        if (timeSinceLastCheck < 60 * 60 * 1000) { // less than 1 hour
-          console.log('Tasks checked recently, skipping check');
-          return;
-        }
+      const now = new Date().getTime();
+      if (lastCheckTimeRef.current && (now - lastCheckTimeRef.current < 60 * 60 * 1000)) {
+        console.log('Tasks checked recently, skipping check');
+        return;
       }
 
       if (settings && settings.length > 0) {
@@ -57,6 +56,7 @@ export const useRecurringTasksCheck = () => {
           
           // Update last checked time
           setLastChecked(new Date());
+          lastCheckTimeRef.current = now;
           
           // Invalidate tasks query to refresh the task list
           queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -69,11 +69,15 @@ export const useRecurringTasksCheck = () => {
       }
     };
 
-    // Check on mount if there are any enabled recurring task settings
-    // and we haven't checked in the last hour
-    if ((!lastChecked || 
-        (new Date().getTime() - lastChecked.getTime() > 60 * 60 * 1000)) && 
-        settings && settings.length > 0) {
+    // Check on mount if there are settings and we haven't checked recently
+    const currentTime = new Date().getTime();
+    const shouldCheckOnMount = 
+      (!lastCheckTimeRef.current || 
+      (currentTime - lastCheckTimeRef.current > 60 * 60 * 1000)) && 
+      settings && 
+      settings.length > 0;
+      
+    if (shouldCheckOnMount) {
       checkRecurringTasks();
     }
 

@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfWeek, addDays, startOfMonth, getDaysInMonth, isSameDay } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Clock } from "lucide-react";
+import { ArrowLeft, Clock, RefreshCw } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -13,6 +13,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { MenuBar } from "@/components/MenuBar";
 import { GoogleCalendarIntegration, syncGoogleCalendar } from "@/components/task/GoogleCalendarIntegration";
+import { toast } from "sonner";
 
 type Task = {
   id: number;
@@ -28,8 +29,9 @@ const Calendar = () => {
   const [view, setView] = React.useState<'day' | 'week' | 'month'>('day');
   const isMobile = useIsMobile();
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const { data: tasks } = useQuery({
+  const { data: tasks, refetch } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -43,6 +45,27 @@ const Calendar = () => {
       return data as Task[];
     },
   });
+
+  const handleRefreshCalendar = async () => {
+    if (isSyncing) return;
+    
+    try {
+      setIsSyncing(true);
+      toast.info("Syncing tasks with Google Calendar...");
+      
+      const success = await syncGoogleCalendar();
+      
+      if (success) {
+        toast.success("All tasks synced to Google Calendar successfully");
+        refetch();
+      }
+    } catch (error) {
+      console.error("Manual calendar sync error:", error);
+      toast.error("Failed to sync with Google Calendar");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const getTasksForDay = (date: Date) => {
     if (!tasks) return [];
@@ -228,8 +251,17 @@ const Calendar = () => {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg max-w-[1400px] mx-auto">
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end mb-4 gap-2">
             <GoogleCalendarIntegration />
+            <Button 
+              variant="outline"
+              className="flex items-center gap-2"
+              onClick={handleRefreshCalendar}
+              disabled={isSyncing}
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? "Syncing..." : "Refresh Google Calendar"}
+            </Button>
           </div>
           
           <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>

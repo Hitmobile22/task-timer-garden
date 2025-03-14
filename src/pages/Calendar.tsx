@@ -12,7 +12,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { MenuBar } from "@/components/MenuBar";
-import { GoogleCalendarIntegration } from "@/components/task/GoogleCalendarIntegration";
+import { GoogleCalendarIntegration, syncGoogleCalendar } from "@/components/task/GoogleCalendarIntegration";
 
 type Task = {
   id: number;

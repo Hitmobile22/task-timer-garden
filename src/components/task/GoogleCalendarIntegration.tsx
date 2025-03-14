@@ -77,33 +77,34 @@ export const GoogleCalendarIntegration = () => {
           clearInterval(checkWindowClosed);
           
           // Double-check that integration was successful by querying the database
-          supabase
-            .from('google_calendar_settings')
-            .select('refresh_token')
-            .eq('id', 'shared-calendar-settings')
-            .maybeSingle()
-            .then(({ data }) => {
+          // Fix: Convert the Promise chain to use async/await to fix TypeScript error
+          (async () => {
+            try {
+              const { data } = await supabase
+                .from('google_calendar_settings')
+                .select('refresh_token')
+                .eq('id', 'shared-calendar-settings')
+                .maybeSingle();
+                
               if (data?.refresh_token) {
                 setIsConnected(true);
                 toast.success("Google Calendar connected! Your tasks will sync automatically.");
                 
                 // Trigger immediate sync after successful connection
-                triggerCalendarSync()
-                  .then(success => {
-                    if (success) {
-                      toast.success("Tasks synced to Google Calendar");
-                    }
-                  });
+                const success = await triggerCalendarSync();
+                if (success) {
+                  toast.success("Tasks synced to Google Calendar");
+                }
               } else {
                 toast.error("Failed to connect to Google Calendar. Please try again.");
               }
-              setIsLoading(false);
-            })
-            .catch((err) => {
+            } catch (err) {
               console.error("Failed to verify Google Calendar connection", err);
               toast.error("Failed to verify Google Calendar connection");
+            } finally {
               setIsLoading(false);
-            });
+            }
+          })();
         }
       }, 1000);
 
@@ -119,21 +120,24 @@ export const GoogleCalendarIntegration = () => {
       setIsLoading(true);
       
       // First clear all events from the calendar
-      const syncResult = await triggerCalendarSync();
+      await triggerCalendarSync();
       
-      // Use async/await with proper error handling
-      const { error } = await supabase
-        .from('google_calendar_settings')
-        .update({ 
-          refresh_token: null,
-          sync_enabled: false 
-        })
-        .eq('id', 'shared-calendar-settings');
-      
-      if (error) throw error;
-      
-      setIsConnected(false);
-      toast.success("Google Calendar disconnected successfully.");
+      // Fix: Use await instead of then/catch pattern for proper error handling
+      try {
+        await supabase
+          .from('google_calendar_settings')
+          .update({ 
+            refresh_token: null,
+            sync_enabled: false 
+          })
+          .eq('id', 'shared-calendar-settings');
+        
+        setIsConnected(false);
+        toast.success("Google Calendar disconnected successfully.");
+      } catch (error) {
+        console.error("Failed to disconnect Google Calendar:", error);
+        toast.error("Failed to disconnect Google Calendar");
+      }
     } catch (error) {
       console.error("Failed to disconnect Google Calendar:", error);
       toast.error("Failed to disconnect Google Calendar");

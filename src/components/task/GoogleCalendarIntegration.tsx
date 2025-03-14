@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Calendar } from "lucide-react";
+import { Calendar, RefreshCw } from "lucide-react";
 
 // Create a utility function that can be exported and used by other components
 export const syncGoogleCalendar = async (): Promise<boolean> => {
@@ -40,6 +40,7 @@ export const syncGoogleCalendar = async (): Promise<boolean> => {
 export const GoogleCalendarIntegration = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Check if calendar is already connected on component mount
   useEffect(() => {
@@ -162,20 +163,54 @@ export const GoogleCalendarIntegration = () => {
     }
   };
 
-  return (
-    <Button 
-      variant={isConnected ? "destructive" : "outline"} 
-      className="flex items-center gap-2" 
-      onClick={isConnected ? handleDisconnect : handleGoogleCalendarAuth}
-      disabled={isLoading}
-    >
-      <Calendar className="w-4 h-4" />
-      {isLoading 
-        ? "Processing..." 
-        : isConnected 
-          ? "Disconnect Google Calendar" 
-          : "Link to Google Calendar"
+  const handleManualSync = async () => {
+    if (isSyncing) return;
+    
+    try {
+      setIsSyncing(true);
+      toast.info("Syncing tasks with Google Calendar...");
+      
+      const success = await triggerCalendarSync();
+      
+      if (success) {
+        toast.success("All tasks synced to Google Calendar successfully");
       }
-    </Button>
+    } catch (error) {
+      console.error("Manual calendar sync error:", error);
+      toast.error("Failed to sync with Google Calendar");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-2">
+      <Button 
+        variant={isConnected ? "destructive" : "outline"} 
+        className="flex items-center gap-2" 
+        onClick={isConnected ? handleDisconnect : handleGoogleCalendarAuth}
+        disabled={isLoading}
+      >
+        <Calendar className="w-4 h-4" />
+        {isLoading 
+          ? "Processing..." 
+          : isConnected 
+            ? "Disconnect Google Calendar" 
+            : "Link to Google Calendar"
+        }
+      </Button>
+
+      {isConnected && (
+        <Button
+          variant="outline"
+          className="flex items-center gap-2"
+          onClick={handleManualSync}
+          disabled={isSyncing}
+        >
+          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+          {isSyncing ? "Syncing..." : "Refresh Google Calendar"}
+        </Button>
+      )}
+    </div>
   );
 };

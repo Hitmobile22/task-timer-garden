@@ -72,7 +72,8 @@ export const GoogleCalendarIntegration = () => {
               }
               setIsLoading(false);
             })
-            .catch(() => {
+            .catch((err) => {
+              console.error("Failed to verify Google Calendar connection", err);
               toast.error("Failed to verify Google Calendar connection");
               setIsLoading(false);
             });
@@ -90,6 +91,7 @@ export const GoogleCalendarIntegration = () => {
     try {
       setIsLoading(true);
       
+      // Use async/await with proper error handling
       const { error } = await supabase
         .from('google_calendar_settings')
         .update({ 

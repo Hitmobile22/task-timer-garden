@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.check-recurring-projects]
 verify_jwt = false
+
+[functions.sync-google-calendar]
+verify_jwt = false

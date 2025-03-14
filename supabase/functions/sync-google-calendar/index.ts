@@ -7,58 +7,64 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Environment variables
 const GOOGLE_OAUTH_CLIENT_ID = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID')
 const GOOGLE_OAUTH_CLIENT_SECRET = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-
-// Using a fixed UUID for the shared calendar
-const SHARED_CALENDAR_ID = "00000000-0000-0000-0000-000000000000";
 
 const supabase = createClient(
   SUPABASE_URL!,
   SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Convert a task to a Google Calendar event
-function taskToGoogleEvent(task: any) {
-  // Format task dates for Google Calendar
-  const startDateTime = new Date(task.date_started).toISOString();
-  const endDateTime = new Date(task.date_due).toISOString();
-  
-  // Create event with the task data
+// Converts a task to a Google Calendar event
+function taskToGoogleEvent(task) {
+  const startDateTime = task.date_started || task.created_at;
+  const endDateTime = task.date_due || new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString(); // Default 1 hour duration
+
+  // Set color based on task status
+  // Color IDs: https://developers.google.com/calendar/api/v3/reference/colors/get
+  // 1: Blue (In Progress), 2: Green (Completed), 10: Red (Not Started), 8: Gray (Backlog)
+  let colorId;
+  switch(task.Progress) {
+    case 'In progress': colorId = '1'; break;
+    case 'Not started': colorId = '10'; break;
+    case 'Completed': colorId = '2'; break;
+    case 'Backlog': colorId = '8'; break;
+    default: colorId = '0'; // Default
+  }
+
   return {
-    summary: task['Task Name'],
-    description: `Task Status: ${task.Progress}`,
+    summary: task["Task Name"],
+    description: task.details ? JSON.stringify(task.details) : '',
     start: {
-      dateTime: startDateTime,
+      dateTime: new Date(startDateTime).toISOString(),
       timeZone: 'UTC',
     },
     end: {
-      dateTime: endDateTime,
+      dateTime: new Date(endDateTime).toISOString(),
       timeZone: 'UTC',
     },
-    colorId: task.Progress === 'In progress' ? '5' : '1', // Blue for in-progress, Red for not started
+    colorId: colorId,
+    transparency: task.Progress === 'Completed' ? 'transparent' : 'opaque',
   };
 }
 
-async function getRefreshToken() {
+// Refreshes the Google access token
+async function refreshAccessToken() {
   const { data, error } = await supabase
     .from('google_calendar_settings')
     .select('refresh_token, calendar_id')
-    .eq('user_id', SHARED_CALENDAR_ID)
+    .eq('id', 'shared-calendar-settings')
     .single();
   
   if (error || !data?.refresh_token) {
-    throw new Error('No refresh token found');
+    console.error('Failed to get refresh token:', error);
+    throw error || new Error('No refresh token found');
   }
-  
-  return { refreshToken: data.refresh_token, calendarId: data.calendar_id };
-}
 
-async function refreshAccessToken(refreshToken: string) {
-  const tokenUrl = 'https://oauth2.googleapis.com/token';
-  const response = await fetch(tokenUrl, {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -66,48 +72,49 @@ async function refreshAccessToken(refreshToken: string) {
     body: new URLSearchParams({
       client_id: GOOGLE_OAUTH_CLIENT_ID!,
       client_secret: GOOGLE_OAUTH_CLIENT_SECRET!,
-      refresh_token: refreshToken,
+      refresh_token: data.refresh_token,
       grant_type: 'refresh_token',
     }),
   });
 
   if (!response.ok) {
-    throw new Error('Failed to refresh access token');
+    const errorText = await response.text();
+    console.error('Token refresh failed:', errorText);
+    throw new Error(`Failed to refresh token: ${errorText}`);
   }
 
-  const data = await response.json();
-  return data.access_token;
+  const tokenData = await response.json();
+  return { access_token: tokenData.access_token, calendar_id: data.calendar_id };
 }
 
-async function syncTasks() {
+// Main function to sync tasks to Google Calendar
+async function syncTasksToGoogleCalendar() {
   try {
-    // Get the refresh token
-    const { refreshToken, calendarId } = await getRefreshToken();
+    console.log('Starting Google Calendar sync');
     
-    // Get a fresh access token
-    const accessToken = await refreshAccessToken(refreshToken);
+    // Get the access token
+    const { access_token, calendar_id } = await refreshAccessToken();
     
-    // Fetch tasks that are not completed or in the backlog
+    // Get all tasks that are not completed or in backlog
     const { data: tasks, error } = await supabase
       .from('Tasks')
-      .select('*')
-      .in('Progress', ['Not started', 'In progress'])
-      .not('date_started', 'is', null)
-      .not('date_due', 'is', null);
+      .select('*, project_id, task_list_id')
+      .in('Progress', ['Not started', 'In progress']);
     
-    if (error || !tasks) {
+    if (error || !tasks || tasks.length === 0) {
+      console.log('No tasks found to sync');
       throw error || new Error('No tasks found');
     }
 
     // Use the primary calendar if no specific calendar ID is set
-    const targetCalendarId = calendarId || 'primary';
+    const targetCalendarId = calendar_id || 'primary';
 
     // For each task, create or update the corresponding Google Calendar event
     for (const task of tasks) {
       const event = taskToGoogleEvent(task);
       
       // Check if we already have a synced event for this task
-      const { data: syncedEvent } = await supabase
+      const { data: syncedEvent, error: syncedEventError } = await supabase
         .from('synced_calendar_events')
         .select('google_event_id')
         .eq('task_id', task.id)
@@ -117,62 +124,84 @@ async function syncTasks() {
       
       if (syncedEvent?.google_event_id) {
         // Update existing event
-        await fetch(`${calendarEndpoint}/${syncedEvent.google_event_id}`, {
+        const updateResponse = await fetch(`${calendarEndpoint}/${syncedEvent.google_event_id}`, {
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(event),
-        });
-      } else {
-        // Create new event
-        const response = await fetch(calendarEndpoint, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${access_token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(event),
         });
         
-        if (response.ok) {
-          const eventData = await response.json();
-          // Store the mapping between task and Google Calendar event
-          await supabase
-            .from('synced_calendar_events')
-            .insert({
-              task_id: task.id,
-              google_event_id: eventData.id,
-            });
+        if (!updateResponse.ok) {
+          console.error(`Failed to update event for task ${task.id}:`, await updateResponse.text());
+          continue;
         }
+        
+        console.log(`Updated Google Calendar event for task: ${task["Task Name"]}`);
+      } else {
+        // Create new event
+        const createResponse = await fetch(calendarEndpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(event),
+        });
+        
+        if (!createResponse.ok) {
+          console.error(`Failed to create event for task ${task.id}:`, await createResponse.text());
+          continue;
+        }
+        
+        const createdEvent = await createResponse.json();
+        
+        // Store the mapping between task and Google Calendar event
+        await supabase
+          .from('synced_calendar_events')
+          .upsert({
+            task_id: task.id,
+            google_event_id: createdEvent.id,
+            last_sync_time: new Date().toISOString(),
+          });
+        
+        console.log(`Created Google Calendar event for task: ${task["Task Name"]}`);
       }
     }
     
-    return { success: true };
+    // Update last sync time
+    await supabase
+      .from('google_calendar_settings')
+      .update({ last_sync_time: new Date().toISOString() })
+      .eq('id', 'shared-calendar-settings');
+    
+    return { success: true, message: `Synced ${tasks.length} tasks to Google Calendar` };
   } catch (error) {
-    console.error('Sync error:', error);
-    throw error;
+    console.error('Error syncing tasks to Google Calendar:', error);
+    return { success: false, error: error.message };
   }
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-
+  
   try {
-    await syncTasks();
+    const result = await syncTasksToGoogleCalendar();
     return new Response(
-      JSON.stringify({ message: 'Calendar sync completed successfully' }),
+      JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
+    console.error('Error in sync-google-calendar function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ success: false, error: error.message }),
       { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
   }

@@ -56,7 +56,30 @@ async function handleCallback(code: string, userId: string) {
     refresh_token: data.refresh_token ? 'present' : 'missing',
     access_token: data.access_token ? 'present' : 'missing'
   });
-  return data
+  
+  // Check if we received a calendar ID in the API response
+  // If not, we may need to create a calendar
+  let calendarId = null;
+  if (data.access_token) {
+    try {
+      // Try to get primary calendar or create a new calendar
+      const calendarResponse = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary', {
+        headers: {
+          'Authorization': `Bearer ${data.access_token}`
+        }
+      });
+      
+      if (calendarResponse.ok) {
+        const calendarData = await calendarResponse.json();
+        calendarId = calendarData.id;
+      }
+    } catch (error) {
+      console.error('Error getting calendar ID:', error);
+      // We'll still continue even if this fails
+    }
+  }
+  
+  return { ...data, calendarId };
 }
 
 serve(async (req) => {
@@ -99,6 +122,7 @@ serve(async (req) => {
         .upsert({
           user_id: userId,
           refresh_token: tokenData.refresh_token,
+          calendar_id: tokenData.calendarId,
           sync_enabled: true,
           last_sync_time: new Date().toISOString(),
         })
@@ -110,6 +134,20 @@ serve(async (req) => {
       }
 
       console.log('Successfully stored refresh token for user:', userId);
+
+      // Trigger an initial sync
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/sync-google-calendar`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+      } catch (syncError) {
+        console.error('Initial sync failed:', syncError);
+        // We continue anyway as this is not critical
+      }
 
       return new Response(
         `<html><body><script>window.close()</script></body></html>`,

@@ -12,6 +12,9 @@ const GOOGLE_OAUTH_CLIENT_SECRET = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
+// Using a fixed UUID for the shared calendar
+const SHARED_CALENDAR_ID = "00000000-0000-0000-0000-000000000000";
+
 const supabase = createClient(
   SUPABASE_URL!,
   SUPABASE_SERVICE_ROLE_KEY!
@@ -43,7 +46,7 @@ async function getRefreshToken() {
   const { data, error } = await supabase
     .from('google_calendar_settings')
     .select('refresh_token, calendar_id')
-    .eq('user_id', 'shared-calendar')
+    .eq('user_id', SHARED_CALENDAR_ID)
     .single();
   
   if (error || !data?.refresh_token) {
@@ -96,6 +99,9 @@ async function syncTasks() {
       throw error || new Error('No tasks found');
     }
 
+    // Use the primary calendar if no specific calendar ID is set
+    const targetCalendarId = calendarId || 'primary';
+
     // For each task, create or update the corresponding Google Calendar event
     for (const task of tasks) {
       const event = taskToGoogleEvent(task);
@@ -105,9 +111,9 @@ async function syncTasks() {
         .from('synced_calendar_events')
         .select('google_event_id')
         .eq('task_id', task.id)
-        .single();
+        .maybeSingle();
       
-      const calendarEndpoint = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;
+      const calendarEndpoint = `https://www.googleapis.com/calendar/v3/calendars/${targetCalendarId}/events`;
       
       if (syncedEvent?.google_event_id) {
         // Update existing event

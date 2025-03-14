@@ -5,6 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "lucide-react";
 
+// Using a fixed UUID instead of a string for the shared calendar ID
+const SHARED_CALENDAR_ID = "00000000-0000-0000-0000-000000000000";
+
 export const GoogleCalendarIntegration = () => {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -14,7 +17,7 @@ export const GoogleCalendarIntegration = () => {
       const { data, error } = await supabase.functions.invoke('google-calendar', {
         body: {
           action: 'auth',
-          userId: 'shared-calendar' // Using a shared calendar approach
+          userId: SHARED_CALENDAR_ID // Using a valid UUID format
         }
       });
 

@@ -5,6 +5,38 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "lucide-react";
 
+// Create a utility function that can be exported and used by other components
+export const syncGoogleCalendar = async (): Promise<boolean> => {
+  try {
+    // Check if calendar is connected before attempting sync
+    const { data: settings } = await supabase
+      .from('google_calendar_settings')
+      .select('refresh_token')
+      .eq('id', 'shared-calendar-settings')
+      .maybeSingle();
+    
+    // If no refresh token, calendar is not connected, so no sync needed
+    if (!settings?.refresh_token) {
+      return false;
+    }
+    
+    const { data, error } = await supabase.functions.invoke('sync-google-calendar');
+    
+    if (error) {
+      console.error("Calendar sync error:", error);
+      toast.error("Failed to sync tasks with Google Calendar");
+      return false;
+    }
+    
+    console.log("Calendar sync result:", data);
+    return true;
+  } catch (err) {
+    console.error("Calendar sync error:", err);
+    toast.error("Failed to sync tasks with Google Calendar");
+    return false;
+  }
+};
+
 export const GoogleCalendarIntegration = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -29,24 +61,8 @@ export const GoogleCalendarIntegration = () => {
     checkCalendarConnection();
   }, []);
 
-  const triggerCalendarSync = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('sync-google-calendar');
-      
-      if (error) {
-        console.error("Calendar sync error:", error);
-        toast.error("Failed to sync tasks with Google Calendar");
-        return false;
-      }
-      
-      console.log("Calendar sync result:", data);
-      return true;
-    } catch (err) {
-      console.error("Calendar sync error:", err);
-      toast.error("Failed to sync tasks with Google Calendar");
-      return false;
-    }
-  };
+  // Use the exported function for internal component needs too
+  const triggerCalendarSync = syncGoogleCalendar;
 
   const handleGoogleCalendarAuth = async () => {
     try {

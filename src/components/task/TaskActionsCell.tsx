@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ListFilter, PencilIcon, Trash2, Check, X, Lock } from "lucide-react";
 import { Task } from '@/types/task.types';
 import { isTaskTimeBlock } from '@/utils/taskUtils';
+import { syncGoogleCalendar } from './GoogleCalendarIntegration';
 
 interface TaskActionsCellProps {
   task: Task;
@@ -52,8 +52,16 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
       onMoveTask(task.id, tempListId);
       onEditSave(task.id);
     }
+    // Sync with Google Calendar after task is moved
+    syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after moving task:", err));
   };
   
+  const handleDelete = (taskId: number) => {
+    onDeleteTask(taskId);
+    // Sync with Google Calendar after task is deleted
+    syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after deleting task:", err));
+  };
+
   return (
     <TableCell>
       <div className="flex items-center gap-2">
@@ -138,7 +146,7 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => onDeleteTask(task.id)}
+              onClick={() => handleDelete(task.id)}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

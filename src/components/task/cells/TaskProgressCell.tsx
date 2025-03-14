@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Task } from '@/types/task.types';
 import { Badge } from "@/components/ui/badge";
 import { isTaskTimeBlock } from '@/utils/taskUtils';
+import { syncGoogleCalendar } from '../GoogleCalendarIntegration';
 
 interface TaskProgressCellProps {
   task: Task;
@@ -24,15 +25,23 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
     setTempProgress(task.Progress);
   }, [task.Progress, isEditing]);
 
+  const handleProgressChange = (value: Task['Progress']) => {
+    setTempProgress(value);
+    onUpdateProgress(value);
+    
+    // Sync with Google Calendar after progress changes
+    // This is especially important for completed tasks
+    syncGoogleCalendar().catch(err => 
+      console.error("Failed to sync calendar after changing task progress:", err)
+    );
+  };
+
   return (
     <TableCell>
       {isEditing ? (
         <Select
           value={tempProgress}
-          onValueChange={(value: Task['Progress']) => {
-            setTempProgress(value);
-            onUpdateProgress(value);
-          }}
+          onValueChange={handleProgressChange}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select progress" />

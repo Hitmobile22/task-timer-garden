@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -17,6 +16,7 @@ import { Task, Subtask } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
+import { syncGoogleCalendar } from './task/GoogleCalendarIntegration';
 
 interface SubTask {
   name: string;
@@ -112,6 +112,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       queryClient.invalidateQueries({
         queryKey: ['task-lists']
       });
+      
+      // After successfully creating tasks, sync with Google Calendar
+      syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after creating tasks:", err));
+      
       toast.success('Tasks created successfully');
     } catch (error) {
       console.error('Error creating tasks:', error);
@@ -177,6 +181,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
           toast.success(`Rescheduled ${tasksToReschedule.length} tasks around time block`);
         }
       }
+      
+      // After successfully creating a time block and rescheduling tasks, sync with Google Calendar
+      syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after creating time block:", err));
+      
     } catch (error) {
       console.error('Error handling time block creation:', error);
       toast.error('Failed to reschedule tasks around time block');
@@ -282,10 +290,134 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       queryClient.invalidateQueries({
         queryKey: ['active-tasks']
       });
+      
+      // After successfully starting a task, sync with Google Calendar
+      syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after starting task:", err));
+      
       toast.success('Timer started with selected task');
     } catch (error) {
       console.error('Error starting task:', error);
       toast.error('Failed to start task');
+    }
+  };
+  
+  const handleShuffleTasks = async () => {
+    if (onShuffleTasks) {
+      await onShuffleTasks();
+      // Sync after external shuffle function completes
+      syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after shuffling tasks:", err));
+      return;
+    }
+    
+    try {
+      const { data: tasks, error } = await supabase
+        .from('Tasks')
+        .select('*')
+        .in('Progress', ['Not started', 'In progress'])
+        .neq('Progress', 'Backlog')
+        .order('date_started', { ascending: true });
+      
+      if (error) throw error;
+      if (!tasks || tasks.length < 2) {
+        toast.info('Not enough tasks to shuffle');
+        return;
+      }
+      
+      const regularTasks = tasks.filter(t => !isTaskTimeBlock(t));
+      const timeBlocks = tasks.filter(t => isTaskTimeBlock(t));
+      
+      if (regularTasks.length < 2) {
+        toast.info('Not enough regular tasks to shuffle');
+        return;
+      }
+      
+      const todayRegularTasks = getTodayTasks(regularTasks);
+      if (todayRegularTasks.length < 2) {
+        toast.info('Not enough tasks to shuffle today');
+        return;
+      }
+      
+      const currentTask = todayRegularTasks.find(t => t.Progress === 'In progress');
+      const tasksToShuffle = currentTask 
+        ? todayRegularTasks.filter(t => t.id !== currentTask.id)
+        : todayRegularTasks.slice(1);
+      
+      for (let i = tasksToShuffle.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tasksToShuffle[i], tasksToShuffle[j]] = [tasksToShuffle[j], tasksToShuffle[i]];
+      }
+      
+      const shuffledTasks = currentTask 
+        ? [currentTask, ...tasksToShuffle]
+        : [...todayRegularTasks.slice(0, 1), ...tasksToShuffle];
+      
+      const currentTime = new Date();
+      let startTime = currentTime;
+      
+      if (currentTask) {
+        startTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
+      }
+      
+      const nonTimeBlockTasks = shuffledTasks.filter(t => !isTaskTimeBlock(t));
+      
+      timeBlocks.sort((a, b) => {
+        const aTime = new Date(a.date_started).getTime();
+        const bTime = new Date(b.date_started).getTime();
+        return aTime - bTime;
+      });
+      
+      let currentScheduleTime = startTime;
+      
+      for (const task of nonTimeBlockTasks) {
+        if (currentTask && task.id === currentTask.id) continue;
+        
+        const timeBlockConflicts = timeBlocks.filter(block => {
+          const blockStart = new Date(block.date_started);
+          const blockEnd = new Date(block.date_due);
+          
+          const taskEnd = new Date(currentScheduleTime.getTime() + 25 * 60 * 1000);
+          
+          return (
+            (currentScheduleTime >= blockStart && currentScheduleTime < blockEnd) ||
+            (taskEnd > blockStart && taskEnd <= blockEnd) ||
+            (currentScheduleTime <= blockStart && taskEnd >= blockEnd)
+          );
+        });
+        
+        if (timeBlockConflicts.length > 0) {
+          const latestBlock = timeBlockConflicts.reduce((latest, block) => {
+            const blockEnd = new Date(block.date_due);
+            return blockEnd > latest ? blockEnd : latest;
+          }, new Date(0));
+          
+          currentScheduleTime = new Date(latestBlock.getTime() + 5 * 60 * 1000);
+        }
+        
+        const taskStartTime = new Date(currentScheduleTime);
+        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        
+        await supabase
+          .from('Tasks')
+          .update({
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString(),
+            Progress: 'Not started'
+          })
+          .eq('id', task.id);
+        
+        currentScheduleTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      
+      // After successfully shuffling tasks, sync with Google Calendar
+      syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after shuffling tasks:", err));
+      
+      toast.success('Tasks shuffled successfully');
+    } catch (error) {
+      console.error('Error shuffling tasks:', error);
+      toast.error('Failed to shuffle tasks');
     }
   };
   

@@ -87,60 +87,120 @@ async function refreshAccessToken() {
   return { access_token: tokenData.access_token, calendar_id: data.calendar_id };
 }
 
+// Get all previously synced events from Google Calendar
+async function getAllCalendarEvents(calendarId, accessToken) {
+  try {
+    const endpoint = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;
+    
+    const response = await fetch(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get calendar events: ${await response.text()}`);
+    }
+
+    const data = await response.json();
+    return data.items || [];
+  } catch (error) {
+    console.error('Error fetching calendar events:', error);
+    throw error;
+  }
+}
+
+// Delete all events created by this app
+async function deleteAllSyncedEvents(calendarId, accessToken) {
+  try {
+    // Get all events we've previously synced
+    const { data: syncedEvents } = await supabase
+      .from('synced_calendar_events')
+      .select('google_event_id');
+    
+    if (!syncedEvents || syncedEvents.length === 0) {
+      console.log('No previously synced events to delete');
+      return;
+    }
+
+    console.log(`Deleting ${syncedEvents.length} previously synced events`);
+    
+    // Delete each event from Google Calendar
+    for (const event of syncedEvents) {
+      try {
+        const deleteEndpoint = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${event.google_event_id}`;
+        
+        const deleteResponse = await fetch(deleteEndpoint, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        
+        if (!deleteResponse.ok && deleteResponse.status !== 410) {
+          // 410 Gone is ok - means event was already deleted
+          console.warn(`Failed to delete event ${event.google_event_id}: ${await deleteResponse.text()}`);
+        }
+      } catch (err) {
+        console.warn(`Error deleting event ${event.google_event_id}:`, err);
+        // Continue with other deletions even if one fails
+      }
+    }
+    
+    // Clear the synced_calendar_events table
+    await supabase
+      .from('synced_calendar_events')
+      .delete()
+      .neq('id', 'placeholder');
+    
+    console.log('All synced events deleted and database cleared');
+  } catch (error) {
+    console.error('Error in deleteAllSyncedEvents:', error);
+    throw error;
+  }
+}
+
 // Main function to sync tasks to Google Calendar
 async function syncTasksToGoogleCalendar() {
   try {
-    console.log('Starting Google Calendar sync');
+    console.log('Starting Google Calendar sync with clear-and-resync approach');
     
     // Get the access token
     const { access_token, calendar_id } = await refreshAccessToken();
     
-    // Get all tasks that are not completed or in backlog
+    // Use the primary calendar if no specific calendar ID is set
+    const targetCalendarId = calendar_id || 'primary';
+    
+    // Step 1: Delete all previously synced events
+    await deleteAllSyncedEvents(targetCalendarId, access_token);
+    
+    // Step 2: Get all tasks that are not completed or in backlog
     const { data: tasks, error } = await supabase
       .from('Tasks')
       .select('*, project_id, task_list_id')
       .in('Progress', ['Not started', 'In progress']);
     
-    if (error || !tasks || tasks.length === 0) {
-      console.log('No tasks found to sync');
-      throw error || new Error('No tasks found');
+    if (error) {
+      console.error('Error fetching tasks:', error);
+      throw error;
     }
-
-    // Use the primary calendar if no specific calendar ID is set
-    const targetCalendarId = calendar_id || 'primary';
-
-    // For each task, create or update the corresponding Google Calendar event
+    
+    if (!tasks || tasks.length === 0) {
+      console.log('No active tasks found to sync');
+      return { success: true, message: 'No active tasks to sync' };
+    }
+    
+    console.log(`Found ${tasks.length} active tasks to sync`);
+    
+    // Step 3: Create new events for all active tasks
+    const calendarEndpoint = `https://www.googleapis.com/calendar/v3/calendars/${targetCalendarId}/events`;
+    const syncedEvents = [];
+    
     for (const task of tasks) {
-      const event = taskToGoogleEvent(task);
-      
-      // Check if we already have a synced event for this task
-      const { data: syncedEvent, error: syncedEventError } = await supabase
-        .from('synced_calendar_events')
-        .select('google_event_id')
-        .eq('task_id', task.id)
-        .maybeSingle();
-      
-      const calendarEndpoint = `https://www.googleapis.com/calendar/v3/calendars/${targetCalendarId}/events`;
-      
-      if (syncedEvent?.google_event_id) {
-        // Update existing event
-        const updateResponse = await fetch(`${calendarEndpoint}/${syncedEvent.google_event_id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(event),
-        });
+      try {
+        const event = taskToGoogleEvent(task);
         
-        if (!updateResponse.ok) {
-          console.error(`Failed to update event for task ${task.id}:`, await updateResponse.text());
-          continue;
-        }
-        
-        console.log(`Updated Google Calendar event for task: ${task["Task Name"]}`);
-      } else {
-        // Create new event
         const createResponse = await fetch(calendarEndpoint, {
           method: 'POST',
           headers: {
@@ -158,15 +218,25 @@ async function syncTasksToGoogleCalendar() {
         const createdEvent = await createResponse.json();
         
         // Store the mapping between task and Google Calendar event
-        await supabase
+        const { data, error: insertError } = await supabase
           .from('synced_calendar_events')
-          .upsert({
+          .insert({
             task_id: task.id,
             google_event_id: createdEvent.id,
             last_sync_time: new Date().toISOString(),
           });
         
-        console.log(`Created Google Calendar event for task: ${task["Task Name"]}`);
+        if (insertError) {
+          console.error(`Failed to store mapping for task ${task.id}:`, insertError);
+        } else {
+          syncedEvents.push({
+            taskId: task.id,
+            taskName: task["Task Name"],
+            eventId: createdEvent.id
+          });
+        }
+      } catch (err) {
+        console.error(`Error processing task ${task.id}:`, err);
       }
     }
     
@@ -176,7 +246,13 @@ async function syncTasksToGoogleCalendar() {
       .update({ last_sync_time: new Date().toISOString() })
       .eq('id', 'shared-calendar-settings');
     
-    return { success: true, message: `Synced ${tasks.length} tasks to Google Calendar` };
+    console.log(`Successfully synced ${syncedEvents.length} tasks to Google Calendar`);
+    
+    return { 
+      success: true, 
+      message: `Synced ${syncedEvents.length} tasks to Google Calendar`,
+      syncedEvents
+    };
   } catch (error) {
     console.error('Error syncing tasks to Google Calendar:', error);
     return { success: false, error: error.message };

@@ -58,7 +58,7 @@ async function handleCallback(code) {
   });
   
   // Check if we received a calendar ID in the API response
-  // If not, we may need to create a calendar
+  // If not, we may need to create a new calendar
   let calendarId = null;
   if (data.access_token) {
     try {
@@ -114,11 +114,11 @@ serve(async (req) => {
 
       const tokenData = await handleCallback(code)
       
-      // Store the refresh token in the database without user_id
+      // Store the refresh token in the database using text ID
       const { data, error } = await supabase
         .from('google_calendar_settings')
         .upsert({
-          id: 'shared-calendar-settings', // Use a fixed ID string
+          id: 'shared-calendar-settings', // Fixed text ID
           refresh_token: tokenData.refresh_token,
           calendar_id: tokenData.calendarId,
           sync_enabled: true,

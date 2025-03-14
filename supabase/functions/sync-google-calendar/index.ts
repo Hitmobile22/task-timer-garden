@@ -57,7 +57,7 @@ async function refreshAccessToken() {
     .from('google_calendar_settings')
     .select('refresh_token, calendar_id')
     .eq('id', 'shared-calendar-settings')
-    .single();
+    .maybeSingle();
   
   if (error || !data?.refresh_token) {
     console.error('Failed to get refresh token:', error);

@@ -209,18 +209,6 @@ export const GoogleCalendarIntegration: React.FC<GoogleCalendarIntegrationProps>
             : "Link to Google Calendar"
         }
       </Button>
-
-      {isConnected && (
-        <Button
-          variant="outline"
-          className="flex items-center gap-2"
-          onClick={handleManualSync}
-          disabled={isSyncing || (onManualSync ? false : false)}
-        >
-          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          {isSyncing ? "Syncing..." : "Refresh Google Calendar"}
-        </Button>
-      )}
     </div>
   );
 };

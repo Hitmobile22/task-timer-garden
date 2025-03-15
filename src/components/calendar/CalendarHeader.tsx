@@ -16,6 +16,15 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   return (
     <div className="flex justify-end mb-4 gap-2">
       <GoogleCalendarIntegration onManualSync={handleRefreshCalendar} />
+      <Button
+        variant="outline"
+        className="flex items-center gap-2"
+        onClick={handleRefreshCalendar}
+        disabled={isSyncing}
+      >
+        <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+        {isSyncing ? "Syncing..." : "Refresh Google Calendar"}
+      </Button>
     </div>
   );
 };

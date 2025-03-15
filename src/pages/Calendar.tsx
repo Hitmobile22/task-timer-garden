@@ -1,21 +1,20 @@
+
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfWeek, addDays, startOfMonth, getDaysInMonth, isSameDay } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Clock, RefreshCw } from "lucide-react";
-import { useNavigate } from 'react-router-dom';
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { MenuBar } from "@/components/MenuBar";
-import { GoogleCalendarIntegration, syncGoogleCalendar } from "@/components/task/GoogleCalendarIntegration";
+import { syncGoogleCalendar } from "@/components/task/GoogleCalendarIntegration";
 import { toast } from "sonner";
+import { DayView } from '@/components/calendar/DayView';
+import { WeekView } from '@/components/calendar/WeekView';
+import { MonthView } from '@/components/calendar/MonthView';
+import { CalendarHeader } from '@/components/calendar/CalendarHeader';
+import { getTasksForDay, getTaskColor } from '@/components/calendar/CalendarUtils';
 
-type Task = {
+export type Task = {
   id: number;
   "Task Name": string;
   Progress: "Not started" | "In progress" | "Completed" | "Backlog";
@@ -24,7 +23,6 @@ type Task = {
 };
 
 const Calendar = () => {
-  const navigate = useNavigate();
   const [date, setDate] = React.useState<Date>(new Date());
   const [view, setView] = React.useState<'day' | 'week' | 'month'>('day');
   const isMobile = useIsMobile();
@@ -67,171 +65,8 @@ const Calendar = () => {
     }
   };
 
-  const getTasksForDay = (date: Date) => {
-    if (!tasks) return [];
-    return tasks.filter(task => {
-      const taskStart = new Date(task.date_started);
-      const taskDue = new Date(task.date_due);
-      const taskDate = new Date(date);
-      
-      taskDate.setHours(0, 0, 0, 0);
-      const startDate = new Date(taskStart);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(taskDue);
-      endDate.setHours(0, 0, 0, 0);
-      
-      return startDate <= taskDate && endDate >= taskDate;
-    });
-  };
-
-  const getTaskColor = (progress: Task['Progress']) => {
-    switch (progress) {
-      case 'Completed':
-        return 'bg-emerald-500';
-      case 'In progress':
-        return 'bg-blue-500';
-      case 'Not started':
-        return 'bg-orange-500';
-      default:
-        return 'bg-gray-500';
-    }
-  };
-
-  const DayView = () => (
-    <div className="relative h-[calc(100vh-300px)] overflow-auto">
-      <div className="sticky top-0 bg-background z-10 py-2 mb-4">
-        <h2 className="text-lg font-semibold">
-          {format(date, 'EEEE, MMMM d')}
-        </h2>
-      </div>
-      <div className="space-y-2">
-        {getTasksForDay(date).map((task) => (
-          <Card key={task.id} className="border border-border">
-            <CardHeader className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-base">{task["Task Name"]}</CardTitle>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Clock className="mr-2 h-4 w-4" />
-                    {format(new Date(task.date_started), 'h:mm a')} - {format(new Date(task.date_due), 'h:mm a')}
-                  </div>
-                </div>
-                <div className={`${getTaskColor(task.Progress)} px-2 py-1 rounded text-xs text-white`}>
-                  {task.Progress}
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-
-  const WeekView = () => {
-    const startDate = startOfWeek(date);
-    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
-
-    return (
-      <div className="space-y-6">
-        <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : 'grid-cols-7 gap-3'}`}>
-          {weekDays.map((day) => {
-            const dayTasks = getTasksForDay(day);
-            const isToday = isSameDay(day, new Date());
-
-            return (
-              <Card 
-                key={day.toString()} 
-                className={`${isToday ? 'border-primary' : ''}`}
-              >
-                <CardHeader className="p-3">
-                  <CardTitle className={`text-sm ${isToday ? 'text-primary' : ''}`}>
-                    {format(day, isMobile ? 'EEE, MMM d' : 'EEE d')}
-                  </CardTitle>
-                </CardHeader>
-                <Separator />
-                <CardContent className="p-2">
-                  <ScrollArea className="h-[300px]">
-                    <div className="space-y-2">
-                      {dayTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          className={`${getTaskColor(task.Progress)} p-2 rounded text-white text-sm`}
-                        >
-                          <div className="font-medium">{task["Task Name"]}</div>
-                          <div className="text-xs mt-1 opacity-90">
-                            {format(new Date(task.date_started), 'h:mm a')}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const MonthView = () => {
-    const monthStart = startOfMonth(date);
-    const daysInMonth = getDaysInMonth(date);
-    const days = Array.from({ length: daysInMonth }, (_, i) => addDays(monthStart, i));
-
-    return (
-      <div className="space-y-4">
-        <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : 'grid-cols-7 gap-3'}`}>
-          {!isMobile && ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-sm font-medium text-center p-2 text-muted-foreground">
-              {day}
-            </div>
-          ))}
-          {!isMobile && Array(monthStart.getDay()).fill(null).map((_, i) => (
-            <div key={`empty-${i}`} />
-          ))}
-          {days.map((day) => {
-            const dayTasks = getTasksForDay(day);
-            const isToday = isSameDay(day, new Date());
-
-            return (
-              <Card 
-                key={day.toString()} 
-                className={`min-h-[120px] ${isToday ? 'border-primary' : ''}`}
-              >
-                <CardHeader className="p-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className={`text-sm ${isToday ? 'text-primary' : ''}`}>
-                      {format(day, isMobile ? 'EEE, MMM d' : 'd')}
-                    </CardTitle>
-                    {dayTasks.length > 0 && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                        {dayTasks.length}
-                      </span>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="p-2">
-                  <ScrollArea className="h-[80px]">
-                    <div className="space-y-1">
-                      {dayTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          className={`${getTaskColor(task.Progress)} p-1.5 rounded text-white text-xs`}
-                        >
-                          {task["Task Name"]}
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  // Wrapper functions to pass the tasks to the utility functions
+  const getTasksForCurrentDay = (date: Date) => getTasksForDay(tasks, date);
 
   return (
     <div 
@@ -251,18 +86,10 @@ const Calendar = () => {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg max-w-[1400px] mx-auto">
-          <div className="flex justify-end mb-4 gap-2">
-            <GoogleCalendarIntegration />
-            <Button 
-              variant="outline"
-              className="flex items-center gap-2"
-              onClick={handleRefreshCalendar}
-              disabled={isSyncing}
-            >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? "Syncing..." : "Refresh Google Calendar"}
-            </Button>
-          </div>
+          <CalendarHeader 
+            handleRefreshCalendar={handleRefreshCalendar}
+            isSyncing={isSyncing}
+          />
           
           <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
             <div className="flex flex-col space-y-6">
@@ -272,26 +99,39 @@ const Calendar = () => {
                   <TabsTrigger value="week">Week</TabsTrigger>
                   <TabsTrigger value="month">Month</TabsTrigger>
                 </TabsList>
-                <Card className="border-white/20">
-                  <CalendarComponent
-                    mode="single"
-                    selected={date}
-                    onSelect={(date) => date && setDate(date)}
-                    className="rounded-md"
-                  />
-                </Card>
+                <CalendarComponent
+                  mode="single"
+                  selected={date}
+                  onSelect={(date) => date && setDate(date)}
+                  className="rounded-md"
+                />
               </div>
 
               <TabsContent value="day" className="m-0">
-                <DayView />
+                <DayView 
+                  date={date}
+                  tasks={tasks}
+                  getTasksForDay={getTasksForCurrentDay}
+                  getTaskColor={getTaskColor}
+                />
               </TabsContent>
 
               <TabsContent value="week" className="m-0">
-                <WeekView />
+                <WeekView 
+                  date={date}
+                  isMobile={isMobile}
+                  getTasksForDay={getTasksForCurrentDay}
+                  getTaskColor={getTaskColor}
+                />
               </TabsContent>
 
               <TabsContent value="month" className="m-0">
-                <MonthView />
+                <MonthView 
+                  date={date}
+                  isMobile={isMobile}
+                  getTasksForDay={getTasksForCurrentDay}
+                  getTaskColor={getTaskColor}
+                />
               </TabsContent>
             </div>
           </Tabs>

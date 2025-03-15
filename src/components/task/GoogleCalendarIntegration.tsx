@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,20 +8,29 @@ import { Calendar, RefreshCw } from "lucide-react";
 // Create a utility function that can be exported and used by other components
 export const syncGoogleCalendar = async (): Promise<boolean> => {
   try {
+    console.log("Starting Google Calendar sync process...");
+    
     // Check if calendar is connected before attempting sync
-    const { data: settings } = await supabase
+    const { data: settings, error: settingsError } = await supabase
       .from('google_calendar_settings')
-      .select('refresh_token')
+      .select('refresh_token, calendar_id')
       .eq('id', 'shared-calendar-settings')
       .maybeSingle();
     
-    // If no refresh token, calendar is not connected, so no sync needed
-    if (!settings?.refresh_token) {
-      console.log("No refresh token found, skipping calendar sync");
+    if (settingsError) {
+      console.error("Error checking calendar settings:", settingsError);
+      toast.error("Failed to check calendar connection status");
       return false;
     }
     
-    console.log("Attempting to sync with Google Calendar...");
+    // If no refresh token, calendar is not connected, so no sync needed
+    if (!settings?.refresh_token) {
+      console.error("No refresh token found, skipping calendar sync");
+      toast.error("Google Calendar is not connected. Please connect it first.");
+      return false;
+    }
+    
+    console.log("Refresh token found, proceeding with sync...");
     const { data, error } = await supabase.functions.invoke('sync-google-calendar');
     
     if (error) {
@@ -51,14 +61,22 @@ export const GoogleCalendarIntegration: React.FC<GoogleCalendarIntegrationProps>
   useEffect(() => {
     const checkCalendarConnection = async () => {
       try {
-        const { data } = await supabase
+        console.log("Checking Google Calendar connection status...");
+        const { data, error } = await supabase
           .from('google_calendar_settings')
           .select('sync_enabled, refresh_token')
           .eq('id', 'shared-calendar-settings')
           .maybeSingle();
         
+        if (error) {
+          console.error("Error checking calendar connection:", error);
+          return;
+        }
+        
         // If we have a record with a refresh token, consider it connected
-        setIsConnected(!!data?.refresh_token);
+        const connected = !!data?.refresh_token;
+        console.log("Calendar connection status:", connected ? "Connected" : "Not connected");
+        setIsConnected(connected);
       } catch (error) {
         console.error("Error checking calendar connection:", error);
       }
@@ -140,25 +158,21 @@ export const GoogleCalendarIntegration: React.FC<GoogleCalendarIntegrationProps>
     try {
       setIsLoading(true);
       
-      // First clear all events from the calendar
-      await triggerCalendarSync();
+      // Properly disconnect from Google Calendar
+      const { error } = await supabase
+        .from('google_calendar_settings')
+        .update({ 
+          refresh_token: null,
+          sync_enabled: false 
+        })
+        .eq('id', 'shared-calendar-settings');
       
-      // Fix: Use await instead of then/catch pattern for proper error handling
-      try {
-        await supabase
-          .from('google_calendar_settings')
-          .update({ 
-            refresh_token: null,
-            sync_enabled: false 
-          })
-          .eq('id', 'shared-calendar-settings');
-        
-        setIsConnected(false);
-        toast.success("Google Calendar disconnected successfully.");
-      } catch (error) {
-        console.error("Failed to disconnect Google Calendar:", error);
-        toast.error("Failed to disconnect Google Calendar");
+      if (error) {
+        throw error;
       }
+      
+      setIsConnected(false);
+      toast.success("Google Calendar disconnected successfully.");
     } catch (error) {
       console.error("Failed to disconnect Google Calendar:", error);
       toast.error("Failed to disconnect Google Calendar");

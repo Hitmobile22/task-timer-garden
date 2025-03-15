@@ -60,34 +60,56 @@ async function refreshAccessToken() {
     .eq('id', 'shared-calendar-settings')
     .maybeSingle();
   
-  if (error || !data?.refresh_token) {
-    console.error('Failed to get refresh token:', error || "No refresh token found");
-    throw error || new Error('No refresh token found');
+  if (error) {
+    console.error('Failed to get refresh token:', error);
+    throw error;
+  }
+  
+  if (!data?.refresh_token) {
+    console.error('No refresh token found');
+    throw new Error('No refresh token found. Please connect Google Calendar first.');
   }
 
   console.log("Refresh token found, exchanging for access token");
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: GOOGLE_OAUTH_CLIENT_ID!,
-      client_secret: GOOGLE_OAUTH_CLIENT_SECRET!,
-      refresh_token: data.refresh_token,
-      grant_type: 'refresh_token',
-    }),
-  });
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: GOOGLE_OAUTH_CLIENT_ID!,
+        client_secret: GOOGLE_OAUTH_CLIENT_SECRET!,
+        refresh_token: data.refresh_token,
+        grant_type: 'refresh_token',
+      }),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Token refresh failed:', errorText);
-    throw new Error(`Failed to refresh token: ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Token refresh failed:', errorText);
+      
+      // If the refresh token is invalid, we should clear it from the database
+      if (response.status === 400 || response.status === 401) {
+        console.log("Invalid refresh token, clearing from database");
+        await supabase
+          .from('google_calendar_settings')
+          .update({ refresh_token: null, sync_enabled: false })
+          .eq('id', 'shared-calendar-settings');
+          
+        throw new Error('Invalid refresh token. Please reconnect Google Calendar.');
+      }
+      
+      throw new Error(`Failed to refresh token: ${errorText}`);
+    }
+
+    const tokenData = await response.json();
+    console.log("Access token obtained successfully");
+    return { access_token: tokenData.access_token, calendar_id: data.calendar_id };
+  } catch (err) {
+    console.error("Error refreshing access token:", err);
+    throw err;
   }
-
-  const tokenData = await response.json();
-  console.log("Access token obtained successfully");
-  return { access_token: tokenData.access_token, calendar_id: data.calendar_id };
 }
 
 // Get all previously synced events from Google Calendar

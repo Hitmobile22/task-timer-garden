@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useQuery } from '@tanstack/react-query';
@@ -28,6 +28,26 @@ const Calendar = () => {
   const isMobile = useIsMobile();
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isCalendarConnected, setIsCalendarConnected] = useState(false);
+  
+  // Check if Google Calendar is connected
+  useEffect(() => {
+    const checkCalendarConnection = async () => {
+      try {
+        const { data } = await supabase
+          .from('google_calendar_settings')
+          .select('refresh_token')
+          .eq('id', 'shared-calendar-settings')
+          .maybeSingle();
+        
+        setIsCalendarConnected(!!data?.refresh_token);
+      } catch (error) {
+        console.error("Error checking calendar connection:", error);
+      }
+    };
+    
+    checkCalendarConnection();
+  }, []);
 
   const { data: tasks, refetch } = useQuery({
     queryKey: ['tasks'],
@@ -50,6 +70,20 @@ const Calendar = () => {
     
     try {
       setIsSyncing(true);
+      
+      // Check calendar connection status first
+      const { data: settings } = await supabase
+        .from('google_calendar_settings')
+        .select('refresh_token')
+        .eq('id', 'shared-calendar-settings')
+        .maybeSingle();
+        
+      if (!settings?.refresh_token) {
+        toast.error("Google Calendar is not connected. Please connect it first.");
+        setIsSyncing(false);
+        return;
+      }
+      
       toast.info("Syncing tasks with Google Calendar...");
       
       console.log("Calendar sync initiated from Calendar page");

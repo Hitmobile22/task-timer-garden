@@ -31,55 +31,66 @@ async function handleCallback(code) {
   const redirectUri = `${SUPABASE_URL}/functions/v1/google-calendar/callback`
   const tokenUrl = 'https://oauth2.googleapis.com/token'
   
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      code,
-      client_id: GOOGLE_OAUTH_CLIENT_ID!,
-      client_secret: GOOGLE_OAUTH_CLIENT_SECRET!,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code',
-    }),
-  })
+  try {
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_OAUTH_CLIENT_ID!,
+        client_secret: GOOGLE_OAUTH_CLIENT_SECRET!,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Token exchange failed:', errorText);
-    throw new Error(`Failed to get access token: ${errorText}`);
-  }
-
-  const data = await response.json()
-  console.log('Received token data:', { 
-    refresh_token: data.refresh_token ? 'present' : 'missing',
-    access_token: data.access_token ? 'present' : 'missing'
-  });
-  
-  // Check if we received a calendar ID in the API response
-  // If not, we may need to create a new calendar
-  let calendarId = null;
-  if (data.access_token) {
-    try {
-      // Try to get primary calendar or create a new calendar
-      const calendarResponse = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary', {
-        headers: {
-          'Authorization': `Bearer ${data.access_token}`
-        }
-      });
-      
-      if (calendarResponse.ok) {
-        const calendarData = await calendarResponse.json();
-        calendarId = calendarData.id;
-      }
-    } catch (error) {
-      console.error('Error getting calendar ID:', error);
-      // We'll still continue even if this fails
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Token exchange failed:', errorText);
+      throw new Error(`Failed to get access token: ${errorText}`);
     }
+
+    const data = await response.json();
+    console.log('Received token data:', { 
+      refresh_token: data.refresh_token ? 'present' : 'missing',
+      access_token: data.access_token ? 'present' : 'missing'
+    });
+    
+    if (!data.refresh_token) {
+      console.error('No refresh token received from Google. This likely means the user has already authorized this app before.');
+      throw new Error('No refresh token received from Google. Please revoke app access in your Google account and try again.');
+    }
+    
+    // Check if we received a calendar ID in the API response
+    // If not, we may need to create a new calendar
+    let calendarId = null;
+    if (data.access_token) {
+      try {
+        // Try to get primary calendar or create a new calendar
+        const calendarResponse = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary', {
+          headers: {
+            'Authorization': `Bearer ${data.access_token}`
+          }
+        });
+        
+        if (calendarResponse.ok) {
+          const calendarData = await calendarResponse.json();
+          calendarId = calendarData.id;
+          console.log("Using primary calendar with ID:", calendarId);
+        }
+      } catch (error) {
+        console.error('Error getting calendar ID:', error);
+        // We'll still continue even if this fails
+      }
+    }
+    
+    return { ...data, calendarId };
+  } catch (error) {
+    console.error("Token exchange error:", error);
+    throw error;
   }
-  
-  return { ...data, calendarId };
 }
 
 serve(async (req) => {
@@ -114,10 +125,16 @@ serve(async (req) => {
 
       const tokenData = await handleCallback(code)
       
+      // Clear any existing data first
+      await supabase
+        .from('google_calendar_settings')
+        .delete()
+        .eq('id', 'shared-calendar-settings');
+      
       // Store the refresh token in the database using text ID
       const { data, error } = await supabase
         .from('google_calendar_settings')
-        .upsert({
+        .insert({
           id: 'shared-calendar-settings', // Fixed text ID
           refresh_token: tokenData.refresh_token,
           calendar_id: tokenData.calendarId,

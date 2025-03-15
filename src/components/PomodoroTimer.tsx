@@ -37,6 +37,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   
   const isTransitioning = useRef(false);
   const shouldBeFullscreen = useRef(false);
+  const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fullscreenRetryCount = useRef(0);
+  const maxFullscreenRetries = 3;
 
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
@@ -313,6 +316,58 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
   }, [autoStart, activeTaskId, activeTasks?.length]);
 
+  const requestFullscreenSafely = async () => {
+    if (!fullscreenContainerRef.current) {
+      console.log("Fullscreen container ref is not available");
+      return false;
+    }
+    
+    if (document.fullscreenElement) {
+      console.log("Already in fullscreen mode");
+      return true;
+    }
+    
+    try {
+      fullscreenRetryCount.current = 0;
+      await fullscreenContainerRef.current.requestFullscreen();
+      console.log("Successfully entered fullscreen mode");
+      return true;
+    } catch (err) {
+      console.error("Error entering fullscreen mode:", err);
+      return false;
+    }
+  };
+
+  const retryFullscreen = () => {
+    if (fullscreenRetryCount.current >= maxFullscreenRetries) {
+      console.log(`Maximum fullscreen retry attempts (${maxFullscreenRetries}) reached, giving up`);
+      return;
+    }
+    
+    const delay = Math.pow(2, fullscreenRetryCount.current) * 100;
+    console.log(`Retry #${fullscreenRetryCount.current + 1} for fullscreen in ${delay}ms`);
+    
+    setTimeout(async () => {
+      if (!document.fullscreenElement && shouldBeFullscreen.current) {
+        fullscreenRetryCount.current++;
+        try {
+          const success = await requestFullscreenSafely();
+          if (success) {
+            setIsFullscreen(true);
+            console.log("Fullscreen restored on retry #", fullscreenRetryCount.current);
+          } else if (fullscreenRetryCount.current < maxFullscreenRetries) {
+            retryFullscreen();
+          }
+        } catch (err) {
+          console.error("Error during fullscreen retry:", err);
+          if (fullscreenRetryCount.current < maxFullscreenRetries) {
+            retryFullscreen();
+          }
+        }
+      }
+    }, delay);
+  };
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
@@ -330,25 +385,20 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
               playSound('task');
               toast.success("Break finished! Starting next task.");
               
-              setTimeout(() => {
+              transitionTimeoutRef.current = setTimeout(() => {
                 isTransitioning.current = false;
                 
-                if (shouldBeFullscreen.current && !document.fullscreenElement && fullscreenContainerRef.current) {
+                if (shouldBeFullscreen.current && !document.fullscreenElement) {
                   console.log("Attempting to restore fullscreen after break->task transition");
-                  try {
-                    fullscreenContainerRef.current.requestFullscreen()
-                      .then(() => {
-                        console.log("Fullscreen restored successfully");
-                        setIsFullscreen(true);
-                      })
-                      .catch(err => {
-                        console.error("Error restoring fullscreen:", err);
-                      });
-                  } catch (err) {
-                    console.error("Error attempting to restore fullscreen:", err);
-                  }
+                  requestFullscreenSafely().then(success => {
+                    if (success) {
+                      setIsFullscreen(true);
+                    } else {
+                      retryFullscreen();
+                    }
+                  });
                 }
-              }, 200);
+              }, 300);
               
               return calculateTimeLeft(currentTask);
             } else if (currentTask) {
@@ -358,34 +408,29 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
                 playSound('break');
                 toast.success("Work session complete! Time for a break.");
                 
-                setTimeout(() => {
+                transitionTimeoutRef.current = setTimeout(() => {
                   isTransitioning.current = false;
                   
-                  if (shouldBeFullscreen.current && !document.fullscreenElement && fullscreenContainerRef.current) {
+                  if (shouldBeFullscreen.current && !document.fullscreenElement) {
                     console.log("Attempting to restore fullscreen after task->break transition");
-                    try {
-                      fullscreenContainerRef.current.requestFullscreen()
-                        .then(() => {
-                          console.log("Fullscreen restored successfully");
-                          setIsFullscreen(true);
-                        })
-                        .catch(err => {
-                          console.error("Error restoring fullscreen:", err);
-                        });
-                    } catch (err) {
-                      console.error("Error attempting to restore fullscreen:", err);
-                    }
+                    requestFullscreenSafely().then(success => {
+                      if (success) {
+                        setIsFullscreen(true);
+                      } else {
+                        retryFullscreen();
+                      }
+                    });
                   }
-                }, 200);
+                }, 300);
                 
                 return 5 * 60;
               } else {
                 toast.error("Cannot complete this task - it's in backlog or scheduled for the future");
                 setIsRunning(false);
                 
-                setTimeout(() => {
+                transitionTimeoutRef.current = setTimeout(() => {
                   isTransitioning.current = false;
-                }, 200);
+                }, 300);
                 
                 return prev;
               }
@@ -398,7 +443,13 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       }, 1000);
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+        transitionTimeoutRef.current = null;
+      }
+    };
   }, [isRunning, currentTask, isBreak, timeLeft, playSound]);
 
   const handleReset = () => {
@@ -457,25 +508,21 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      if (fullscreenContainerRef.current?.requestFullscreen) {
-        fullscreenContainerRef.current.requestFullscreen()
-          .then(() => {
-            setIsFullscreen(true);
-            shouldBeFullscreen.current = true;
-            console.log("Entered fullscreen mode");
-          })
-          .catch(err => console.error(`Error attempting to enable fullscreen: ${err.message}`));
-      }
+      shouldBeFullscreen.current = true;
+      requestFullscreenSafely().then(success => {
+        if (success) {
+          setIsFullscreen(true);
+          localStorage.setItem('pomodoroFullscreen', 'true');
+        }
+      });
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen()
-          .then(() => {
-            setIsFullscreen(false);
-            shouldBeFullscreen.current = false;
-            console.log("Exited fullscreen mode");
-          })
-          .catch(err => console.error(`Error attempting to exit fullscreen: ${err.message}`));
-      }
+      shouldBeFullscreen.current = false;
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+        localStorage.removeItem('pomodoroFullscreen');
+      }).catch(err => {
+        console.error(`Error attempting to exit fullscreen: ${err.message}`);
+      });
     }
   };
 
@@ -486,6 +533,12 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         setIsFullscreen(isNowFullscreen);
         shouldBeFullscreen.current = isNowFullscreen;
         console.log("Fullscreen state updated externally:", isNowFullscreen);
+        
+        if (isNowFullscreen) {
+          localStorage.setItem('pomodoroFullscreen', 'true');
+        } else if (localStorage.getItem('pomodoroFullscreen') === 'true') {
+          localStorage.removeItem('pomodoroFullscreen');
+        }
       } else {
         console.log("Ignoring fullscreen change during transition");
       }
@@ -496,12 +549,18 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isFullscreen) {
-      localStorage.setItem('pomodoroFullscreen', 'true');
-    } else if (localStorage.getItem('pomodoroFullscreen') === 'true') {
-      localStorage.removeItem('pomodoroFullscreen');
+    const wasFullscreen = localStorage.getItem('pomodoroFullscreen') === 'true';
+    if (wasFullscreen && !document.fullscreenElement) {
+      setTimeout(() => {
+        shouldBeFullscreen.current = true;
+        requestFullscreenSafely().then(success => {
+          if (success) {
+            setIsFullscreen(true);
+          }
+        });
+      }, 500);
     }
-  }, [isFullscreen]);
+  }, []);
 
   if (!isVisible) return null;
 

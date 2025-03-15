@@ -32,6 +32,7 @@ const Calendar = () => {
   const { data: tasks, refetch } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
+      console.log("Fetching tasks for calendar view...");
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
@@ -51,14 +52,19 @@ const Calendar = () => {
       setIsSyncing(true);
       toast.info("Syncing tasks with Google Calendar...");
       
+      console.log("Calendar sync initiated from Calendar page");
       const success = await syncGoogleCalendar();
       
       if (success) {
         toast.success("All tasks synced to Google Calendar successfully");
-        refetch();
+        console.log("Google Calendar sync successful, refreshing task data");
+        await refetch();
+      } else {
+        console.log("Google Calendar sync returned false, check if calendar is connected");
+        toast.error("Failed to sync with Google Calendar. Make sure your calendar is connected.");
       }
     } catch (error) {
-      console.error("Manual calendar sync error:", error);
+      console.error("Calendar refresh error:", error);
       toast.error("Failed to sync with Google Calendar");
     } finally {
       setIsSyncing(false);

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,9 +16,11 @@ export const syncGoogleCalendar = async (): Promise<boolean> => {
     
     // If no refresh token, calendar is not connected, so no sync needed
     if (!settings?.refresh_token) {
+      console.log("No refresh token found, skipping calendar sync");
       return false;
     }
     
+    console.log("Attempting to sync with Google Calendar...");
     const { data, error } = await supabase.functions.invoke('sync-google-calendar');
     
     if (error) {
@@ -32,12 +33,16 @@ export const syncGoogleCalendar = async (): Promise<boolean> => {
     return true;
   } catch (err) {
     console.error("Calendar sync error:", err);
-    toast.error("Failed to sync tasks with Google Calendar");
+    toast.error("Failed to sync with Google Calendar");
     return false;
   }
 };
 
-export const GoogleCalendarIntegration = () => {
+interface GoogleCalendarIntegrationProps {
+  onManualSync?: () => Promise<void>;
+}
+
+export const GoogleCalendarIntegration: React.FC<GoogleCalendarIntegrationProps> = ({ onManualSync }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -94,7 +99,6 @@ export const GoogleCalendarIntegration = () => {
           clearInterval(checkWindowClosed);
           
           // Double-check that integration was successful by querying the database
-          // Fix: Convert the Promise chain to use async/await to fix TypeScript error
           (async () => {
             try {
               const { data } = await supabase
@@ -166,20 +170,26 @@ export const GoogleCalendarIntegration = () => {
   const handleManualSync = async () => {
     if (isSyncing) return;
     
-    try {
-      setIsSyncing(true);
-      toast.info("Syncing tasks with Google Calendar...");
-      
-      const success = await triggerCalendarSync();
-      
-      if (success) {
-        toast.success("All tasks synced to Google Calendar successfully");
+    if (onManualSync) {
+      // Use the parent component's sync handler if provided
+      await onManualSync();
+    } else {
+      // Otherwise use our internal sync logic
+      try {
+        setIsSyncing(true);
+        toast.info("Syncing tasks with Google Calendar...");
+        
+        const success = await triggerCalendarSync();
+        
+        if (success) {
+          toast.success("All tasks synced to Google Calendar successfully");
+        }
+      } catch (error) {
+        console.error("Manual calendar sync error:", error);
+        toast.error("Failed to sync with Google Calendar");
+      } finally {
+        setIsSyncing(false);
       }
-    } catch (error) {
-      console.error("Manual calendar sync error:", error);
-      toast.error("Failed to sync with Google Calendar");
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -205,7 +215,7 @@ export const GoogleCalendarIntegration = () => {
           variant="outline"
           className="flex items-center gap-2"
           onClick={handleManualSync}
-          disabled={isSyncing}
+          disabled={isSyncing || (onManualSync ? false : false)}
         >
           <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
           {isSyncing ? "Syncing..." : "Refresh Google Calendar"}

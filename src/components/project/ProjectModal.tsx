@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   Dialog,
@@ -107,14 +106,25 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   // Create goal mutation
   const createGoalMutation = useMutation({
     mutationFn: async (goalData: Partial<ProjectGoal>) => {
-      // Fix: Make sure required fields are present
+      // Ensure required fields are present
       if (!goalData.goal_type || !goalData.project_id || !goalData.start_date) {
         throw new Error("Missing required goal data");
       }
       
+      // Create a properly typed object
+      const typedGoalData = {
+        project_id: goalData.project_id,
+        goal_type: goalData.goal_type,
+        task_count_goal: goalData.task_count_goal || 1,
+        start_date: goalData.start_date,
+        end_date: goalData.end_date,
+        reward: goalData.reward,
+        is_enabled: goalData.is_enabled ?? true,
+      };
+      
       const { data, error } = await supabase
         .from('project_goals')
-        .insert([goalData]) // Fix: Wrap single object in array
+        .insert(typedGoalData)
         .select()
         .single();
       
@@ -140,6 +150,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         throw new Error("Missing goal ID for update");
       }
       
+      // We don't need to ensure all required fields are present for an update
+      // since we're only updating the fields that have changed
       const { data, error } = await supabase
         .from('project_goals')
         .update(goalData)
@@ -185,7 +197,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   // Handle saving goal
   const handleSaveGoal = (goalData: Partial<ProjectGoal>) => {
     if (editingGoal?.id) {
-      updateGoalMutation.mutate(goalData);
+      updateGoalMutation.mutate({...goalData, id: editingGoal.id});
     } else {
       createGoalMutation.mutate(goalData);
     }

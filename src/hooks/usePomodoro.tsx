@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -330,7 +329,6 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
             
             if (isBreak) {
               setIsBreak(false);
-              if (!isMuted) playSound('task');
               toast.success("Break finished! Starting next task.");
               
               transitionTimeoutRef.current = setTimeout(() => {
@@ -342,7 +340,6 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
               if (currentTask.Progress !== 'Backlog' && !isTaskInFuture(currentTask)) {
                 updateTaskProgress.mutate(currentTask.id);
                 setIsBreak(true);
-                if (!isMuted) playSound('break');
                 toast.success("Work session complete! Time for a break.");
                 
                 transitionTimeoutRef.current = setTimeout(() => {
@@ -361,8 +358,6 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
                 return prev;
               }
             }
-          } else if (!isBreak) {
-            if (!isMuted) playSound('tick');
           }
           return prev - 1;
         });
@@ -395,10 +390,6 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
 
     setIsRunning(true);
   };
-
-  // This is defined outside but will be passed in from the parent component
-  let isMuted = false;
-  let playSound = (type: 'tick' | 'break' | 'task') => {};
 
   return {
     timeLeft,

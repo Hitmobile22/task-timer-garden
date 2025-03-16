@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings, Shuffle, Maximize2, Minimize2 } from "lucide-react";
 import { SoundSettingsMenu } from './SoundSettings';
@@ -37,6 +37,14 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
 }) => {
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
+  // Test sound when unmuting
+  useEffect(() => {
+    if (!isMuted) {
+      const soundType = isBreak ? 'break' : 'task';
+      playSound(soundType);
+    }
+  }, [isMuted, isBreak, playSound]);
+
   return (
     <div className="flex flex-wrap justify-center gap-2">
       <Button
@@ -61,7 +69,10 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
         variant="outline"
         size="icon"
         className="w-12 h-12 rounded-full"
-        onClick={() => setIsMuted(!isMuted)}
+        onClick={() => {
+          setIsMuted(!isMuted);
+          console.log("Mute toggled:", !isMuted);
+        }}
       >
         {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
       </Button>

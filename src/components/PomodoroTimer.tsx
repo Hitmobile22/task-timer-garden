@@ -89,6 +89,32 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     playSound
   } = usePomodoroSounds(isVisible);
 
+  // Modified to call the playSound function at the appropriate times
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (isRunning && timeLeft !== null) {
+      interval = setInterval(() => {
+        if (!isBreak && !isMuted && isVisible) {
+          playSound('tick');
+        }
+      }, 1000);
+    }
+
+    return () => clearInterval(interval);
+  }, [isRunning, isBreak, timeLeft, isMuted, isVisible, playSound]);
+
+  // Handle task completion and break sounds
+  useEffect(() => {
+    if (timeLeft === 0) {
+      if (isBreak) {
+        playSound('task');
+      } else {
+        playSound('break');
+      }
+    }
+  }, [timeLeft, isBreak, playSound]);
+
   // Handle fullscreen toggling
   const handleToggleFullscreen = () => {
     toggleFullscreen(fullscreenContainerRef.current);

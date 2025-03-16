@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -59,10 +58,12 @@ const EditTaskModal = ({
   const [taskName, setTaskName] = useState(task["Task Name"]);
   const [editingSubtasks, setEditingSubtasks] = useState<Subtask[]>(subtasks?.filter(st => st["Parent Task ID"] === task.id) || []);
   const [newSubtask, setNewSubtask] = useState("");
+  
   const handleSave = () => {
     onSave(taskName, editingSubtasks);
     onClose();
   };
+  
   const addSubtask = () => {
     if (!newSubtask.trim()) return;
     setEditingSubtasks([...editingSubtasks, {
@@ -73,9 +74,50 @@ const EditTaskModal = ({
     }]);
     setNewSubtask("");
   };
+  
   const removeSubtask = (subtaskId: number) => {
     setEditingSubtasks(editingSubtasks.filter(st => st.id !== subtaskId));
   };
+  
+  const handlePushTask = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('Tasks')
+        .select('date_started, date_due')
+        .eq('id', task.id)
+        .single();
+      
+      if (error) throw error;
+      
+      if (!data.date_started || !data.date_due) {
+        toast.error("Task doesn't have valid dates to reschedule");
+        return;
+      }
+      
+      const currentStartDate = new Date(data.date_started);
+      const currentEndDate = new Date(data.date_due);
+      
+      const nextDayStart = addDays(currentStartDate, 1);
+      const nextDayEnd = addDays(currentEndDate, 1);
+      
+      const { error: updateError } = await supabase
+        .from('Tasks')
+        .update({
+          date_started: nextDayStart.toISOString(),
+          date_due: nextDayEnd.toISOString()
+        })
+        .eq('id', task.id);
+      
+      if (updateError) throw updateError;
+      
+      toast.success("Task scheduled for tomorrow");
+      onClose();
+    } catch (error) {
+      console.error('Error pushing task:', error);
+      toast.error("Failed to reschedule task");
+    }
+  };
+  
   return <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -114,7 +156,8 @@ const EditTaskModal = ({
             </div>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex justify-between sm:justify-between">
+          <Button variant="secondary" onClick={handlePushTask}>Push task</Button>
           <Button onClick={handleSave}>Save changes</Button>
         </DialogFooter>
       </DialogContent>

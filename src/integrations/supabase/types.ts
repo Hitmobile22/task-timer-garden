@@ -42,53 +42,6 @@ export type Database = {
         }
         Relationships: []
       }
-      project_goals: {
-        Row: {
-          created_at: string
-          current_count: number
-          end_date: string | null
-          goal_type: string
-          id: number
-          is_enabled: boolean
-          project_id: number
-          reward: string | null
-          start_date: string
-          task_count_goal: number
-        }
-        Insert: {
-          created_at?: string
-          current_count?: number
-          end_date?: string | null
-          goal_type: string
-          id?: number
-          is_enabled?: boolean
-          project_id: number
-          reward?: string | null
-          start_date: string
-          task_count_goal?: number
-        }
-        Update: {
-          created_at?: string
-          current_count?: number
-          end_date?: string | null
-          goal_type?: string
-          id?: number
-          is_enabled?: boolean
-          project_id?: number
-          reward?: string | null
-          start_date?: string
-          task_count_goal?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_goals_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "Projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       Projects: {
         Row: {
           created_at: string

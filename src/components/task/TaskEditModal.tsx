@@ -19,9 +19,6 @@ import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useQuery } from '@tanstack/react-query';
-import { ProjectGoal } from '@/types/goal.types';
-import { GoalProgress } from '../project/GoalProgress';
 
 interface TaskEditModalProps {
   task: Task;
@@ -60,24 +57,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   });
   const [startDateOpen, setStartDateOpen] = React.useState(false);
   const [endDateOpen, setEndDateOpen] = React.useState(false);
-
-  // Fetch project goals if task has a project_id
-  const { data: projectGoals } = useQuery({
-    queryKey: ['project-goals', task.project_id],
-    queryFn: async () => {
-      if (!task.project_id) return [];
-      
-      const { data, error } = await supabase
-        .from('project_goals')
-        .select('*')
-        .eq('project_id', task.project_id)
-        .eq('is_enabled', true);
-      
-      if (error) throw error;
-      return data as ProjectGoal[];
-    },
-    enabled: !!task.project_id && isOpen,
-  });
 
   React.useEffect(() => {
     if (isOpen && task) {
@@ -227,12 +206,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
               className="w-full"
             />
           </div>
-          
-          {task.project_id && projectGoals && projectGoals.length > 0 && (
-            <div className="bg-blue-50 p-3 rounded-md">
-              <GoalProgress goals={projectGoals} />
-            </div>
-          )}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">

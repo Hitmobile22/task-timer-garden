@@ -107,9 +107,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   // Create goal mutation
   const createGoalMutation = useMutation({
     mutationFn: async (goalData: Partial<ProjectGoal>) => {
+      // Fix: Make sure required fields are present
+      if (!goalData.goal_type || !goalData.project_id || !goalData.start_date) {
+        throw new Error("Missing required goal data");
+      }
+      
       const { data, error } = await supabase
         .from('project_goals')
-        .insert([goalData])
+        .insert([goalData]) // Fix: Wrap single object in array
         .select()
         .single();
       
@@ -131,6 +136,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   // Update goal mutation
   const updateGoalMutation = useMutation({
     mutationFn: async (goalData: Partial<ProjectGoal>) => {
+      if (!goalData.id) {
+        throw new Error("Missing goal ID for update");
+      }
+      
       const { data, error } = await supabase
         .from('project_goals')
         .update(goalData)

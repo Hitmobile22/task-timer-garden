@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +11,6 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Task, Subtask, SortField, SortOrder } from '@/types/task.types';
 import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
-import { GoogleCalendarIntegration } from '@/components/task/GoogleCalendarIntegration';
 import { generateRandomColor } from '@/utils/taskUtils';
 import { Input } from "@/components/ui/input";
 import {
@@ -27,6 +25,7 @@ import { format } from 'date-fns';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { ProjectModal } from '@/components/project/ProjectModal';
 import { RecurringTasksModal, RecurringTaskSettings } from '@/components/task/RecurringTasksModal';
+import { syncGoogleCalendar } from '@/components/task/GoogleCalendarIntegration';
 
 export function TaskView() {
   const queryClient = useQueryClient();
@@ -42,7 +41,7 @@ export function TaskView() {
   const [showNewTaskListDialog, setShowNewTaskListDialog] = React.useState(false);
   const [editingListId, setEditingListId] = useState<number | null>(null);
   const [editingListName, setEditingListName] = useState("");
-  const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('project'); // Change default sort to 'project'
+  const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('project');
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProject, setEditingProject] = React.useState<any>(null);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
@@ -483,7 +482,6 @@ export function TaskView() {
     
     if (sortBy === 'list') {
       taskLists?.forEach(list => {
-        // Include all tasks for this list, regardless of project association
         const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
         if (listTasks.length > 0) {
           grouped.set(list.id, {
@@ -506,7 +504,6 @@ export function TaskView() {
         }
       });
     } else {
-      // For date view, just group all tasks together
       grouped.set('all', {
         tasks: filteredTasks
       });
@@ -608,13 +605,11 @@ export function TaskView() {
               onNewTaskListNameChange={setNewTaskListName}
               onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
             />
-            <GoogleCalendarIntegration />
           </div>
 
           <DndContext collisionDetection={closestCenter}>
             {Array.from(filteredAndGroupedTasks.entries()).map(([listId, { list, tasks: listTasks, projects: listProjects }]) => (
               <div key={listId} className="mb-8">
-                {/* If we have a list (i.e., not the 'all' group from date view), show the list header */}
                 {list && (
                   <div 
                     className="mb-4 p-2 rounded flex items-center justify-between"
@@ -681,7 +676,6 @@ export function TaskView() {
                 )}
                 
                 <div className="space-y-4">
-                  {/* Project sections - only show for project view or if there are projects in other views */}
                   {listProjects?.map(project => (
                     <div key={project.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between gap-2 mb-2">
@@ -778,7 +772,6 @@ export function TaskView() {
                     </div>
                   ))}
                   
-                  {/* Non-project tasks */}
                   {(listTasks && listTasks.filter(t => sortBy === 'project' ? !t.project_id : true).length > 0) && (
                     <SortableContext items={listTasks.filter(t => sortBy === 'project' ? !t.project_id : true).map(t => t.id)} strategy={verticalListSortingStrategy}>
                       <TaskListComponent

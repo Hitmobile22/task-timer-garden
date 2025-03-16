@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Clock } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
@@ -171,6 +171,16 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       console.error('Error updating task details:', error);
       toast.error("Failed to update task details");
     }
+  };
+
+  const handlePushTask = () => {
+    const nextDayStart = addDays(selectedStartDate, 1);
+    const nextDayEnd = addDays(selectedEndDate, 1);
+    
+    setSelectedStartDate(nextDayStart);
+    setSelectedEndDate(nextDayEnd);
+    
+    toast.info("Task scheduled for tomorrow");
   };
 
   const formatDateTime = (date: Date) => {
@@ -338,6 +348,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={handlePushTask}>Push task</Button>
           <Button onClick={handleSave}>Save changes</Button>
         </div>
       </DialogContent>

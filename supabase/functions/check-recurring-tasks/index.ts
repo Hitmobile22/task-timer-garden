@@ -47,15 +47,14 @@ Deno.serve(async (req) => {
     
     // Get current day of week
     const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+    console.log(`Current day of week: ${dayOfWeek}`);
     
-    // MODIFIED: First, get unique task lists with recurring settings
-    // This query gets only the most recently created setting for each task_list_id
+    // Get unique task lists with recurring settings that include the current day of week
     const { data: uniqueTaskLists, error: uniqueListsError } = await supabaseClient
       .from('recurring_task_settings')
       .select('task_list_id')
       .eq('enabled', true)
-      .contains('days_of_week', [dayOfWeek])
-      .order('created_at', { ascending: false });
+      .contains('days_of_week', [dayOfWeek]);
     
     if (uniqueListsError) throw uniqueListsError;
     
@@ -73,8 +72,17 @@ Deno.serve(async (req) => {
     
     // For each unique task list, get the most recent active setting
     const generatedTasks = [];
+    const processedTaskLists = new Set();
     
     for (const taskListId of uniqueTaskListIds) {
+      // Skip if we've already processed this task list (prevent duplicates)
+      if (processedTaskLists.has(taskListId)) {
+        console.log(`Task list ${taskListId} already processed, skipping duplicate settings`);
+        continue;
+      }
+      
+      processedTaskLists.add(taskListId);
+      
       // Get the most recent active setting for this task list
       const { data: settings, error: settingsError } = await supabaseClient
         .from('recurring_task_settings')
@@ -90,54 +98,62 @@ Deno.serve(async (req) => {
       
       const setting = settings[0];
       console.log(`Processing task list ${setting.task_list_id} with setting ID ${setting.id}`);
+      console.log(`Days of week setting: ${setting.days_of_week.join(', ')}`);
+      
+      // Confirm this setting includes the current day of week
+      if (!setting.days_of_week.includes(dayOfWeek)) {
+        console.log(`Task list ${setting.task_list_id} does not have ${dayOfWeek} enabled, skipping`);
+        continue;
+      }
       
       // Get the associated task list
       const { data: taskListData, error: taskListError } = await supabaseClient
         .from('TaskLists')
         .select('*')
         .eq('id', setting.task_list_id)
-        .single<TaskList>();
+        .single();
       
       if (taskListError) {
         console.error(`Error getting task list ${setting.task_list_id}:`, taskListError);
         continue;
       }
       
-      // Check if tasks have already been generated today
+      // Define the midnight start of today for date filtering
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
       
-      // Get accurate count of existing tasks created today
-      const { data: existingTasks, error: existingTasksError } = await supabaseClient
+      // Get ALL active tasks for this list (both in progress and not started)
+      const { data: activeTasks, error: activeTasksError } = await supabaseClient
         .from('Tasks')
-        .select('id, "Task Name"')
+        .select('id, "Task Name", Progress')
         .eq('task_list_id', setting.task_list_id)
-        .gte('created_at', startOfToday.toISOString());
+        .in('Progress', ['Not started', 'In progress']);
 
-      if (existingTasksError) {
-        console.error(`Error checking existing tasks for list ${taskListData.name}:`, existingTasksError);
+      if (activeTasksError) {
+        console.error(`Error checking active tasks for list ${taskListData.name}:`, activeTasksError);
         continue;
       }
 
-      const existingCount = existingTasks?.length || 0;
-      console.log(`Found ${existingCount} existing tasks for list ${taskListData.name}`);
+      const activeTaskCount = activeTasks?.length || 0;
+      console.log(`Found ${activeTaskCount} active tasks for list ${taskListData.name}`);
 
-      if (existingCount >= setting.daily_task_count) {
-        console.log(`Tasks already generated today for list ${taskListData.name} (${setting.task_list_id})`);
+      // If we already have enough or more active tasks than the daily task count, skip creating new ones
+      if (activeTaskCount >= setting.daily_task_count) {
+        console.log(`Already have ${activeTaskCount} active tasks for list ${taskListData.name} (${setting.task_list_id}), which meets the daily goal of ${setting.daily_task_count}`);
         continue;
       }
 
       // Generate only the needed number of tasks
-      const tasksToGenerate = setting.daily_task_count - existingCount;
+      const tasksToGenerate = setting.daily_task_count - activeTaskCount;
       console.log(`Generating ${tasksToGenerate} tasks for list ${taskListData.name} (${setting.task_list_id})`);
       
-      // MODIFIED: Always start tasks at 9am with 30-minute increments
+      // Always start tasks at 9am with 30-minute increments
       const baseTaskName = `${taskListData.name} - Task`;
       
       // Get the highest task number to prevent duplicate numbering
       let highestTaskNumber = 0;
-      if (existingTasks && existingTasks.length > 0) {
-        for (const task of existingTasks) {
+      if (activeTasks && activeTasks.length > 0) {
+        for (const task of activeTasks) {
           const taskName = task["Task Name"] || "";
           const match = taskName.match(/Task\s+(\d+)$/);
           if (match && match[1]) {
@@ -167,7 +183,7 @@ Deno.serve(async (req) => {
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),
             task_list_id: setting.task_list_id,
-            order: existingCount + i,
+            order: activeTaskCount + i,
           })
           .select()
           .single();

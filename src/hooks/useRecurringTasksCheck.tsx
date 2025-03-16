@@ -11,15 +11,19 @@ export const useRecurringTasksCheck = () => {
   const { data: settings } = useQuery({
     queryKey: ['recurring-task-settings'],
     queryFn: async () => {
-      // Get only the most recent enabled setting for each task list
+      // Get the current day of week
+      const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      
+      // Get only the most recent enabled setting for each task list that includes today's day of week
       const { data: uniqueTaskLists, error: uniqueListsError } = await supabase
         .from('recurring_task_settings')
         .select('task_list_id')
-        .eq('enabled', true);
+        .eq('enabled', true)
+        .contains('days_of_week', [dayOfWeek]);
       
       if (uniqueListsError) throw uniqueListsError;
       
-      // If no task lists have recurring settings enabled, return empty array
+      // If no task lists have recurring settings enabled for today, return empty array
       if (!uniqueTaskLists || uniqueTaskLists.length === 0) {
         return [];
       }
@@ -36,6 +40,7 @@ export const useRecurringTasksCheck = () => {
           .select('*')
           .eq('enabled', true)
           .eq('task_list_id', taskListId)
+          .contains('days_of_week', [dayOfWeek])
           .order('created_at', { ascending: false })
           .limit(1);
         

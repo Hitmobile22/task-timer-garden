@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   Dialog,
@@ -125,30 +126,22 @@ export const RecurringTasksModal = ({
     e.preventDefault();
     
     try {
-      // If we have an existing setting ID, update it
-      if (currentSettingId) {
-        const { error } = await supabase
-          .from('recurring_task_settings')
-          .update({
-            enabled: settings.enabled,
-            daily_task_count: settings.dailyTaskCount,
-            days_of_week: settings.daysOfWeek,
-          })
-          .eq('id', currentSettingId);
+      // Always create a new settings record for this list
+      // This ensures we have a clear history and the most recent settings are always used
+      const { data, error } = await supabase
+        .from('recurring_task_settings')
+        .insert({
+          task_list_id: listId,
+          enabled: settings.enabled,
+          daily_task_count: settings.dailyTaskCount,
+          days_of_week: settings.daysOfWeek,
+        })
+        .select();
 
-        if (error) throw error;
-      } else {
-        // Otherwise, insert new settings
-        const { error } = await supabase
-          .from('recurring_task_settings')
-          .insert({
-            task_list_id: listId,
-            enabled: settings.enabled,
-            daily_task_count: settings.dailyTaskCount,
-            days_of_week: settings.daysOfWeek,
-          });
+      if (error) throw error;
 
-        if (error) throw error;
+      if (data && data.length > 0) {
+        setCurrentSettingId(data[0].id);
       }
 
       // Clean up any existing tasks if settings are disabled
@@ -242,6 +235,9 @@ export const RecurringTasksModal = ({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Tasks will be generated daily at 9 AM on selected days.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Days of Week</Label>

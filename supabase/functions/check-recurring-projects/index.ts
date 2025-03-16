@@ -75,7 +75,33 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Check if tasks were already created today by looking at created_at
+      // Count ALL existing active tasks for this project (not just today's)
+      const { data: activeTasks, error: activeTasksError } = await supabaseClient
+        .from('Tasks')
+        .select('id')
+        .eq('project_id', project.id)
+        .in('Progress', ['Not started', 'In progress']);
+
+      if (activeTasksError) {
+        console.error(`Error checking active tasks for project ${project.id}:`, activeTasksError);
+        results.push({ project_id: project.id, status: 'error', error: 'active_tasks_check_failed' });
+        continue;
+      }
+
+      // Calculate how many tasks to add
+      const taskCount = project.recurringTaskCount || 1;
+      const activeTaskCount = activeTasks?.length || 0;
+      
+      console.log(`Project ${project.id} has ${activeTaskCount} active tasks, daily goal is ${taskCount}`);
+      
+      // If we already have enough active tasks, don't create new ones
+      if (activeTaskCount >= taskCount) {
+        console.log(`No new tasks needed for project ${project.id} (${project['Project Name']}) - has ${activeTaskCount} active tasks`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_active_tasks', existing: activeTaskCount });
+        continue;
+      }
+      
+      // Check if tasks were already created today
       const { data: tasksCreatedToday, error: createdTodayError } = await supabaseClient
         .from('Tasks')
         .select('id')
@@ -96,29 +122,11 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Count existing active tasks for today
-      const { data: existingTasks, error: existingTasksError } = await supabaseClient
-        .from('Tasks')
-        .select('id')
-        .eq('project_id', project.id)
-        .in('Progress', ['Not started', 'In progress'])
-        .gte('date_started', today.toISOString())
-        .lt('date_started', tomorrow.toISOString());
-
-      if (existingTasksError) {
-        console.error(`Error checking existing tasks for project ${project.id}:`, existingTasksError);
-        results.push({ project_id: project.id, status: 'error', error: 'existing_tasks_check_failed' });
-        continue;
-      }
-
-      // Calculate how many tasks to add
-      const taskCount = project.recurringTaskCount || 1;
-      const existingCount = existingTasks?.length || 0;
-      const neededTasks = Math.max(0, taskCount - existingCount);
+      const neededTasks = Math.max(0, taskCount - activeTaskCount);
       
       if (neededTasks <= 0) {
         console.log(`No new tasks needed for project ${project.id} (${project['Project Name']})`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks', existing: existingCount });
+        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks', existing: activeTaskCount });
         continue;
       }
 
@@ -126,15 +134,18 @@ Deno.serve(async (req) => {
       const tasksToCreate = [];
       
       for (let i = 0; i < neededTasks; i++) {
-        const now = new Date();
-        const startTime = new Date(now.getTime() + (i * 30 * 60 * 1000)); // 30 min spacing
-        const endTime = new Date(startTime.getTime() + (25 * 60 * 1000)); // 25 min duration
+        // Always start tasks at 9am with 30-minute increments 
+        const taskStartTime = new Date(today);
+        taskStartTime.setHours(9, i * 30, 0, 0); // 9:00, 9:30, 10:00, etc.
+        
+        const taskEndTime = new Date(taskStartTime);
+        taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
         
         tasksToCreate.push({
-          "Task Name": `${project['Project Name']} - Task ${existingCount + i + 1}`,
+          "Task Name": `${project['Project Name']} - Task ${activeTaskCount + i + 1}`,
           Progress: "Not started",
-          date_started: startTime.toISOString(),
-          date_due: endTime.toISOString(),
+          date_started: taskStartTime.toISOString(),
+          date_due: taskEndTime.toISOString(),
           task_list_id: project.task_list_id || 1,
           project_id: project.id
         });

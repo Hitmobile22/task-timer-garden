@@ -58,6 +58,7 @@ const EditTaskModal = ({
   const [taskName, setTaskName] = useState(task["Task Name"]);
   const [editingSubtasks, setEditingSubtasks] = useState<Subtask[]>(subtasks?.filter(st => st["Parent Task ID"] === task.id) || []);
   const [newSubtask, setNewSubtask] = useState("");
+  const queryClient = useQueryClient();
   
   const handleSave = () => {
     onSave(taskName, editingSubtasks);
@@ -109,6 +110,9 @@ const EditTaskModal = ({
         .eq('id', task.id);
       
       if (updateError) throw updateError;
+      
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       
       toast.success("Task scheduled for tomorrow");
       onClose();

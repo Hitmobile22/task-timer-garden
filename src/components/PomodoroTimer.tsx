@@ -8,8 +8,10 @@ import { useTimerVisibility } from '@/hooks/useTimerVisibility';
 import { LavaLampBackground } from './pomodoro/LavaLampBackground';
 import { TimerDisplay } from './pomodoro/TimerDisplay';
 import { SubtaskDisplay } from './pomodoro/SubtaskDisplay';
+import { ProjectGoalDisplay } from './pomodoro/ProjectGoalDisplay';
 import { usePomodoro } from '@/hooks/usePomodoro';
 import { formatTime, setupFullscreenHandlers, restoreFullscreen } from '@/utils/timerUtils';
+import { ProjectGoal } from '@/types/task.types';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -58,6 +60,23 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       if (error) throw error;
       return data || [];
     }
+  });
+
+  const { data: projectGoals = [] } = useQuery({
+    queryKey: ['project-goals', currentTask?.project_id],
+    queryFn: async () => {
+      if (!currentTask?.project_id) return [];
+      
+      const { data, error } = await supabase
+        .from('project_goals')
+        .select('*')
+        .eq('project_id', currentTask.project_id)
+        .eq('is_enabled', true);
+      
+      if (error) throw error;
+      return data as ProjectGoal[];
+    },
+    enabled: !!currentTask?.project_id,
   });
 
   const isVisible = useTimerVisibility(currentTask, getNextTask);
@@ -153,6 +172,10 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         onToggleFullscreen={handleToggleFullscreen}
         isFullscreen={isFullscreen}
       />
+
+      {projectGoals.length > 0 && (
+        <ProjectGoalDisplay goals={projectGoals} />
+      )}
     </div>
   );
 };

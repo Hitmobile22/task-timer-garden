@@ -21,3 +21,18 @@ export type Subtask = {
 
 export type SortField = "Task Name" | "Progress" | "date_started" | "date_due";
 export type SortOrder = "asc" | "desc";
+
+export type GoalType = "daily" | "weekly" | "single_date" | "date_period";
+
+export type ProjectGoal = {
+  id: number;
+  project_id: number;
+  task_count_goal: number;
+  current_count: number;
+  goal_type: GoalType;
+  start_date: string;
+  end_date?: string | null;
+  reward?: string | null;
+  is_enabled: boolean;
+  created_at: string;
+};

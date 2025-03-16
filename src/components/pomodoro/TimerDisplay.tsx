@@ -56,6 +56,11 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
         {currentTask && !isBreak && (
           <p className="text-primary/80">
             Working on: {currentTask["Task Name"]}
+            {currentTask.project_id && (
+              <span className="ml-1 text-xs bg-primary/10 px-1 py-0.5 rounded">
+                Project: {currentTask.project_id}
+              </span>
+            )}
           </p>
         )}
         {isBreak && getNextTask() && (

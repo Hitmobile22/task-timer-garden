@@ -88,35 +88,26 @@ export const useRecurringProjectsCheck = () => {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // First check for tasks already created today by looking at created_at
-      const { data: tasksCreatedToday, error: createdTodayError } = await supabase
+      // Get ALL tasks for today for this project (regardless of status)
+      // This is the key change - we now count completed tasks too
+      const { data: todayTasks, error: todayTasksError } = await supabase
         .from('Tasks')
-        .select('id')
-        .eq('project_id', project.id)
-        .gte('created_at', today.toISOString())
-        .lt('created_at', tomorrow.toISOString());
-
-      if (createdTodayError) throw createdTodayError;
-
-      if (tasksCreatedToday && tasksCreatedToday.length > 0) {
-        console.log(`Already created ${tasksCreatedToday.length} tasks today for project ${project.id} (${project["Project Name"]}), skipping`);
-        return;
-      }
-
-      // Check if tasks exist for today by start date
-      const { data: existingTasks, error: countError } = await supabase
-        .from('Tasks')
-        .select('id')
+        .select('id, "Task Name", Progress')
         .eq('project_id', project.id)
         .gte('date_started', today.toISOString())
         .lt('date_started', tomorrow.toISOString());
 
-      if (countError) throw countError;
+      if (todayTasksError) throw todayTasksError;
+
+      const todayTaskCount = todayTasks?.length || 0;
+      
+      if (todayTaskCount > 0) {
+        console.log(`Found ${todayTaskCount} tasks created today for project ${project.id} (${project["Project Name"]})`);
+      }
 
       // Calculate how many tasks to add
       const taskCount = project.recurringTaskCount || 1;
-      const existingCount = existingTasks?.length || 0;
-      const neededTasks = Math.max(0, taskCount - existingCount);
+      const neededTasks = Math.max(0, taskCount - todayTaskCount);
 
       // If we need to create tasks
       if (neededTasks > 0) {
@@ -135,13 +126,13 @@ export const useRecurringProjectsCheck = () => {
           taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
 
           newTasks.push({
-            "Task Name": `${project["Project Name"]} Task ${existingCount + i + 1}`,
+            "Task Name": `${project["Project Name"]} Task ${todayTaskCount + i + 1}`,
             Progress: "Not started" as const,
             project_id: project.id,
             task_list_id: project.task_list_id || 1,
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),
-            order: existingCount + i,
+            order: todayTaskCount + i,
             archived: false,
           });
         }

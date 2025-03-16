@@ -122,29 +122,31 @@ Deno.serve(async (req) => {
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
       
-      // Get ALL active tasks for this list (both in progress and not started)
-      const { data: activeTasks, error: activeTasksError } = await supabaseClient
+      // Get ALL tasks for this list created today (regardless of status) - THIS IS THE KEY CHANGE
+      // We now count all tasks for today, including completed ones
+      const { data: todayTasks, error: todayTasksError } = await supabaseClient
         .from('Tasks')
         .select('id, "Task Name", Progress')
         .eq('task_list_id', setting.task_list_id)
-        .in('Progress', ['Not started', 'In progress']);
+        .gte('date_started', startOfToday.toISOString())
+        .lt('date_started', new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000).toISOString());
 
-      if (activeTasksError) {
-        console.error(`Error checking active tasks for list ${taskListData.name}:`, activeTasksError);
+      if (todayTasksError) {
+        console.error(`Error checking today's tasks for list ${taskListData.name}:`, todayTasksError);
         continue;
       }
 
-      const activeTaskCount = activeTasks?.length || 0;
-      console.log(`Found ${activeTaskCount} active tasks for list ${taskListData.name}`);
+      const todayTaskCount = todayTasks?.length || 0;
+      console.log(`Found ${todayTaskCount} tasks created today for list ${taskListData.name}`);
 
-      // If we already have enough or more active tasks than the daily task count, skip creating new ones
-      if (activeTaskCount >= setting.daily_task_count) {
-        console.log(`Already have ${activeTaskCount} active tasks for list ${taskListData.name} (${setting.task_list_id}), which meets the daily goal of ${setting.daily_task_count}`);
+      // If we already have enough or more tasks than the daily task count (regardless of status), skip creating new ones
+      if (todayTaskCount >= setting.daily_task_count) {
+        console.log(`Already have ${todayTaskCount} tasks for list ${taskListData.name} (${setting.task_list_id}) today, which meets the daily goal of ${setting.daily_task_count}`);
         continue;
       }
 
       // Generate only the needed number of tasks
-      const tasksToGenerate = setting.daily_task_count - activeTaskCount;
+      const tasksToGenerate = setting.daily_task_count - todayTaskCount;
       console.log(`Generating ${tasksToGenerate} tasks for list ${taskListData.name} (${setting.task_list_id})`);
       
       // Always start tasks at 9am with 30-minute increments
@@ -152,8 +154,8 @@ Deno.serve(async (req) => {
       
       // Get the highest task number to prevent duplicate numbering
       let highestTaskNumber = 0;
-      if (activeTasks && activeTasks.length > 0) {
-        for (const task of activeTasks) {
+      if (todayTasks && todayTasks.length > 0) {
+        for (const task of todayTasks) {
           const taskName = task["Task Name"] || "";
           const match = taskName.match(/Task\s+(\d+)$/);
           if (match && match[1]) {
@@ -183,7 +185,7 @@ Deno.serve(async (req) => {
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),
             task_list_id: setting.task_list_id,
-            order: activeTaskCount + i,
+            order: todayTaskCount + i,
           })
           .select()
           .single();

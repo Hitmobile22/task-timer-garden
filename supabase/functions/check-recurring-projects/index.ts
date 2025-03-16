@@ -75,58 +75,39 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Count ALL existing active tasks for this project (not just today's)
-      const { data: activeTasks, error: activeTasksError } = await supabaseClient
+      // Get ALL tasks for today for this project (regardless of status)
+      // This is the key change - we now count completed tasks too
+      const { data: todayTasks, error: todayTasksError } = await supabaseClient
         .from('Tasks')
-        .select('id')
+        .select('id, "Task Name", Progress')
         .eq('project_id', project.id)
-        .in('Progress', ['Not started', 'In progress']);
+        .gte('date_started', today.toISOString())
+        .lt('date_started', tomorrow.toISOString());
 
-      if (activeTasksError) {
-        console.error(`Error checking active tasks for project ${project.id}:`, activeTasksError);
-        results.push({ project_id: project.id, status: 'error', error: 'active_tasks_check_failed' });
+      if (todayTasksError) {
+        console.error(`Error checking today's tasks for project ${project.id}:`, todayTasksError);
+        results.push({ project_id: project.id, status: 'error', error: 'today_tasks_check_failed' });
         continue;
       }
 
-      // Calculate how many tasks to add
+      // Calculate how many tasks to add - taking into account ALL tasks for today
       const taskCount = project.recurringTaskCount || 1;
-      const activeTaskCount = activeTasks?.length || 0;
+      const todayTaskCount = todayTasks?.length || 0;
       
-      console.log(`Project ${project.id} has ${activeTaskCount} active tasks, daily goal is ${taskCount}`);
+      console.log(`Project ${project.id} has ${todayTaskCount} tasks today, daily goal is ${taskCount}`);
       
-      // If we already have enough active tasks, don't create new ones
-      if (activeTaskCount >= taskCount) {
-        console.log(`No new tasks needed for project ${project.id} (${project['Project Name']}) - has ${activeTaskCount} active tasks`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_active_tasks', existing: activeTaskCount });
+      // If we already have enough tasks for today (regardless of status), don't create new ones
+      if (todayTaskCount >= taskCount) {
+        console.log(`No new tasks needed for project ${project.id} (${project['Project Name']}) - has ${todayTaskCount} tasks today`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks_today', existing: todayTaskCount });
         continue;
       }
       
-      // Check if tasks were already created today
-      const { data: tasksCreatedToday, error: createdTodayError } = await supabaseClient
-        .from('Tasks')
-        .select('id')
-        .eq('project_id', project.id)
-        .gte('created_at', today.toISOString())
-        .lt('created_at', tomorrow.toISOString());
-
-      if (createdTodayError) {
-        console.error(`Error checking tasks created today for project ${project.id}:`, createdTodayError);
-        results.push({ project_id: project.id, status: 'error', error: 'created_today_check_failed' });
-        continue;
-      }
-
-      // Skip if tasks were already created today
-      if (tasksCreatedToday && tasksCreatedToday.length > 0) {
-        console.log(`Already created ${tasksCreatedToday.length} tasks today for project ${project.id}, skipping`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'tasks_already_created_today', count: tasksCreatedToday.length });
-        continue;
-      }
-
-      const neededTasks = Math.max(0, taskCount - activeTaskCount);
+      const neededTasks = Math.max(0, taskCount - todayTaskCount);
       
       if (neededTasks <= 0) {
         console.log(`No new tasks needed for project ${project.id} (${project['Project Name']})`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks', existing: activeTaskCount });
+        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks', existing: todayTaskCount });
         continue;
       }
 
@@ -142,7 +123,7 @@ Deno.serve(async (req) => {
         taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
         
         tasksToCreate.push({
-          "Task Name": `${project['Project Name']} - Task ${activeTaskCount + i + 1}`,
+          "Task Name": `${project['Project Name']} - Task ${todayTaskCount + i + 1}`,
           Progress: "Not started",
           date_started: taskStartTime.toISOString(),
           date_due: taskEndTime.toISOString(),

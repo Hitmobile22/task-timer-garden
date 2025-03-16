@@ -193,11 +193,11 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px]" onClick={preventPropagation}>
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto" onClick={preventPropagation}>
+        <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
           <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="flex flex-col gap-4 py-2 overflow-y-auto">
           <div className="space-y-2">
             <label className="text-sm font-medium">Task Name</label>
             <Input
@@ -207,7 +207,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Progress</label>
               <Select
@@ -248,7 +248,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Timeline</label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -343,10 +343,12 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Details</label>
-            <RichTextEditor content={details} onChange={setDetails} />
+            <div className="min-h-[150px] max-h-[250px] overflow-y-auto border rounded-md">
+              <RichTextEditor content={details} onChange={setDetails} />
+            </div>
           </div>
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 mt-4 pt-2 border-t sticky bottom-0 bg-background">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button variant="secondary" onClick={handlePushTask}>Push task</Button>
           <Button onClick={handleSave}>Save changes</Button>

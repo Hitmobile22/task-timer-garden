@@ -40,8 +40,8 @@ const dummyTasks: Task[] = [
     project_id: 1,
     task_list_id: 1,
     Progress: "In progress",
-    date_created: new Date(),
-    date_started: new Date(),
+    date_created: new Date().toISOString(),
+    date_started: new Date().toISOString(),
     estimated_time: 120,
     time_spent: 0,
     parent_task_id: null
@@ -52,8 +52,8 @@ const dummyTasks: Task[] = [
     project_id: 1,
     task_list_id: 2,
     Progress: "Not started",
-    date_created: new Date(),
-    date_started: new Date(),
+    date_created: new Date().toISOString(),
+    date_started: new Date().toISOString(),
     estimated_time: 90,
     time_spent: 0,
     parent_task_id: null
@@ -64,8 +64,8 @@ const dummyTasks: Task[] = [
     project_id: 2,
     task_list_id: 1,
     Progress: "Completed",
-    date_created: new Date(),
-    date_started: new Date(),
+    date_created: new Date().toISOString(),
+    date_started: new Date().toISOString(),
     estimated_time: 150,
     time_spent: 150,
     parent_task_id: null
@@ -78,8 +78,7 @@ const dummySubtasks: Subtask[] = [
     "Task Name": "Research main competitors",
     "Parent Task ID": 2,
     Progress: "Not started",
-    date_created: new Date(),
-    date_started: new Date(),
+    date_started: new Date().toISOString(),
     estimated_time: 45,
     time_spent: 0
   },
@@ -88,8 +87,7 @@ const dummySubtasks: Subtask[] = [
     "Task Name": "Analyze market positioning",
     "Parent Task ID": 2,
     Progress: "Not started",
-    date_created: new Date(),
-    date_started: new Date(),
+    date_started: new Date().toISOString(),
     estimated_time: 45,
     time_spent: 0
   }
@@ -108,6 +106,14 @@ const TaskView = () => {
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [editingTaskName, setEditingTaskName] = useState<string>("");
   
+  // State for TaskFilters props
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [progressFilter, setProgressFilter] = useState<Task['Progress'] | "all">("all");
+  const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('date');
+  const [showNewTaskListDialog, setShowNewTaskListDialog] = useState<boolean>(false);
+  const [showProjectModal, setShowProjectModal] = useState<boolean>(false);
+  const [newTaskListName, setNewTaskListName] = useState<string>("");
+
   const handleToggleExpand = (taskId: number) => {
     setExpandedTasks(prev => 
       prev.includes(taskId) 
@@ -180,6 +186,13 @@ const TaskView = () => {
     console.log(`Updating timeline for task ${taskId}:`, { start, end });
   };
 
+  // Handler for creating a new task list
+  const handleCreateTaskList = () => {
+    console.log(`Creating new task list: ${newTaskListName}`);
+    setShowNewTaskListDialog(false);
+    setNewTaskListName("");
+  };
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
@@ -189,7 +202,21 @@ const TaskView = () => {
         </Button>
       </div>
 
-      <TaskFilters />
+      <TaskFilters 
+        searchQuery={searchQuery}
+        progressFilter={progressFilter}
+        sortBy={sortBy}
+        showNewTaskListDialog={showNewTaskListDialog}
+        showProjectModal={showProjectModal}
+        newTaskListName={newTaskListName}
+        onSearchChange={setSearchQuery}
+        onProgressFilterChange={setProgressFilter}
+        onSortByChange={setSortBy}
+        onNewTaskListDialogChange={setShowNewTaskListDialog}
+        onProjectModalChange={setShowProjectModal}
+        onNewTaskListNameChange={setNewTaskListName}
+        onCreateTaskList={handleCreateTaskList}
+      />
 
       <div className="rounded-md border mt-6">
         <Table>
@@ -256,7 +283,11 @@ const TaskView = () => {
                           )}
                         </TableCell>
                         <TaskProgressCell
-                          task={subtask as Task}
+                          task={{
+                            ...subtask,
+                            task_list_id: null, // Add missing property for Task type
+                            project_id: null,   // Add missing property for Task type
+                          } as unknown as Task}
                           isEditing={editingTaskId === subtask.id}
                           onUpdateProgress={(progress) => handleUpdateProgress(subtask.id, progress)}
                         />

@@ -7,16 +7,45 @@ export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const queryClient = useQueryClient();
 
+  // Query for active recurring task settings
   const { data: settings } = useQuery({
     queryKey: ['recurring-task-settings'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get only the most recent enabled setting for each task list
+      const { data: uniqueTaskLists, error: uniqueListsError } = await supabase
         .from('recurring_task_settings')
-        .select('*')
+        .select('task_list_id')
         .eq('enabled', true);
       
-      if (error) throw error;
-      return data;
+      if (uniqueListsError) throw uniqueListsError;
+      
+      // If no task lists have recurring settings enabled, return empty array
+      if (!uniqueTaskLists || uniqueTaskLists.length === 0) {
+        return [];
+      }
+      
+      // Get unique task list IDs
+      const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))];
+      
+      // For each unique task list, get the most recent active setting
+      const activeSettings = [];
+      
+      for (const taskListId of uniqueTaskListIds) {
+        const { data, error } = await supabase
+          .from('recurring_task_settings')
+          .select('*')
+          .eq('enabled', true)
+          .eq('task_list_id', taskListId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (error) throw error;
+        if (data && data.length > 0) {
+          activeSettings.push(data[0]);
+        }
+      }
+      
+      return activeSettings;
     },
   });
 

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   Dialog,
@@ -81,20 +80,17 @@ export const RecurringTasksModal = ({
       
       setIsLoading(true);
       try {
-        // Find all settings for this task list and get the most recent one
+        // Always get the most recent setting for this task list
         const { data: allSettings, error } = await supabase
           .from('recurring_task_settings')
           .select('*')
           .eq('task_list_id', listId)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(1);
 
         if (error) throw error;
 
-        // Get the most recent one that's still active
-        const activeSettings = allSettings?.find(s => s.enabled);
-        
-        // If no active settings, use the most recent one
-        const mostRecentSetting = activeSettings || (allSettings && allSettings.length > 0 ? allSettings[0] : null);
+        const mostRecentSetting = allSettings && allSettings.length > 0 ? allSettings[0] : null;
 
         if (mostRecentSetting) {
           console.log('Loaded recurring task settings:', mostRecentSetting);
@@ -206,7 +202,7 @@ export const RecurringTasksModal = ({
         <DialogHeader>
           <DialogTitle>Recurring Tasks for {listName}</DialogTitle>
           <DialogDescription>
-            Configure automatic task creation for this list.
+            Configure automatic task creation for this list. Tasks will be created at 9 AM daily.
           </DialogDescription>
         </DialogHeader>
         {isLoading ? (

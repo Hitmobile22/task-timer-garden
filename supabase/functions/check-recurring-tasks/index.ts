@@ -48,15 +48,18 @@ Deno.serve(async (req) => {
     // Get current day of week
     const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
     
-    // Get all enabled recurring task settings for the current day
-    const { data: settings, error: settingsError } = await supabaseClient
+    // MODIFIED: First, get unique task lists with recurring settings
+    // This query gets only the most recently created setting for each task_list_id
+    const { data: uniqueTaskLists, error: uniqueListsError } = await supabaseClient
       .from('recurring_task_settings')
-      .select('*')
+      .select('task_list_id')
       .eq('enabled', true)
-      .contains('days_of_week', [dayOfWeek]);
+      .contains('days_of_week', [dayOfWeek])
+      .order('created_at', { ascending: false });
     
-    if (settingsError) throw settingsError;
-    if (!settings || settings.length === 0) {
+    if (uniqueListsError) throw uniqueListsError;
+    
+    if (!uniqueTaskLists || uniqueTaskLists.length === 0) {
       console.log('No active recurring task settings for today');
       return new Response(JSON.stringify({ success: true, message: 'No active settings for today' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -64,27 +67,29 @@ Deno.serve(async (req) => {
       });
     }
     
-    console.log(`Found ${settings.length} active recurring task settings for ${dayOfWeek}`);
+    // Get unique task list IDs
+    const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))];
+    console.log(`Found ${uniqueTaskListIds.length} unique task lists with active settings for ${dayOfWeek}`);
     
-    // For each settings entry, get the task list and check if tasks need to be generated
+    // For each unique task list, get the most recent active setting
     const generatedTasks = [];
-    const processedTaskLists = new Set(); // Track which task lists we've already processed
     
-    for (const setting of settings) {
-      // Verify the setting is actually enabled
-      if (!setting.enabled) {
-        console.log(`Settings ID ${setting.id} is marked as not enabled, skipping`);
-        continue;
-      }
-
-      // Skip if we've already processed this task list
-      if (processedTaskLists.has(setting.task_list_id)) {
-        console.log(`Task list ${setting.task_list_id} already processed, skipping duplicate settings`);
-        continue;
-      }
+    for (const taskListId of uniqueTaskListIds) {
+      // Get the most recent active setting for this task list
+      const { data: settings, error: settingsError } = await supabaseClient
+        .from('recurring_task_settings')
+        .select('*')
+        .eq('enabled', true)
+        .eq('task_list_id', taskListId)
+        .contains('days_of_week', [dayOfWeek])
+        .order('created_at', { ascending: false })
+        .limit(1);
       
-      // Add this task list to our processed set
-      processedTaskLists.add(setting.task_list_id);
+      if (settingsError) throw settingsError;
+      if (!settings || settings.length === 0) continue;
+      
+      const setting = settings[0];
+      console.log(`Processing task list ${setting.task_list_id} with setting ID ${setting.id}`);
       
       // Get the associated task list
       const { data: taskListData, error: taskListError } = await supabaseClient
@@ -126,7 +131,7 @@ Deno.serve(async (req) => {
       const tasksToGenerate = setting.daily_task_count - existingCount;
       console.log(`Generating ${tasksToGenerate} tasks for list ${taskListData.name} (${setting.task_list_id})`);
       
-      const taskDate = new Date();
+      // MODIFIED: Always start tasks at 9am with 30-minute increments
       const baseTaskName = `${taskListData.name} - Task`;
       
       // Get the highest task number to prevent duplicate numbering
@@ -146,11 +151,13 @@ Deno.serve(async (req) => {
       
       for (let i = 0; i < tasksToGenerate; i++) {
         const taskNumber = highestTaskNumber + i + 1;
-        const taskStartTime = new Date(taskDate);
-        taskStartTime.setHours(9 + i * 2, 0, 0, 0); // Start at 9am, 2-hour increments
+        
+        // Always start at 9am with 30-minute increments
+        const taskStartTime = new Date(today);
+        taskStartTime.setHours(9, i * 30, 0, 0); // 9:00, 9:30, 10:00, etc.
         
         const taskEndTime = new Date(taskStartTime);
-        taskEndTime.setMinutes(taskEndTime.getMinutes() + 25); // 25-minute task
+        taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25-minute task
         
         const { data: taskData, error: taskError } = await supabaseClient
           .from('Tasks')

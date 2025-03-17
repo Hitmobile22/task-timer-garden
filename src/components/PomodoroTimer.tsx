@@ -86,22 +86,32 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     soundSettings,
     setSoundSettings,
     availableSounds,
-    playSound
+    playSound,
+    previewSound
   } = usePomodoroSounds(isVisible);
 
-  // Modified to call the playSound function at the appropriate times
+  // Play tick sound at regular intervals when timer is running
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let tickInterval: NodeJS.Timeout | null = null;
 
-    if (isRunning && timeLeft !== null) {
-      interval = setInterval(() => {
-        if (!isBreak && !isMuted && isVisible) {
-          playSound('tick');
-        }
-      }, 1000);
+    if (isRunning && timeLeft !== null && !isBreak && !isMuted && isVisible) {
+      // Create a precise interval for consistent tick sounds
+      const tickDelay = 1000; // 1 second between ticks
+      
+      const scheduleTick = () => {
+        playSound('tick');
+        tickInterval = setTimeout(scheduleTick, tickDelay);
+      };
+      
+      // Start the first tick and schedule the rest
+      scheduleTick();
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      if (tickInterval) {
+        clearTimeout(tickInterval);
+      }
+    };
   }, [isRunning, isBreak, timeLeft, isMuted, isVisible, playSound]);
 
   // Handle task completion and break sounds
@@ -191,6 +201,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         setIsMuted={setIsMuted}
         handleReset={handleReset}
         playSound={playSound}
+        previewSound={previewSound}
         soundSettings={soundSettings}
         setSoundSettings={setSoundSettings}
         availableSounds={availableSounds}

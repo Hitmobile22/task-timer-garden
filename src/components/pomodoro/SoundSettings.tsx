@@ -12,6 +12,7 @@ interface SoundSettingsProps {
   isMuted: boolean;
   setIsMuted: React.Dispatch<React.SetStateAction<boolean>>;
   playSound: (type: SoundType) => void;
+  previewSound?: (type: SoundType, soundPath: string) => void;
   onClose: () => void;
 }
 
@@ -22,6 +23,7 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
   isMuted,
   setIsMuted,
   playSound,
+  previewSound,
   onClose,
 }) => {
   const getDisplayName = (soundPath: string) => {
@@ -36,9 +38,9 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
     setSoundSettings(newSettings);
     
     // Play the selected sound for preview if not muted and not set to 'none'
-    if (!isMuted && sound !== 'none') {
+    if (!isMuted && sound !== 'none' && previewSound) {
       console.log(`Playing ${type} sound preview:`, sound);
-      setTimeout(() => playSound(type), 100);
+      previewSound(type, sound);
     }
   };
 
@@ -48,16 +50,6 @@ export const SoundSettingsMenu: React.FC<SoundSettingsProps> = ({
         <h3 className="text-lg font-semibold">Sound Settings</h3>
         <Button variant="ghost" size="sm" onClick={onClose}>
           ✕
-        </Button>
-      </div>
-      
-      <div className="mb-4">
-        <Button 
-          variant={isMuted ? "outline" : "default"} 
-          className="w-full justify-center"
-          onClick={() => setIsMuted(!isMuted)}
-        >
-          {isMuted ? "Unmute Sounds" : "Mute Sounds"}
         </Button>
       </div>
       

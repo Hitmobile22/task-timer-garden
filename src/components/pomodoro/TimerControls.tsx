@@ -12,6 +12,7 @@ interface TimerControlsProps {
   setIsMuted: React.Dispatch<React.SetStateAction<boolean>>;
   handleReset: () => void;
   playSound: (type: 'tick' | 'break' | 'task') => void;
+  previewSound?: (type: 'tick' | 'break' | 'task', soundPath: string) => void;
   soundSettings: Record<'tick' | 'break' | 'task', string>;
   setSoundSettings: React.Dispatch<React.SetStateAction<Record<'tick' | 'break' | 'task', string>>>;
   availableSounds: Record<string, string[]>;
@@ -28,6 +29,7 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
   setIsMuted,
   handleReset,
   playSound,
+  previewSound,
   soundSettings,
   setSoundSettings,
   availableSounds,
@@ -118,6 +120,7 @@ export const TimerControls: React.FC<TimerControlsProps> = ({
               setSoundSettings={setSoundSettings}
               availableSounds={availableSounds}
               playSound={playSound}
+              previewSound={previewSound}
               onClose={() => setShowSoundSettings(false)}
             />
           </div>

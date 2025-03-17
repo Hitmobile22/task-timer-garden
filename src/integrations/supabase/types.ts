@@ -142,6 +142,45 @@ export type Database = {
           },
         ]
       }
+      recurring_task_generation_logs: {
+        Row: {
+          generation_date: string
+          id: number
+          setting_id: number | null
+          task_list_id: number | null
+          tasks_generated: number
+        }
+        Insert: {
+          generation_date?: string
+          id?: number
+          setting_id?: number | null
+          task_list_id?: number | null
+          tasks_generated?: number
+        }
+        Update: {
+          generation_date?: string
+          id?: number
+          setting_id?: number | null
+          task_list_id?: number | null
+          tasks_generated?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_task_generation_logs_setting_id_fkey"
+            columns: ["setting_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_task_settings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_task_generation_logs_task_list_id_fkey"
+            columns: ["task_list_id"]
+            isOneToOne: false
+            referencedRelation: "TaskLists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_task_settings: {
         Row: {
           created_at: string | null

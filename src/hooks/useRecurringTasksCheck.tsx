@@ -2,7 +2,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCurrentDayName } from '@/lib/utils';
+import { getCurrentDayName, areDatesOnSameDay } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
@@ -22,10 +23,11 @@ export const useRecurringTasksCheck = () => {
         // Get only the most recent enabled setting for each task list that includes today's day of week
         const { data: uniqueTaskLists, error: uniqueListsError } = await supabase
           .from('recurring_task_settings')
-          .select('task_list_id')
+          .select('task_list_id, created_at')
           .eq('enabled', true)
-          .not('task_list_id', 'is', null) // Avoid null task_list_id values
-          .contains('days_of_week', [dayOfWeek]);
+          .not('task_list_id', 'is', null)
+          .contains('days_of_week', [dayOfWeek])
+          .order('created_at', { ascending: false });
         
         if (uniqueListsError) {
           console.error('Error fetching unique task lists:', uniqueListsError);
@@ -38,9 +40,20 @@ export const useRecurringTasksCheck = () => {
           return [];
         }
         
-        // Get unique task list IDs
-        const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))]
+        // Get unique task list IDs (taking only the most recent for each list)
+        const taskListsMap = new Map();
+        uniqueTaskLists.forEach(item => {
+          if (!item.task_list_id) return;
+          
+          if (!taskListsMap.has(item.task_list_id) || 
+              new Date(item.created_at) > new Date(taskListsMap.get(item.task_list_id).created_at)) {
+            taskListsMap.set(item.task_list_id, item);
+          }
+        });
+        
+        const uniqueTaskListIds = Array.from(taskListsMap.keys())
           .filter(id => id !== null && id !== undefined);
+          
         console.log('Found recurring settings for task lists:', uniqueTaskListIds);
         
         // For each unique task list, get the most recent active setting
@@ -80,7 +93,38 @@ export const useRecurringTasksCheck = () => {
         return [];
       }
     },
+    refetchInterval: 15 * 60 * 1000, // Refetch every 15 minutes
+    refetchOnWindowFocus: false,
   });
+
+  // Check if a generation log exists for today for a specific task list
+  const checkGenerationLog = async (taskListId: number, settingId: number) => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const { data, error } = await supabase
+        .from('recurring_task_generation_logs')
+        .select('*')
+        .eq('task_list_id', taskListId)
+        .eq('setting_id', settingId)
+        .gte('generation_date', today.toISOString())
+        .lt('generation_date', tomorrow.toISOString())
+        .maybeSingle();
+        
+      if (error) {
+        console.error(`Error checking generation log for list ${taskListId}:`, error);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error in checkGenerationLog:', error);
+      return null;
+    }
+  };
 
   useEffect(() => {
     const checkRecurringTasks = async () => {
@@ -115,24 +159,35 @@ export const useRecurringTasksCheck = () => {
             console.log('Active recurring task settings:', settings.length);
             
             // Create a filtered list excluding any task lists we're already processing
-            const filteredSettings = settings.filter(s => 
-              !processingRef.current.has(s.task_list_id)
-            );
+            // and task lists that already have generation logs for today
+            const filteredSettings = [];
             
-            if (filteredSettings.length === 0) {
-              console.log('All task lists are currently being processed, skipping check');
-              return;
+            for (const setting of settings) {
+              if (!setting.task_list_id || processingRef.current.has(setting.task_list_id)) {
+                continue;
+              }
+              
+              // Check if we already have a generation log for today
+              const generationLog = await checkGenerationLog(setting.task_list_id, setting.id);
+              
+              if (generationLog) {
+                console.log(`Already generated ${generationLog.tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
+                continue;
+              }
+              
+              filteredSettings.push(setting);
+              processingRef.current.add(setting.task_list_id);
             }
             
-            // Mark task lists as being processed
-            filteredSettings.forEach(s => {
-              processingRef.current.add(s.task_list_id);
-            });
+            if (filteredSettings.length === 0) {
+              console.log('No task lists need processing, skipping check');
+              return;
+            }
             
             // Send only the critical information to the edge function
             const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
               body: { 
-                forceCheck: true,
+                forceCheck: false,
                 settings: filteredSettings.map(s => ({
                   id: s.id,
                   task_list_id: s.task_list_id,
@@ -165,7 +220,9 @@ export const useRecurringTasksCheck = () => {
             console.error('Error checking recurring tasks:', error);
             // Clear processing flags in case of error
             settings.forEach(s => {
-              processingRef.current.delete(s.task_list_id);
+              if (s.task_list_id) {
+                processingRef.current.delete(s.task_list_id);
+              }
             });
           }
         } else {

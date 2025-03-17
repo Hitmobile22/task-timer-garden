@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -51,4 +52,46 @@ export function areDatesOnSameDay(date1: Date, date2: Date): boolean {
  */
 export function getCurrentDayName(): string {
   return new Date().toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+/**
+ * Start of day - returns a new Date set to the beginning of the given date's day
+ */
+export function startOfDay(date: Date): Date {
+  const newDate = new Date(date);
+  newDate.setHours(0, 0, 0, 0);
+  return newDate;
+}
+
+/**
+ * End of day - returns a new Date set to the end of the given date's day
+ */
+export function endOfDay(date: Date): Date {
+  const newDate = new Date(date);
+  newDate.setHours(23, 59, 59, 999);
+  return newDate;
+}
+
+/**
+ * Start of tomorrow - returns a new Date set to the beginning of tomorrow
+ */
+export function startOfTomorrow(): Date {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return startOfDay(tomorrow);
+}
+
+/**
+ * Format a date range for display (e.g., "9:00 AM - 9:30 AM")
+ */
+export function formatTimeRange(startDate: Date, endDate: Date): string {
+  return `${startDate.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  })} - ${endDate.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  })}`;
 }

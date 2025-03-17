@@ -39,16 +39,6 @@ export interface RecurringTaskSettings {
   daysOfWeek: string[];
 }
 
-interface DatabaseRecurringTaskSettings {
-  id: number;
-  task_list_id: number;
-  enabled: boolean;
-  daily_task_count: number;
-  days_of_week: string[];
-  created_at: string;
-  updated_at: string;
-}
-
 const DAYS_OF_WEEK = [
   'Monday',
   'Tuesday',
@@ -60,6 +50,34 @@ const DAYS_OF_WEEK = [
 ];
 
 const DAILY_TASK_COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
+
+// Component to handle the days of week selection
+const DaysOfWeekSelector = ({
+  selectedDays,
+  onChange,
+  disabled
+}) => {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {DAYS_OF_WEEK.map((day) => (
+        <div key={day} className="flex items-center space-x-2">
+          <Checkbox
+            id={`day-${day}`}
+            checked={selectedDays.includes(day)}
+            onCheckedChange={() => {
+              const newDays = selectedDays.includes(day)
+                ? selectedDays.filter(d => d !== day)
+                : [...selectedDays, day];
+              onChange(newDays);
+            }}
+            disabled={disabled}
+          />
+          <Label htmlFor={`day-${day}`}>{day}</Label>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export const RecurringTasksModal = ({
   open,
@@ -104,9 +122,9 @@ export const RecurringTasksModal = ({
           console.log('Loaded recurring task settings:', mostRecentSetting);
           setCurrentSettingId(mostRecentSetting.id);
           setSettings({
-            enabled: mostRecentSetting.enabled,
-            dailyTaskCount: mostRecentSetting.daily_task_count,
-            daysOfWeek: mostRecentSetting.days_of_week,
+            enabled: mostRecentSetting.enabled ?? false,
+            dailyTaskCount: mostRecentSetting.daily_task_count ?? 1,
+            daysOfWeek: mostRecentSetting.days_of_week ?? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
           });
         } else {
           // Reset to defaults if no settings found
@@ -173,10 +191,9 @@ export const RecurringTasksModal = ({
       }
 
       onSubmit(settings);
-      onClose();
       toast.success('Recurring task settings saved');
 
-      // Only check for new tasks if enabled and settings changed
+      // Only check for new tasks if enabled and settings changed and it's the selected day
       if (settings.enabled) {
         try {
           // Get the current day
@@ -185,6 +202,8 @@ export const RecurringTasksModal = ({
           // Only check if the current day is in the selected days
           if (settings.daysOfWeek.includes(currentDay)) {
             console.log('Running check for recurring tasks after saving settings');
+            
+            // Always force check for the specific list after saving settings
             const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
               body: { 
                 forceCheck: true,
@@ -204,6 +223,8 @@ export const RecurringTasksModal = ({
           toast.error('Failed to check for recurring tasks');
         }
       }
+      
+      onClose();
     } catch (error) {
       console.error('Error saving recurring task settings:', error);
       toast.error('Failed to save recurring task settings');
@@ -217,14 +238,6 @@ export const RecurringTasksModal = ({
       const newSettings = { ...prev, ...updatedSettings };
       setSettingsChanged(true);
       return newSettings;
-    });
-  };
-
-  const toggleDay = (day: string) => {
-    updateSettings({
-      daysOfWeek: settings.daysOfWeek.includes(day)
-        ? settings.daysOfWeek.filter(d => d !== day)
-        : [...settings.daysOfWeek, day],
     });
   };
 
@@ -280,19 +293,11 @@ export const RecurringTasksModal = ({
             </div>
             <div className="space-y-2">
               <Label>Days of Week</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {DAYS_OF_WEEK.map((day) => (
-                  <div key={day} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`day-${day}`}
-                      checked={settings.daysOfWeek.includes(day)}
-                      onCheckedChange={() => toggleDay(day)}
-                      disabled={!settings.enabled || isSaving}
-                    />
-                    <Label htmlFor={`day-${day}`}>{day}</Label>
-                  </div>
-                ))}
-              </div>
+              <DaysOfWeekSelector
+                selectedDays={settings.daysOfWeek}
+                onChange={(days) => updateSettings({ daysOfWeek: days })}
+                disabled={!settings.enabled || isSaving}
+              />
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isSaving}>

@@ -1,12 +1,11 @@
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
-interface RecurringTaskSettings {
+interface RecurringTaskSetting {
   id: number;
   task_list_id: number;
   enabled: boolean;
@@ -14,421 +13,366 @@ interface RecurringTaskSettings {
   days_of_week: string[];
 }
 
-interface TaskList {
+interface TaskInfo {
   id: number;
-  name: string;
-  last_tasks_added_at: string | null;
+  "Task Name": string;
+  Progress: string;
+  date_started: string;
+  date_due: string;
+  project_id: number | null;
 }
 
-// Track task generation to prevent duplicates in the same execution
-const generationLock = new Map<number, boolean>();
+interface GerationLogEntry {
+  id: number;
+  task_list_id: number;
+  setting_id: number;
+  generation_date: string;
+  tasks_generated: number;
+}
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Create a Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
 
-    // Extract request body if any
-    let requestBody = {};
-    try {
-      requestBody = await req.json();
-    } catch (e) {
-      // No request body or invalid JSON
-      requestBody = {};
-    }
+    // Parse request body
+    const body = await req.json();
+    console.log("Received request body:", JSON.stringify(body));
     
-    console.log('Request body:', JSON.stringify(requestBody));
-    
-    // Get current time and check if it's after 7am
+    // Get today's date (without time)
     const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setHours(7, 0, 0, 0);
-
-    // If it's before 7am and not a force check, don't generate tasks
-    if (today < startOfDay && !requestBody.forceCheck) {
-      console.log('Before 7am, skipping task generation');
-      return new Response(JSON.stringify({ success: true, message: 'Before 7am, no tasks generated' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      });
-    }
+    today.setHours(0, 0, 0, 0);
+    
+    // Get tomorrow's date
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     
     // Get current day of week
     const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
     console.log(`Current day of week: ${dayOfWeek}`);
+
+    // Handle different request scenarios
+    let settings: RecurringTaskSetting[] = [];
+    let specificListId: number | null = null;
     
-    // Handle specific list ID check if provided
-    if (requestBody.specificListId) {
-      const taskListId = requestBody.specificListId;
+    if (body.specificListId) {
+      specificListId = body.specificListId;
+      console.log(`Processing specific list ID: ${specificListId}`);
       
-      if (!taskListId || isNaN(taskListId)) {
-        return new Response(JSON.stringify({ 
-          success: false, 
-          message: `Invalid task list ID: ${taskListId}` 
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        });
-      }
-      
-      console.log(`Checking specific task list ID: ${taskListId}`);
-      
-      // Check if we already processed this list in this execution
-      if (generationLock.get(taskListId)) {
-        console.log(`Task list ${taskListId} already processed in this execution, skipping`);
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: `Task list ${taskListId} already processed in this execution`
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        });
-      }
-      
-      // Mark this list as being processed
-      generationLock.set(taskListId, true);
-      
-      const { data: settings, error: settingsError } = await supabaseClient
+      // Get only the most recent enabled setting for the specific task list
+      // that includes today's day of week
+      const { data: specificSettings, error: specificError } = await supabaseClient
         .from('recurring_task_settings')
         .select('*')
         .eq('enabled', true)
-        .eq('task_list_id', taskListId)
+        .eq('task_list_id', specificListId)
         .contains('days_of_week', [dayOfWeek])
         .order('created_at', { ascending: false })
         .limit(1);
       
-      if (settingsError) {
-        console.error(`Error getting settings for list ${taskListId}:`, settingsError);
-        throw settingsError;
+      if (specificError) {
+        console.error('Error fetching specific task list settings:', specificError);
+        throw specificError;
       }
       
-      if (!settings || settings.length === 0 || !settings[0].enabled) {
-        console.log(`No active settings for task list ${taskListId} on ${dayOfWeek}`);
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: `No active settings for task list ${taskListId} on ${dayOfWeek}`
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        });
+      if (specificSettings && specificSettings.length > 0) {
+        settings = specificSettings;
       }
-      
-      const setting = settings[0];
-      const result = await processTaskList(supabaseClient, setting, today, dayOfWeek);
-      
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: `Processed task list ${setting.task_list_id}`,
-          result
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      );
-    }
-    
-    // Get the global generation log for today to avoid duplicate runs
-    const startOfTodayISO = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-    const { data: generationLogs, error: logsError } = await supabaseClient
-      .from('recurring_task_generation_logs')
-      .select('*')
-      .gte('generation_date', startOfTodayISO)
-      .lt('generation_date', new Date(new Date(startOfTodayISO).getTime() + 24 * 60 * 60 * 1000).toISOString());
-    
-    if (logsError) {
-      console.error('Error fetching generation logs:', logsError);
-      // Continue execution - not fatal if we can't check logs
-    }
-    
-    // Process each task list only if it hasn't been processed already today
-    // unless force check is requested
-    const processedTaskListIds = new Set((generationLogs || []).map(log => log.task_list_id));
-    
-    // If explicit settings are provided in the request body, use those instead of querying
-    let taskListSettings = [];
-    
-    if (requestBody.settings && Array.isArray(requestBody.settings) && requestBody.settings.length > 0) {
-      console.log('Using settings provided in request body');
-      // Filter out settings that don't include today's day of week or aren't enabled
-      taskListSettings = requestBody.settings.filter(s => 
-        s && s.enabled && Array.isArray(s.days_of_week) && s.days_of_week.includes(dayOfWeek)
-      );
+    } else if (body.settings && Array.isArray(body.settings)) {
+      // If settings are provided in the request, use them
+      settings = body.settings;
+      console.log(`Using provided settings: ${settings.length} items`);
     } else {
-      // Get unique task lists with recurring settings that include the current day of week
-      const { data: uniqueTaskLists, error: uniqueListsError } = await supabaseClient
+      // Otherwise fetch all enabled settings for today's day of week
+      console.log("Fetching all settings for today");
+      const { data: allSettings, error: allSettingsError } = await supabaseClient
         .from('recurring_task_settings')
-        .select('task_list_id')
+        .select('*')
         .eq('enabled', true)
-        .not('task_list_id', 'is', null) // Avoid null task_list_id values
         .contains('days_of_week', [dayOfWeek]);
       
-      if (uniqueListsError) {
-        console.error('Error fetching unique task lists:', uniqueListsError);
-        throw uniqueListsError;
+      if (allSettingsError) {
+        console.error('Error fetching all recurring task settings:', allSettingsError);
+        throw allSettingsError;
       }
       
-      if (!uniqueTaskLists || uniqueTaskLists.length === 0) {
-        console.log('No active recurring task settings for today');
-        return new Response(JSON.stringify({ success: true, message: 'No active settings for today' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        });
-      }
-      
-      // Get unique task list IDs, filtering out nulls and already processed lists
-      const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))]
-        .filter(id => id !== null && id !== undefined)
-        .filter(id => requestBody.forceCheck || !processedTaskListIds.has(id));
-      
-      if (uniqueTaskListIds.length === 0) {
-        console.log('All task lists with active settings already processed today');
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: 'All task lists already processed today'
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        });
-      }
-      
-      console.log(`Found ${uniqueTaskListIds.length} task lists with active settings for ${dayOfWeek} to process`);
-      
-      // For each unique task list, get the most recent active setting
-      for (const taskListId of uniqueTaskListIds) {
-        // Check if we already processed this list in this execution
-        if (generationLock.get(taskListId)) {
-          console.log(`Task list ${taskListId} already processed in this execution, skipping`);
-          continue;
-        }
+      if (allSettings) {
+        // For each task list, only keep the most recent setting
+        const latestSettingsByList = new Map<number, RecurringTaskSetting>();
         
-        // Mark this list as being processed
-        generationLock.set(taskListId, true);
-        
-        // Get the most recent active setting for this task list
-        const { data: settings, error: settingsError } = await supabaseClient
-          .from('recurring_task_settings')
-          .select('*')
-          .eq('enabled', true)
-          .eq('task_list_id', taskListId)
-          .contains('days_of_week', [dayOfWeek])
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        if (settingsError) {
-          console.error(`Error getting settings for list ${taskListId}:`, settingsError);
-          continue;
-        }
-        
-        if (settings && settings.length > 0 && settings[0].enabled) {
-          taskListSettings.push(settings[0]);
-        }
-      }
-    }
-    
-    if (taskListSettings.length === 0) {
-      console.log('No active recurring task settings found for today to process');
-      return new Response(JSON.stringify({ success: true, message: 'No active settings to process today' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      });
-    }
-    
-    // Process each task list with a valid setting
-    const generatedTasks = [];
-    const processedTaskLists = new Set();
-    
-    for (const setting of taskListSettings) {
-      // Skip if we've already processed this task list (prevent duplicates)
-      if (processedTaskLists.has(setting.task_list_id)) {
-        console.log(`Task list ${setting.task_list_id} already processed, skipping duplicate settings`);
-        continue;
-      }
-      
-      // Double-check this setting is valid and enabled
-      if (!setting.enabled || !setting.task_list_id || !setting.days_of_week.includes(dayOfWeek)) {
-        console.log(`Skipping invalid or disabled setting for task list ${setting.task_list_id}`);
-        continue;
-      }
-      
-      processedTaskLists.add(setting.task_list_id);
-      console.log(`Processing task list ${setting.task_list_id} with setting ID ${setting.id}`);
-      
-      const result = await processTaskList(supabaseClient, setting, today, dayOfWeek);
-      if (result.tasksGenerated && result.tasksGenerated.length > 0) {
-        generatedTasks.push(...result.tasksGenerated);
-        
-        // Log this generation to prevent duplicate processing
-        try {
-          const { error: logError } = await supabaseClient
-            .from('recurring_task_generation_logs')
-            .insert({
-              task_list_id: setting.task_list_id,
-              generation_date: new Date().toISOString(),
-              tasks_generated: result.tasksGenerated.length,
-              setting_id: setting.id
-            });
+        for (const setting of allSettings) {
+          if (!setting.task_list_id) continue;
           
-          if (logError) {
-            console.error(`Error logging task generation for list ${setting.task_list_id}:`, logError);
+          const existingSetting = latestSettingsByList.get(setting.task_list_id);
+          
+          if (!existingSetting || 
+              new Date(setting.created_at) > new Date(existingSetting.created_at)) {
+            latestSettingsByList.set(setting.task_list_id, setting);
           }
-        } catch (error) {
-          console.error(`Error logging generation for task list ${setting.task_list_id}:`, error);
         }
+        
+        settings = Array.from(latestSettingsByList.values());
       }
     }
     
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Generated ${generatedTasks.length} tasks`,
-        tasks: generatedTasks
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+    console.log(`Processing ${settings.length} recurring task settings`);
+    
+    const results = [];
+    const forceCheck = !!body.forceCheck;
+
+    for (const setting of settings) {
+      try {
+        if (!setting || !setting.task_list_id || !setting.enabled) {
+          console.log('Skipping invalid setting', setting);
+          results.push({ 
+            task_list_id: setting?.task_list_id || null, 
+            status: 'skipped', 
+            reason: 'invalid_setting' 
+          });
+          continue;
+        }
+
+        // Check if we already generated tasks for this list and setting today
+        const { data: existingLogs, error: logsError } = await supabaseClient
+          .from('recurring_task_generation_logs')
+          .select('*')
+          .eq('task_list_id', setting.task_list_id)
+          .eq('setting_id', setting.id)
+          .gte('generation_date', today.toISOString())
+          .lt('generation_date', tomorrow.toISOString());
+          
+        if (logsError) {
+          console.error(`Error checking generation logs for list ${setting.task_list_id}:`, logsError);
+        } else if (existingLogs && existingLogs.length > 0 && !forceCheck) {
+          // If we already generated tasks for this list today, skip
+          console.log(`Already generated ${existingLogs[0].tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
+          results.push({ 
+            task_list_id: setting.task_list_id, 
+            status: 'skipped', 
+            reason: 'already_generated',
+            existing: existingLogs[0].tasks_generated
+          });
+          continue;
+        }
+
+        // Count all tasks (regardless of status) for this list created today
+        const { data: todayTasks, error: todayTasksError } = await supabaseClient
+          .from('Tasks')
+          .select('id, "Task Name", Progress, date_started, date_due, project_id')
+          .eq('task_list_id', setting.task_list_id)
+          .gte('date_started', today.toISOString())
+          .lt('date_started', tomorrow.toISOString());
+
+        if (todayTasksError) {
+          console.error(`Error counting today's tasks for list ${setting.task_list_id}:`, todayTasksError);
+          results.push({ 
+            task_list_id: setting.task_list_id, 
+            status: 'error', 
+            error: 'task_count_failed' 
+          });
+          continue;
+        }
+
+        const todayTaskCount = todayTasks?.length || 0;
+        const dailyTaskGoal = setting.daily_task_count || 1;
+        
+        console.log(`List ${setting.task_list_id} has ${todayTaskCount} tasks today, goal is ${dailyTaskGoal}`);
+        
+        if (todayTaskCount >= dailyTaskGoal) {
+          console.log(`Already have enough tasks for list ${setting.task_list_id}, skipping`);
+          results.push({ 
+            task_list_id: setting.task_list_id, 
+            status: 'skipped', 
+            reason: 'enough_tasks', 
+            existing: todayTaskCount 
+          });
+          
+          // Update or create generation log entry
+          await updateGenerationLog(supabaseClient, setting.task_list_id, setting.id, todayTaskCount);
+          
+          continue;
+        }
+
+        // Get the task list info for the task name
+        const { data: taskList, error: taskListError } = await supabaseClient
+          .from('TaskLists')
+          .select('name')
+          .eq('id', setting.task_list_id)
+          .single();
+
+        if (taskListError) {
+          console.error(`Error fetching task list ${setting.task_list_id}:`, taskListError);
+          results.push({ 
+            task_list_id: setting.task_list_id, 
+            status: 'error', 
+            error: 'task_list_fetch_failed' 
+          });
+          continue;
+        }
+
+        const listName = taskList?.name || `List ${setting.task_list_id}`;
+        const tasksToCreate = [];
+        const neededTasks = Math.max(0, dailyTaskGoal - todayTaskCount);
+        
+        console.log(`Creating ${neededTasks} new tasks for list ${setting.task_list_id} (${listName})`);
+        
+        // Get projects associated with this list to assign the tasks
+        const { data: projects, error: projectsError } = await supabaseClient
+          .from('Projects')
+          .select('id, "Project Name"')
+          .eq('task_list_id', setting.task_list_id)
+          .neq('progress', 'Completed');
+          
+        const project = projects && projects.length > 0 ? projects[0] : null;
+        
+        for (let i = 0; i < neededTasks; i++) {
+          // Always start tasks at 9am with 30-minute increments 
+          const taskStartTime = new Date(today);
+          taskStartTime.setHours(9, i * 30, 0, 0); // 9:00, 9:30, 10:00, etc.
+          
+          const taskEndTime = new Date(taskStartTime);
+          taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
+          
+          const taskName = project 
+            ? `${project['Project Name']} - Task ${todayTaskCount + i + 1}`
+            : `${listName} - Task ${todayTaskCount + i + 1}`;
+            
+          tasksToCreate.push({
+            "Task Name": taskName,
+            Progress: "Not started",
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString(),
+            task_list_id: setting.task_list_id,
+            project_id: project?.id || null
+          });
+        }
+
+        if (tasksToCreate.length > 0) {
+          const { data: newTasks, error: createError } = await supabaseClient
+            .from('Tasks')
+            .insert(tasksToCreate)
+            .select();
+
+          if (createError) {
+            console.error(`Error creating tasks for list ${setting.task_list_id}:`, createError);
+            results.push({ 
+              task_list_id: setting.task_list_id, 
+              status: 'error', 
+              error: 'task_creation_failed' 
+            });
+            continue;
+          }
+
+          console.log(`Successfully created ${newTasks?.length || 0} tasks for list ${setting.task_list_id}`);
+          
+          // Record the successful generation
+          await updateGenerationLog(
+            supabaseClient, 
+            setting.task_list_id, 
+            setting.id, 
+            (todayTaskCount + (newTasks?.length || 0))
+          );
+          
+          results.push({ 
+            task_list_id: setting.task_list_id, 
+            status: 'created', 
+            tasks_created: newTasks?.length || 0 
+          });
+        } else {
+          results.push({ 
+            task_list_id: setting.task_list_id, 
+            status: 'skipped', 
+            reason: 'no_tasks_needed' 
+          });
+        }
+      } catch (settingError) {
+        console.error(`Error processing setting for list ${setting?.task_list_id}:`, settingError);
+        results.push({
+          task_list_id: setting?.task_list_id,
+          status: 'error',
+          error: settingError.message
+        });
       }
-    );
+    }
+
+    return new Response(JSON.stringify({ success: true, results }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
     
   } catch (error) {
-    console.error('Error in check-recurring-tasks:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
-    );
+    console.error('Error checking recurring tasks:', error);
+    
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
   }
 });
 
-// Helper function to process an individual task list
-async function processTaskList(supabase, setting, today, dayOfWeek) {
+// Helper function to update or create generation log entry
+async function updateGenerationLog(
+  supabaseClient: any, 
+  taskListId: number, 
+  settingId: number, 
+  tasksGenerated: number
+) {
   try {
-    // Confirm this setting includes the current day of week
-    if (!setting.days_of_week.includes(dayOfWeek)) {
-      console.log(`Task list ${setting.task_list_id} does not have ${dayOfWeek} enabled, skipping`);
-      return { tasksGenerated: [] };
+    // First try to update existing record for today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const { data: existingLog, error: selectError } = await supabaseClient
+      .from('recurring_task_generation_logs')
+      .select('id')
+      .eq('task_list_id', taskListId)
+      .eq('setting_id', settingId)
+      .gte('generation_date', today.toISOString())
+      .lt('generation_date', tomorrow.toISOString())
+      .maybeSingle();
+      
+    if (selectError) {
+      console.error('Error checking for existing generation log:', selectError);
+      return;
     }
     
-    // Get the associated task list
-    const { data: taskListData, error: taskListError } = await supabase
-      .from('TaskLists')
-      .select('*')
-      .eq('id', setting.task_list_id)
-      .single();
-    
-    if (taskListError) {
-      console.error(`Error getting task list ${setting.task_list_id}:`, taskListError);
-      return { tasksGenerated: [] };
-    }
-    
-    console.log(`Found task list: ${taskListData.name} (ID: ${setting.task_list_id})`);
-    
-    // Define the midnight start of today for date filtering
-    const startOfToday = new Date(today);
-    startOfToday.setHours(0, 0, 0, 0);
-    
-    // Get ALL tasks for this list created today (INCLUDING COMPLETED AND DELETED ONES)
-    const { data: todayTasks, error: todayTasksError } = await supabase
-      .from('Tasks')
-      .select('id, "Task Name", Progress, archived')
-      .eq('task_list_id', setting.task_list_id)
-      .gte('date_started', startOfToday.toISOString())
-      .lt('date_started', new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000).toISOString());
-
-    if (todayTasksError) {
-      console.error(`Error checking today's tasks for list ${taskListData.name}:`, todayTasksError);
-      return { tasksGenerated: [] };
-    }
-
-    const todayTaskCount = todayTasks?.length || 0;
-    console.log(`Found ${todayTaskCount} tasks created today for list ${taskListData.name}`);
-
-    // If we already have enough or more tasks than the daily task count (including completed and archived ones), skip creating new ones
-    if (todayTaskCount >= setting.daily_task_count) {
-      console.log(`Already have ${todayTaskCount} tasks for list ${taskListData.name} (${setting.task_list_id}) today, which meets the daily goal of ${setting.daily_task_count}`);
-      return { tasksGenerated: [] };
-    }
-
-    // Generate only the needed number of tasks
-    const tasksToGenerate = setting.daily_task_count - todayTaskCount;
-    console.log(`Generating ${tasksToGenerate} tasks for list ${taskListData.name} (${setting.task_list_id})`);
-    
-    // Always start tasks at 9am with 30-minute increments
-    const baseTaskName = `${taskListData.name} - Task`;
-    
-    // Get the highest task number to prevent duplicate numbering
-    let highestTaskNumber = 0;
-    if (todayTasks && todayTasks.length > 0) {
-      for (const task of todayTasks) {
-        const taskName = task["Task Name"] || "";
-        const match = taskName.match(/Task\s+(\d+)$/);
-        if (match && match[1]) {
-          const taskNumber = parseInt(match[1]);
-          if (taskNumber > highestTaskNumber) {
-            highestTaskNumber = taskNumber;
-          }
-        }
-      }
-    }
-    
-    const generatedTasks = [];
-    
-    for (let i = 0; i < tasksToGenerate; i++) {
-      const taskNumber = highestTaskNumber + i + 1;
-      
-      // Always start at 9am with 30-minute increments
-      const taskStartTime = new Date(today);
-      taskStartTime.setHours(9, i * 30, 0, 0); // 9:00, 9:30, 10:00, etc.
-      
-      const taskEndTime = new Date(taskStartTime);
-      taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25-minute task
-      
-      const { data: taskData, error: taskError } = await supabase
-        .from('Tasks')
-        .insert({
-          "Task Name": `${baseTaskName} ${taskNumber}`,
-          Progress: "Not started",
-          date_started: taskStartTime.toISOString(),
-          date_due: taskEndTime.toISOString(),
-          task_list_id: setting.task_list_id,
-          order: todayTaskCount + i,
-        })
-        .select()
-        .single();
-      
-      if (taskError) {
-        console.error(`Error creating task for list ${taskListData.name}:`, taskError);
-        continue;
-      }
-      
-      console.log(`Successfully created task: ${taskData["Task Name"]} for list ${taskListData.name}`);
-      generatedTasks.push(taskData);
-    }
-    
-    // Update the last_tasks_added_at timestamp
-    if (tasksToGenerate > 0) {
-      const { error: updateError } = await supabase
-        .from('TaskLists')
-        .update({ last_tasks_added_at: new Date().toISOString() })
-        .eq('id', setting.task_list_id);
-      
+    if (existingLog) {
+      // Update existing record
+      const { error: updateError } = await supabaseClient
+        .from('recurring_task_generation_logs')
+        .update({ tasks_generated: tasksGenerated })
+        .eq('id', existingLog.id);
+        
       if (updateError) {
-        console.error(`Error updating last_tasks_added_at for list ${taskListData.name}:`, updateError);
+        console.error('Error updating generation log:', updateError);
+      }
+    } else {
+      // Insert new record
+      const { error: insertError } = await supabaseClient
+        .from('recurring_task_generation_logs')
+        .insert({
+          task_list_id: taskListId,
+          setting_id: settingId,
+          tasks_generated: tasksGenerated,
+          generation_date: new Date().toISOString()
+        });
+        
+      if (insertError) {
+        console.error('Error creating generation log:', insertError);
       }
     }
-    
-    return { tasksGenerated: generatedTasks };
   } catch (error) {
-    console.error(`Error processing task list:`, error);
-    return { tasksGenerated: [] };
+    console.error('Error in updateGenerationLog:', error);
   }
 }

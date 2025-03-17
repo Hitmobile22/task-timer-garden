@@ -19,6 +19,7 @@ export const useRecurringTasksCheck = () => {
         .from('recurring_task_settings')
         .select('task_list_id')
         .eq('enabled', true)
+        .not('task_list_id', 'is', null) // Avoid null task_list_id values
         .contains('days_of_week', [dayOfWeek]);
       
       if (uniqueListsError) throw uniqueListsError;
@@ -75,7 +76,11 @@ export const useRecurringTasksCheck = () => {
       if (settings && settings.length > 0) {
         try {
           console.log('Checking recurring tasks...');
-          const { data, error } = await supabase.functions.invoke('check-recurring-tasks');
+          console.log('Active recurring task settings:', settings.length);
+          
+          const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
+            body: { forceCheck: true }
+          });
           
           if (error) throw error;
           
@@ -90,6 +95,8 @@ export const useRecurringTasksCheck = () => {
         } catch (error) {
           console.error('Error checking recurring tasks:', error);
         }
+      } else {
+        console.log('No active recurring task settings found for today, skipping check');
       }
     };
 

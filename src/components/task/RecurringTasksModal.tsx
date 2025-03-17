@@ -144,23 +144,6 @@ export const RecurringTasksModal = ({
         setCurrentSettingId(data[0].id);
       }
 
-      // Clean up any existing tasks if settings are disabled
-      if (!settings.enabled) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const { error: cleanupError } = await supabase
-          .from('Tasks')
-          .delete()
-          .eq('task_list_id', listId)
-          .gte('created_at', today.toISOString())
-          .eq('Progress', 'Not started');
-
-        if (cleanupError) {
-          console.error('Error cleaning up tasks:', cleanupError);
-        }
-      }
-
       onSubmit(settings);
       onClose();
       toast.success('Recurring task settings saved');
@@ -168,7 +151,9 @@ export const RecurringTasksModal = ({
       // Only check for new tasks if enabled
       if (settings.enabled) {
         try {
-          const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks');
+          const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
+            body: { forceCheck: true }
+          });
           if (checkError) throw checkError;
         } catch (checkError) {
           console.error('Error checking recurring tasks:', checkError);

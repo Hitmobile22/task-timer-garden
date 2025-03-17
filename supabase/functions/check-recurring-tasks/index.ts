@@ -31,13 +31,22 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Extract request body if any
+    let requestBody = {};
+    try {
+      requestBody = await req.json();
+    } catch (e) {
+      // No request body or invalid JSON
+      requestBody = {};
+    }
+    
     // Get current time and check if it's after 7am
     const today = new Date();
     const startOfDay = new Date(today);
     startOfDay.setHours(7, 0, 0, 0);
 
-    // If it's before 7am, don't generate tasks
-    if (today < startOfDay) {
+    // If it's before 7am and not a force check, don't generate tasks
+    if (today < startOfDay && !requestBody.forceCheck) {
       console.log('Before 7am, skipping task generation');
       return new Response(JSON.stringify({ success: true, message: 'Before 7am, no tasks generated' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -54,6 +63,7 @@ Deno.serve(async (req) => {
       .from('recurring_task_settings')
       .select('task_list_id')
       .eq('enabled', true)
+      .not('task_list_id', 'is', null) // Avoid null task_list_id values
       .contains('days_of_week', [dayOfWeek]);
     
     if (uniqueListsError) throw uniqueListsError;
@@ -99,6 +109,12 @@ Deno.serve(async (req) => {
       const setting = settings[0];
       console.log(`Processing task list ${setting.task_list_id} with setting ID ${setting.id}`);
       console.log(`Days of week setting: ${setting.days_of_week.join(', ')}`);
+      
+      // Skip if this setting is not enabled - double check to be sure
+      if (!setting.enabled) {
+        console.log(`Task list ${setting.task_list_id} is not enabled, skipping`);
+        continue;
+      }
       
       // Confirm this setting includes the current day of week
       if (!setting.days_of_week.includes(dayOfWeek)) {
@@ -199,13 +215,15 @@ Deno.serve(async (req) => {
       }
       
       // Update the last_tasks_added_at timestamp
-      const { error: updateError } = await supabaseClient
-        .from('TaskLists')
-        .update({ last_tasks_added_at: new Date().toISOString() })
-        .eq('id', setting.task_list_id);
-      
-      if (updateError) {
-        console.error(`Error updating last_tasks_added_at for list ${taskListData.name}:`, updateError);
+      if (tasksToGenerate > 0) {
+        const { error: updateError } = await supabaseClient
+          .from('TaskLists')
+          .update({ last_tasks_added_at: new Date().toISOString() })
+          .eq('id', setting.task_list_id);
+        
+        if (updateError) {
+          console.error(`Error updating last_tasks_added_at for list ${taskListData.name}:`, updateError);
+        }
       }
     }
     

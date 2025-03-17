@@ -73,7 +73,9 @@ export const RecurringTasksModal = ({
     daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [currentSettingId, setCurrentSettingId] = useState<number | null>(null);
+  const [settingsChanged, setSettingsChanged] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -115,6 +117,8 @@ export const RecurringTasksModal = ({
             daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
           });
         }
+        
+        setSettingsChanged(false);
       } catch (error) {
         console.error('Error loading recurring task settings:', error);
         toast.error('Failed to load recurring task settings');
@@ -128,6 +132,19 @@ export const RecurringTasksModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isSaving) {
+      console.log('Already saving settings, please wait...');
+      return;
+    }
+    
+    if (!settingsChanged) {
+      console.log('Settings not changed, closing modal');
+      onClose();
+      return;
+    }
+    
+    setIsSaving(true);
     
     try {
       console.log(`Saving recurring task settings for list ID ${listId}:`, settings);
@@ -158,7 +175,7 @@ export const RecurringTasksModal = ({
       onClose();
       toast.success('Recurring task settings saved');
 
-      // Only check for new tasks if enabled
+      // Only check for new tasks if enabled and settings changed
       if (settings.enabled) {
         try {
           console.log('Running check for recurring tasks after saving settings');
@@ -175,21 +192,31 @@ export const RecurringTasksModal = ({
           }
         } catch (checkError) {
           console.error('Error checking recurring tasks:', checkError);
+          toast.error('Failed to check for recurring tasks');
         }
       }
     } catch (error) {
       console.error('Error saving recurring task settings:', error);
       toast.error('Failed to save recurring task settings');
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  const updateSettings = (updatedSettings: Partial<RecurringTaskSettings>) => {
+    setSettings(prev => {
+      const newSettings = { ...prev, ...updatedSettings };
+      setSettingsChanged(true);
+      return newSettings;
+    });
+  };
+
   const toggleDay = (day: string) => {
-    setSettings(prev => ({
-      ...prev,
-      daysOfWeek: prev.daysOfWeek.includes(day)
-        ? prev.daysOfWeek.filter(d => d !== day)
-        : [...prev.daysOfWeek, day],
-    }));
+    updateSettings({
+      daysOfWeek: settings.daysOfWeek.includes(day)
+        ? settings.daysOfWeek.filter(d => d !== day)
+        : [...settings.daysOfWeek, day],
+    });
   };
 
   return (
@@ -211,8 +238,9 @@ export const RecurringTasksModal = ({
                 id="recurring-enabled"
                 checked={settings.enabled}
                 onCheckedChange={(checked) =>
-                  setSettings((prev) => ({ ...prev, enabled: checked }))
+                  updateSettings({ enabled: checked })
                 }
+                disabled={isSaving}
               />
             </div>
             <div className="space-y-2">
@@ -220,12 +248,11 @@ export const RecurringTasksModal = ({
               <Select
                 value={settings.dailyTaskCount.toString()}
                 onValueChange={(value) =>
-                  setSettings((prev) => ({
-                    ...prev,
+                  updateSettings({
                     dailyTaskCount: parseInt(value) || 1,
-                  }))
+                  })
                 }
-                disabled={!settings.enabled}
+                disabled={!settings.enabled || isSaving}
               >
                 <SelectTrigger id="daily-count" className="w-full">
                   <SelectValue placeholder="Select daily task count" />
@@ -251,7 +278,7 @@ export const RecurringTasksModal = ({
                       id={`day-${day}`}
                       checked={settings.daysOfWeek.includes(day)}
                       onCheckedChange={() => toggleDay(day)}
-                      disabled={!settings.enabled}
+                      disabled={!settings.enabled || isSaving}
                     />
                     <Label htmlFor={`day-${day}`}>{day}</Label>
                   </div>
@@ -259,7 +286,9 @@ export const RecurringTasksModal = ({
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
             </DialogFooter>
           </form>
         )}

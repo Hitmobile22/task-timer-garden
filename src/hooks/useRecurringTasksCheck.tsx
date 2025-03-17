@@ -6,6 +6,7 @@ import { areDatesOnSameDay, getCurrentDayName } from '@/lib/utils';
 
 export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
   const queryClient = useQueryClient();
 
   // Query for active recurring task settings
@@ -44,6 +45,12 @@ export const useRecurringTasksCheck = () => {
         const activeSettings = [];
         
         for (const taskListId of uniqueTaskListIds) {
+          // Skip if taskListId is null or undefined
+          if (taskListId === null || taskListId === undefined) {
+            console.log('Skipping null or undefined task list ID');
+            continue;
+          }
+          
           // Only fetch enabled settings
           const { data, error } = await supabase
             .from('recurring_task_settings')
@@ -75,7 +82,15 @@ export const useRecurringTasksCheck = () => {
 
   useEffect(() => {
     const checkRecurringTasks = async () => {
+      // Prevent concurrent checks
+      if (isChecking) {
+        console.log('Task check already in progress, skipping');
+        return;
+      }
+      
       try {
+        setIsChecking(true);
+        
         // Early morning check (before 7am don't generate tasks)
         const currentHour = new Date().getHours();
         if (currentHour < 7) {
@@ -97,7 +112,7 @@ export const useRecurringTasksCheck = () => {
             console.log('Checking recurring tasks...');
             console.log('Active recurring task settings:', settings.length);
             
-            // Provide detailed settings info to the edge function to help with debugging
+            // Send only the critical information to the edge function
             const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
               body: { 
                 forceCheck: true,
@@ -132,6 +147,8 @@ export const useRecurringTasksCheck = () => {
         }
       } catch (error) {
         console.error('Error in checkRecurringTasks:', error);
+      } finally {
+        setIsChecking(false);
       }
     };
 
@@ -139,7 +156,7 @@ export const useRecurringTasksCheck = () => {
     // and we haven't checked in the last hour
     if ((!lastChecked || 
         (new Date().getTime() - lastChecked.getTime() > 60 * 60 * 1000)) && 
-        settings && settings.length > 0) {
+        settings && settings.length > 0 && !isChecking) {
       checkRecurringTasks();
     }
 
@@ -148,7 +165,7 @@ export const useRecurringTasksCheck = () => {
       try {
         const currentHour = new Date().getHours();
         // Only check during daytime hours (7am-10pm)
-        if (currentHour >= 7 && currentHour < 22) {
+        if (currentHour >= 7 && currentHour < 22 && !isChecking) {
           checkRecurringTasks();
         }
       } catch (error) {
@@ -157,5 +174,5 @@ export const useRecurringTasksCheck = () => {
     }, 3 * 60 * 60 * 1000); // Check every 3 hours
 
     return () => clearInterval(interval);
-  }, [settings, lastChecked, queryClient]);
+  }, [settings, lastChecked, queryClient, isChecking]);
 };

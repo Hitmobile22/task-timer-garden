@@ -104,72 +104,91 @@ Deno.serve(async (req) => {
       );
     }
     
-    // Get unique task lists with recurring settings that include the current day of week
-    const { data: uniqueTaskLists, error: uniqueListsError } = await supabaseClient
-      .from('recurring_task_settings')
-      .select('task_list_id')
-      .eq('enabled', true)
-      .not('task_list_id', 'is', null) // Avoid null task_list_id values
-      .contains('days_of_week', [dayOfWeek]);
+    // If explicit settings are provided in the request body, use those instead of querying
+    let taskListSettings = [];
     
-    if (uniqueListsError) {
-      console.error('Error fetching unique task lists:', uniqueListsError);
-      throw uniqueListsError;
+    if (requestBody.settings && Array.isArray(requestBody.settings) && requestBody.settings.length > 0) {
+      console.log('Using settings provided in request body');
+      // Filter out settings that don't include today's day of week or aren't enabled
+      taskListSettings = requestBody.settings.filter(s => 
+        s && s.enabled && Array.isArray(s.days_of_week) && s.days_of_week.includes(dayOfWeek)
+      );
+    } else {
+      // Get unique task lists with recurring settings that include the current day of week
+      const { data: uniqueTaskLists, error: uniqueListsError } = await supabaseClient
+        .from('recurring_task_settings')
+        .select('task_list_id')
+        .eq('enabled', true)
+        .not('task_list_id', 'is', null) // Avoid null task_list_id values
+        .contains('days_of_week', [dayOfWeek]);
+      
+      if (uniqueListsError) {
+        console.error('Error fetching unique task lists:', uniqueListsError);
+        throw uniqueListsError;
+      }
+      
+      if (!uniqueTaskLists || uniqueTaskLists.length === 0) {
+        console.log('No active recurring task settings for today');
+        return new Response(JSON.stringify({ success: true, message: 'No active settings for today' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+      
+      // Get unique task list IDs
+      const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))].filter(id => id !== null);
+      console.log(`Found ${uniqueTaskListIds.length} unique task lists with active settings for ${dayOfWeek}`);
+      
+      // For each unique task list, get the most recent active setting
+      for (const taskListId of uniqueTaskListIds) {
+        // Get the most recent active setting for this task list
+        const { data: settings, error: settingsError } = await supabaseClient
+          .from('recurring_task_settings')
+          .select('*')
+          .eq('enabled', true)
+          .eq('task_list_id', taskListId)
+          .contains('days_of_week', [dayOfWeek])
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (settingsError) {
+          console.error(`Error getting settings for list ${taskListId}:`, settingsError);
+          continue;
+        }
+        
+        if (settings && settings.length > 0 && settings[0].enabled) {
+          taskListSettings.push(settings[0]);
+        }
+      }
     }
     
-    if (!uniqueTaskLists || uniqueTaskLists.length === 0) {
-      console.log('No active recurring task settings for today');
+    if (taskListSettings.length === 0) {
+      console.log('No active recurring task settings found for today');
       return new Response(JSON.stringify({ success: true, message: 'No active settings for today' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       });
     }
     
-    // Get unique task list IDs
-    const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))].filter(id => id !== null);
-    console.log(`Found ${uniqueTaskListIds.length} unique task lists with active settings for ${dayOfWeek}`);
-    
-    // For each unique task list, get the most recent active setting
+    // Process each task list with a valid setting
     const generatedTasks = [];
     const processedTaskLists = new Set();
     
-    for (const taskListId of uniqueTaskListIds) {
+    for (const setting of taskListSettings) {
       // Skip if we've already processed this task list (prevent duplicates)
-      if (processedTaskLists.has(taskListId)) {
-        console.log(`Task list ${taskListId} already processed, skipping duplicate settings`);
+      if (processedTaskLists.has(setting.task_list_id)) {
+        console.log(`Task list ${setting.task_list_id} already processed, skipping duplicate settings`);
         continue;
       }
       
-      processedTaskLists.add(taskListId);
-      
-      // Get the most recent active setting for this task list
-      const { data: settings, error: settingsError } = await supabaseClient
-        .from('recurring_task_settings')
-        .select('*')
-        .eq('enabled', true)
-        .eq('task_list_id', taskListId)
-        .contains('days_of_week', [dayOfWeek])
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (settingsError) {
-        console.error(`Error getting settings for list ${taskListId}:`, settingsError);
+      // Double-check this setting is valid and enabled
+      if (!setting.enabled || !setting.task_list_id || !setting.days_of_week.includes(dayOfWeek)) {
+        console.log(`Skipping invalid or disabled setting for task list ${setting.task_list_id}`);
         continue;
       }
       
-      if (!settings || settings.length === 0) {
-        console.log(`No active settings for task list ${taskListId}`);
-        continue;
-      }
-      
-      const setting = settings[0];
+      processedTaskLists.add(setting.task_list_id);
       console.log(`Processing task list ${setting.task_list_id} with setting ID ${setting.id}`);
-      
-      // Skip if this setting is not enabled - double check to be sure
-      if (!setting.enabled) {
-        console.log(`Task list ${setting.task_list_id} is not enabled, skipping`);
-        continue;
-      }
       
       const result = await processTaskList(supabaseClient, setting, today, dayOfWeek);
       if (result.tasksGenerated && result.tasksGenerated.length > 0) {
@@ -221,6 +240,8 @@ async function processTaskList(supabase, setting, today, dayOfWeek) {
       console.error(`Error getting task list ${setting.task_list_id}:`, taskListError);
       return { tasksGenerated: [] };
     }
+    
+    console.log(`Found task list: ${taskListData.name} (ID: ${setting.task_list_id})`);
     
     // Define the midnight start of today for date filtering
     const startOfToday = new Date(today);
@@ -300,6 +321,7 @@ async function processTaskList(supabase, setting, today, dayOfWeek) {
         continue;
       }
       
+      console.log(`Successfully created task: ${taskData["Task Name"]} for list ${taskListData.name}`);
       generatedTasks.push(taskData);
     }
     

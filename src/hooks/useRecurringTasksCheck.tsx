@@ -8,11 +8,17 @@ import { toast } from 'sonner';
 // Global check state to prevent multiple instances from running checks simultaneously
 let isGlobalCheckInProgress = false;
 const lastGlobalCheck = new Map<number, Date>();
+// Global map to track the last check time for any task list to prevent multiple checks
+const lastFullCheck = {
+  timestamp: new Date(0),
+  inProgress: false
+};
 
 export const useRecurringTasksCheck = () => {
   const [isLocalChecking, setIsLocalChecking] = useState(false);
   const queryClient = useQueryClient();
   const processingRef = useRef<Set<number>>(new Set());
+  const mountedRef = useRef<boolean>(false);
 
   // Query for active recurring task settings
   const { data: settings } = useQuery({
@@ -131,14 +137,26 @@ export const useRecurringTasksCheck = () => {
   // The main checking function
   const checkRecurringTasks = useCallback(async (forceCheck = false) => {
     // Prevent concurrent checks globally across instances
-    if (isGlobalCheckInProgress) {
+    if (isGlobalCheckInProgress || lastFullCheck.inProgress) {
       console.log('Global task check already in progress, skipping');
+      return;
+    }
+    
+    // Implement rate limiting for the global check (prevent checking more than once every 15 minutes)
+    const now = new Date();
+    const timeSinceLastCheck = now.getTime() - lastFullCheck.timestamp.getTime();
+    const rateLimitMs = 15 * 60 * 1000; // 15 minutes
+    
+    if (!forceCheck && timeSinceLastCheck < rateLimitMs) {
+      console.log(`Rate limiting global check - last checked ${Math.round(timeSinceLastCheck / 1000 / 60)} minutes ago`);
       return;
     }
     
     try {
       // Set the global and local check flags
       isGlobalCheckInProgress = true;
+      lastFullCheck.inProgress = true;
+      lastFullCheck.timestamp = now;
       setIsLocalChecking(true);
       
       // Early morning check (before 7am don't generate tasks)
@@ -147,10 +165,6 @@ export const useRecurringTasksCheck = () => {
         console.log('Before 7am, skipping task generation check');
         return;
       }
-      
-      // Rate limiting per task list to prevent hammering the edge function
-      const now = new Date();
-      const rateLimitMs = 10 * 60 * 1000; // 10 minutes
       
       if (settings && settings.length > 0) {
         try {
@@ -248,12 +262,14 @@ export const useRecurringTasksCheck = () => {
     } finally {
       setIsLocalChecking(false);
       isGlobalCheckInProgress = false;
+      lastFullCheck.inProgress = false;
     }
   }, [settings, queryClient, checkGenerationLog]);
 
   useEffect(() => {
-    // Run an initial check when settings are first loaded
-    if (settings && settings.length > 0 && !isLocalChecking && !isGlobalCheckInProgress) {
+    // Run an initial check when settings are first loaded, but only once per component instance
+    if (settings && settings.length > 0 && !isLocalChecking && !isGlobalCheckInProgress && !mountedRef.current) {
+      mountedRef.current = true;
       checkRecurringTasks();
     }
   }, [settings, checkRecurringTasks, isLocalChecking]);
@@ -263,7 +279,7 @@ export const useRecurringTasksCheck = () => {
     const interval = setInterval(() => {
       try {
         const currentHour = new Date().getHours();
-        // Only check during daytime hours (7am-10pm)
+        // Only check during daytime hours (7am-10pm) and if no check is already in progress
         if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !isGlobalCheckInProgress) {
           checkRecurringTasks();
         }

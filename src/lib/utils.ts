@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -116,4 +115,65 @@ export function getTomorrowISOString(): string {
  */
 export function formatDateForDB(date: Date): string {
   return date.toISOString();
+}
+
+/**
+ * Creates a debounced function that only invokes the provided function
+ * after the specified wait time has elapsed since the last time it was invoked
+ */
+export function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: number | null = null;
+  
+  return function(...args: Parameters<T>): void {
+    const later = () => {
+      timeout = null;
+      func(...args);
+    };
+    
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    
+    timeout = window.setTimeout(later, wait);
+  };
+}
+
+/**
+ * Creates a throttled function that only invokes the provided function
+ * at most once per every wait milliseconds
+ */
+export function throttle<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: number | null = null;
+  let lastArgs: Parameters<T> | null = null;
+  let lastCallTime = 0;
+  
+  return function(...args: Parameters<T>): void {
+    const now = Date.now();
+    const timeSinceLastCall = now - lastCallTime;
+    
+    lastArgs = args;
+    
+    if (timeSinceLastCall >= wait) {
+      // If enough time has passed, call the function immediately
+      lastCallTime = now;
+      func(...args);
+    } else if (timeout === null) {
+      // Otherwise, schedule a call for later
+      timeout = window.setTimeout(() => {
+        lastCallTime = Date.now();
+        timeout = null;
+        
+        if (lastArgs) {
+          func(...lastArgs);
+          lastArgs = null;
+        }
+      }, wait - timeSinceLastCall);
+    }
+  };
 }

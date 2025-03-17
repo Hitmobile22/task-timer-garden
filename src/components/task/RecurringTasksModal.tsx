@@ -81,6 +81,7 @@ export const RecurringTasksModal = ({
       
       setIsLoading(true);
       try {
+        console.log(`Loading recurring task settings for list ID ${listId}`);
         // Always get the most recent setting for this task list
         const { data: allSettings, error } = await supabase
           .from('recurring_task_settings')
@@ -89,7 +90,10 @@ export const RecurringTasksModal = ({
           .order('created_at', { ascending: false })
           .limit(1);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error loading recurring task settings:', error);
+          throw error;
+        }
 
         const mostRecentSetting = allSettings && allSettings.length > 0 ? allSettings[0] : null;
 
@@ -126,6 +130,8 @@ export const RecurringTasksModal = ({
     e.preventDefault();
     
     try {
+      console.log(`Saving recurring task settings for list ID ${listId}:`, settings);
+      
       // Always create a new settings record for this list
       // This ensures we have a clear history and the most recent settings are always used
       const { data, error } = await supabase
@@ -138,10 +144,14 @@ export const RecurringTasksModal = ({
         })
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error saving recurring task settings:', error);
+        throw error;
+      }
 
       if (data && data.length > 0) {
         setCurrentSettingId(data[0].id);
+        console.log('Successfully saved new settings record:', data[0]);
       }
 
       onSubmit(settings);
@@ -151,10 +161,18 @@ export const RecurringTasksModal = ({
       // Only check for new tasks if enabled
       if (settings.enabled) {
         try {
+          console.log('Running check for recurring tasks after saving settings');
           const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
-            body: { forceCheck: true }
+            body: { 
+              forceCheck: true,
+              specificListId: listId
+            }
           });
-          if (checkError) throw checkError;
+          
+          if (checkError) {
+            console.error('Error checking recurring tasks:', checkError);
+            throw checkError;
+          }
         } catch (checkError) {
           console.error('Error checking recurring tasks:', checkError);
         }

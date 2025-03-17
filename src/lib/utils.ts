@@ -35,3 +35,17 @@ export async function fetchSubtasksFromAI(taskName: string): Promise<string[]> {
     return [];
   }
 }
+
+// New utility function to help with task list operations
+export function areDatesOnSameDay(date1: Date, date2: Date): boolean {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+}
+
+// Function to get the current day name
+export function getCurrentDayName(): string {
+  return new Date().toLocaleDateString('en-US', { weekday: 'long' });
+}

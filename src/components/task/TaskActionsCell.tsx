@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -51,13 +52,15 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
       });
       onMoveTask(task.id, tempListId);
       onEditSave(task.id);
+      
+      // Sync with Google Calendar after task is moved
+      syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after moving task:", err));
     }
-    // Sync with Google Calendar after task is moved
-    syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after moving task:", err));
   };
   
   const handleDelete = (taskId: number) => {
     onDeleteTask(taskId);
+    
     // Sync with Google Calendar after task is deleted
     syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after deleting task:", err));
   };

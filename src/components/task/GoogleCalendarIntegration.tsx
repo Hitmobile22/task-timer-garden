@@ -25,8 +25,7 @@ export const syncGoogleCalendar = async (): Promise<boolean> => {
     
     // If no refresh token, calendar is not connected, so no sync needed
     if (!settings?.refresh_token) {
-      console.error("No refresh token found, skipping calendar sync");
-      toast.error("Google Calendar is not connected. Please connect it first.");
+      console.log("No refresh token found, skipping calendar sync");
       return false;
     }
     
@@ -40,6 +39,7 @@ export const syncGoogleCalendar = async (): Promise<boolean> => {
     }
     
     console.log("Calendar sync result:", data);
+    toast.success("Successfully synced tasks with Google Calendar");
     return true;
   } catch (err) {
     console.error("Calendar sync error:", err);
@@ -186,7 +186,12 @@ export const GoogleCalendarIntegration: React.FC<GoogleCalendarIntegrationProps>
     
     if (onManualSync) {
       // Use the parent component's sync handler if provided
-      await onManualSync();
+      setIsSyncing(true);
+      try {
+        await onManualSync();
+      } finally {
+        setIsSyncing(false);
+      }
     } else {
       // Otherwise use our internal sync logic
       try {

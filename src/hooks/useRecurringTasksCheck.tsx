@@ -15,6 +15,7 @@ export const useRecurringTasksCheck = () => {
       const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
       
       // Get only the most recent enabled setting for each task list that includes today's day of week
+      // Important: Don't process task_list_id = null (this was causing errors)
       const { data: uniqueTaskLists, error: uniqueListsError } = await supabase
         .from('recurring_task_settings')
         .select('task_list_id')
@@ -22,20 +23,26 @@ export const useRecurringTasksCheck = () => {
         .not('task_list_id', 'is', null) // Avoid null task_list_id values
         .contains('days_of_week', [dayOfWeek]);
       
-      if (uniqueListsError) throw uniqueListsError;
+      if (uniqueListsError) {
+        console.error('Error fetching unique task lists:', uniqueListsError);
+        throw uniqueListsError;
+      }
       
       // If no task lists have recurring settings enabled for today, return empty array
       if (!uniqueTaskLists || uniqueTaskLists.length === 0) {
+        console.log('No recurring task settings for today:', dayOfWeek);
         return [];
       }
       
       // Get unique task list IDs
       const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))];
+      console.log('Found recurring settings for task lists:', uniqueTaskListIds);
       
       // For each unique task list, get the most recent active setting
       const activeSettings = [];
       
       for (const taskListId of uniqueTaskListIds) {
+        // Only fetch enabled settings
         const { data, error } = await supabase
           .from('recurring_task_settings')
           .select('*')
@@ -45,8 +52,13 @@ export const useRecurringTasksCheck = () => {
           .order('created_at', { ascending: false })
           .limit(1);
         
-        if (error) throw error;
+        if (error) {
+          console.error(`Error fetching settings for task list ${taskListId}:`, error);
+          throw error;
+        }
+        
         if (data && data.length > 0) {
+          console.log(`Active recurring setting for task list ${taskListId}:`, data[0]);
           activeSettings.push(data[0]);
         }
       }
@@ -78,11 +90,24 @@ export const useRecurringTasksCheck = () => {
           console.log('Checking recurring tasks...');
           console.log('Active recurring task settings:', settings.length);
           
+          // Provide detailed settings info to the edge function to help with debugging
           const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
-            body: { forceCheck: true }
+            body: { 
+              forceCheck: true,
+              settings: settings.map(s => ({
+                id: s.id,
+                task_list_id: s.task_list_id,
+                enabled: s.enabled,
+                daily_task_count: s.daily_task_count,
+                days_of_week: s.days_of_week
+              }))
+            }
           });
           
-          if (error) throw error;
+          if (error) {
+            console.error('Error response from recurring tasks check:', error);
+            throw error;
+          }
           
           console.log('Recurring tasks check result:', data);
           

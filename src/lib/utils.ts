@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -36,7 +35,9 @@ export async function fetchSubtasksFromAI(taskName: string): Promise<string[]> {
   }
 }
 
-// New utility function to help with task list operations
+/**
+ * Checks if two dates are on the same day
+ */
 export function areDatesOnSameDay(date1: Date, date2: Date): boolean {
   return (
     date1.getFullYear() === date2.getFullYear() &&
@@ -45,7 +46,9 @@ export function areDatesOnSameDay(date1: Date, date2: Date): boolean {
   );
 }
 
-// Function to get the current day name
+/**
+ * Gets the current day name (e.g., 'Monday', 'Tuesday', etc.)
+ */
 export function getCurrentDayName(): string {
   return new Date().toLocaleDateString('en-US', { weekday: 'long' });
 }

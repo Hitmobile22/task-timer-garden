@@ -1,13 +1,14 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { areDatesOnSameDay, getCurrentDayName } from '@/lib/utils';
+import { getCurrentDayName } from '@/lib/utils';
 
 export const useRecurringTasksCheck = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const queryClient = useQueryClient();
+  const processingRef = useRef<Set<number>>(new Set());
 
   // Query for active recurring task settings
   const { data: settings } = useQuery({
@@ -38,7 +39,8 @@ export const useRecurringTasksCheck = () => {
         }
         
         // Get unique task list IDs
-        const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))].filter(id => id !== null);
+        const uniqueTaskListIds = [...new Set(uniqueTaskLists.map(item => item.task_list_id))]
+          .filter(id => id !== null && id !== undefined);
         console.log('Found recurring settings for task lists:', uniqueTaskListIds);
         
         // For each unique task list, get the most recent active setting
@@ -112,11 +114,26 @@ export const useRecurringTasksCheck = () => {
             console.log('Checking recurring tasks...');
             console.log('Active recurring task settings:', settings.length);
             
+            // Create a filtered list excluding any task lists we're already processing
+            const filteredSettings = settings.filter(s => 
+              !processingRef.current.has(s.task_list_id)
+            );
+            
+            if (filteredSettings.length === 0) {
+              console.log('All task lists are currently being processed, skipping check');
+              return;
+            }
+            
+            // Mark task lists as being processed
+            filteredSettings.forEach(s => {
+              processingRef.current.add(s.task_list_id);
+            });
+            
             // Send only the critical information to the edge function
             const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
               body: { 
                 forceCheck: true,
-                settings: settings.map(s => ({
+                settings: filteredSettings.map(s => ({
                   id: s.id,
                   task_list_id: s.task_list_id,
                   enabled: s.enabled,
@@ -124,6 +141,11 @@ export const useRecurringTasksCheck = () => {
                   days_of_week: s.days_of_week
                 }))
               }
+            });
+            
+            // Clear the processing flags
+            filteredSettings.forEach(s => {
+              processingRef.current.delete(s.task_list_id);
             });
             
             if (error) {
@@ -141,6 +163,10 @@ export const useRecurringTasksCheck = () => {
             queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
           } catch (error) {
             console.error('Error checking recurring tasks:', error);
+            // Clear processing flags in case of error
+            settings.forEach(s => {
+              processingRef.current.delete(s.task_list_id);
+            });
           }
         } else {
           console.log('No active recurring task settings found for today, skipping check');

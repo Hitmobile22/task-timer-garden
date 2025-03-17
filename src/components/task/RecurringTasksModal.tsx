@@ -22,6 +22,7 @@ import {
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
+import { getCurrentDayName } from '@/lib/utils';
 
 interface RecurringTasksModalProps {
   open: boolean;
@@ -178,17 +179,25 @@ export const RecurringTasksModal = ({
       // Only check for new tasks if enabled and settings changed
       if (settings.enabled) {
         try {
-          console.log('Running check for recurring tasks after saving settings');
-          const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
-            body: { 
-              forceCheck: true,
-              specificListId: listId
-            }
-          });
+          // Get the current day
+          const currentDay = getCurrentDayName();
           
-          if (checkError) {
-            console.error('Error checking recurring tasks:', checkError);
-            throw checkError;
+          // Only check if the current day is in the selected days
+          if (settings.daysOfWeek.includes(currentDay)) {
+            console.log('Running check for recurring tasks after saving settings');
+            const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
+              body: { 
+                forceCheck: true,
+                specificListId: listId
+              }
+            });
+            
+            if (checkError) {
+              console.error('Error checking recurring tasks:', checkError);
+              throw checkError;
+            }
+          } else {
+            console.log(`Current day (${currentDay}) is not in selected days, skipping task check`);
           }
         } catch (checkError) {
           console.error('Error checking recurring tasks:', checkError);

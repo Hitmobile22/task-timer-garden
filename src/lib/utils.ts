@@ -95,3 +95,25 @@ export function formatTimeRange(startDate: Date, endDate: Date): string {
     hour12: true 
   })}`;
 }
+
+/**
+ * Gets an ISO date string for the current day at midnight
+ * This is useful for consistent date comparisons in database queries
+ */
+export function getTodayISOString(): string {
+  return startOfDay(new Date()).toISOString();
+}
+
+/**
+ * Gets an ISO date string for tomorrow at midnight
+ */
+export function getTomorrowISOString(): string {
+  return startOfTomorrow().toISOString();
+}
+
+/**
+ * Formats a date in ISO format for consistent database storage
+ */
+export function formatDateForDB(date: Date): string {
+  return date.toISOString();
+}

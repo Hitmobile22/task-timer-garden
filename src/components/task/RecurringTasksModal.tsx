@@ -22,7 +22,7 @@ import {
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
-import { getCurrentDayName } from '@/lib/utils';
+import { getCurrentDayName, getTodayISOString, getTomorrowISOString } from '@/lib/utils';
 
 interface RecurringTasksModalProps {
   open: boolean;
@@ -95,6 +95,36 @@ export const RecurringTasksModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [currentSettingId, setCurrentSettingId] = useState<number | null>(null);
   const [settingsChanged, setSettingsChanged] = useState(false);
+  const [isCheckingTasks, setIsCheckingTasks] = useState(false);
+
+  // Check if a generation log exists for today
+  const checkTodayLog = async (settingId: number) => {
+    if (!settingId) return null;
+    
+    try {
+      const today = getTodayISOString();
+      const tomorrow = getTomorrowISOString();
+      
+      const { data, error } = await supabase
+        .from('recurring_task_generation_logs')
+        .select('*')
+        .eq('task_list_id', listId)
+        .eq('setting_id', settingId)
+        .gte('generation_date', today)
+        .lt('generation_date', tomorrow)
+        .maybeSingle();
+        
+      if (error) {
+        console.error(`Error checking generation log for list ${listId}:`, error);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error in checkTodayLog:', error);
+      return null;
+    }
+  };
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -196,6 +226,7 @@ export const RecurringTasksModal = ({
       // Only check for new tasks if enabled and settings changed and it's the selected day
       if (settings.enabled) {
         try {
+          setIsCheckingTasks(true);
           // Get the current day
           const currentDay = getCurrentDayName();
           
@@ -203,17 +234,26 @@ export const RecurringTasksModal = ({
           if (settings.daysOfWeek.includes(currentDay)) {
             console.log('Running check for recurring tasks after saving settings');
             
-            // Always force check for the specific list after saving settings
-            const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
-              body: { 
-                forceCheck: true,
-                specificListId: listId
-              }
-            });
+            // Check if there's already a generation log for today
+            const newSettingId = data?.[0]?.id || currentSettingId;
+            const existingLog = newSettingId ? await checkTodayLog(newSettingId) : null;
             
-            if (checkError) {
-              console.error('Error checking recurring tasks:', checkError);
-              throw checkError;
+            // If there's already a log, and tasks generated >= daily count, no need to check
+            if (existingLog && existingLog.tasks_generated >= settings.dailyTaskCount) {
+              console.log(`Already generated ${existingLog.tasks_generated} tasks today (target: ${settings.dailyTaskCount}), skipping check`);
+            } else {
+              // Always force check for the specific list after saving settings
+              const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
+                body: { 
+                  forceCheck: true,
+                  specificListId: listId
+                }
+              });
+              
+              if (checkError) {
+                console.error('Error checking recurring tasks:', checkError);
+                throw checkError;
+              }
             }
           } else {
             console.log(`Current day (${currentDay}) is not in selected days, skipping task check`);
@@ -221,6 +261,8 @@ export const RecurringTasksModal = ({
         } catch (checkError) {
           console.error('Error checking recurring tasks:', checkError);
           toast.error('Failed to check for recurring tasks');
+        } finally {
+          setIsCheckingTasks(false);
         }
       }
       
@@ -300,8 +342,12 @@ export const RecurringTasksModal = ({
               />
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? 'Saving...' : 'Save Changes'}
+              <Button type="submit" disabled={isSaving || isCheckingTasks}>
+                {isSaving 
+                  ? 'Saving...' 
+                  : isCheckingTasks 
+                    ? 'Creating Tasks...' 
+                    : 'Save Changes'}
               </Button>
             </DialogFooter>
           </form>

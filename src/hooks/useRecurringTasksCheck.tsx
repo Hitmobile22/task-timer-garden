@@ -1,13 +1,16 @@
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCurrentDayName, areDatesOnSameDay } from '@/lib/utils';
+import { getCurrentDayName, getTodayISOString, getTomorrowISOString } from '@/lib/utils';
 import { toast } from 'sonner';
 
+// Global check state to prevent multiple instances from running checks simultaneously
+let isGlobalCheckInProgress = false;
+const lastGlobalCheck = new Map<number, Date>();
+
 export const useRecurringTasksCheck = () => {
-  const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
+  const [isLocalChecking, setIsLocalChecking] = useState(false);
   const queryClient = useQueryClient();
   const processingRef = useRef<Set<number>>(new Set());
 
@@ -20,7 +23,7 @@ export const useRecurringTasksCheck = () => {
         const dayOfWeek = getCurrentDayName();
         console.log(`Fetching recurring task settings for ${dayOfWeek}`);
         
-        // Get only the most recent enabled setting for each task list that includes today's day of week
+        // Get unique task list IDs with enabled settings for today
         const { data: uniqueTaskLists, error: uniqueListsError } = await supabase
           .from('recurring_task_settings')
           .select('task_list_id, created_at')
@@ -62,7 +65,6 @@ export const useRecurringTasksCheck = () => {
         for (const taskListId of uniqueTaskListIds) {
           // Skip if taskListId is null or undefined
           if (taskListId === null || taskListId === undefined) {
-            console.log('Skipping null or undefined task list ID');
             continue;
           }
           
@@ -93,25 +95,25 @@ export const useRecurringTasksCheck = () => {
         return [];
       }
     },
-    refetchInterval: 15 * 60 * 1000, // Refetch every 15 minutes
+    refetchInterval: 30 * 60 * 1000, // Refetch every 30 minutes
     refetchOnWindowFocus: false,
+    staleTime: 15 * 60 * 1000, // Data is fresh for 15 minutes
   });
 
   // Check if a generation log exists for today for a specific task list
-  const checkGenerationLog = async (taskListId: number, settingId: number) => {
+  const checkGenerationLog = useCallback(async (taskListId: number, settingId: number) => {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      // Use the utility functions for consistent date handling
+      const today = getTodayISOString();
+      const tomorrow = getTomorrowISOString();
       
       const { data, error } = await supabase
         .from('recurring_task_generation_logs')
         .select('*')
         .eq('task_list_id', taskListId)
         .eq('setting_id', settingId)
-        .gte('generation_date', today.toISOString())
-        .lt('generation_date', tomorrow.toISOString())
+        .gte('generation_date', today)
+        .lt('generation_date', tomorrow)
         .maybeSingle();
         
       if (error) {
@@ -124,138 +126,157 @@ export const useRecurringTasksCheck = () => {
       console.error('Error in checkGenerationLog:', error);
       return null;
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    const checkRecurringTasks = async () => {
-      // Prevent concurrent checks
-      if (isChecking) {
-        console.log('Task check already in progress, skipping');
+  // The main checking function
+  const checkRecurringTasks = useCallback(async (forceCheck = false) => {
+    // Prevent concurrent checks globally across instances
+    if (isGlobalCheckInProgress) {
+      console.log('Global task check already in progress, skipping');
+      return;
+    }
+    
+    try {
+      // Set the global and local check flags
+      isGlobalCheckInProgress = true;
+      setIsLocalChecking(true);
+      
+      // Early morning check (before 7am don't generate tasks)
+      const currentHour = new Date().getHours();
+      if (currentHour < 7 && !forceCheck) {
+        console.log('Before 7am, skipping task generation check');
         return;
       }
       
-      try {
-        setIsChecking(true);
-        
-        // Early morning check (before 7am don't generate tasks)
-        const currentHour = new Date().getHours();
-        if (currentHour < 7) {
-          console.log('Before 7am, skipping task generation check');
-          return;
-        }
-        
-        // Prevent checking too frequently - once per hour is enough
-        if (lastChecked) {
-          const timeSinceLastCheck = new Date().getTime() - lastChecked.getTime();
-          if (timeSinceLastCheck < 60 * 60 * 1000) { // less than 1 hour
-            console.log('Tasks checked recently, skipping check');
+      // Rate limiting per task list to prevent hammering the edge function
+      const now = new Date();
+      const rateLimitMs = 10 * 60 * 1000; // 10 minutes
+      
+      if (settings && settings.length > 0) {
+        try {
+          console.log('Checking recurring tasks...');
+          console.log('Active recurring task settings:', settings.length);
+          
+          // Create a filtered list excluding any task lists we're already processing
+          // and task lists that already have generation logs for today
+          const filteredSettings = [];
+          
+          for (const setting of settings) {
+            if (!setting.task_list_id) {
+              continue;
+            }
+            
+            // Skip if we're already processing this task list
+            if (processingRef.current.has(setting.task_list_id)) {
+              console.log(`Already processing list ${setting.task_list_id}, skipping`);
+              continue;
+            }
+            
+            // Skip if we're rate-limited for this task list
+            const lastCheck = lastGlobalCheck.get(setting.task_list_id);
+            if (!forceCheck && lastCheck && (now.getTime() - lastCheck.getTime()) < rateLimitMs) {
+              console.log(`Rate limiting check for list ${setting.task_list_id}, last checked ${Math.round((now.getTime() - lastCheck.getTime()) / 1000 / 60)} minutes ago`);
+              continue;
+            }
+            
+            // Check if we already have a generation log for today
+            const generationLog = await checkGenerationLog(setting.task_list_id, setting.id);
+            
+            if (generationLog && !forceCheck) {
+              console.log(`Already generated ${generationLog.tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
+              continue;
+            }
+            
+            filteredSettings.push(setting);
+            processingRef.current.add(setting.task_list_id);
+            lastGlobalCheck.set(setting.task_list_id, now);
+          }
+          
+          if (filteredSettings.length === 0) {
+            console.log('No task lists need processing, skipping check');
             return;
           }
-        }
-
-        if (settings && settings.length > 0) {
-          try {
-            console.log('Checking recurring tasks...');
-            console.log('Active recurring task settings:', settings.length);
-            
-            // Create a filtered list excluding any task lists we're already processing
-            // and task lists that already have generation logs for today
-            const filteredSettings = [];
-            
-            for (const setting of settings) {
-              if (!setting.task_list_id || processingRef.current.has(setting.task_list_id)) {
-                continue;
-              }
-              
-              // Check if we already have a generation log for today
-              const generationLog = await checkGenerationLog(setting.task_list_id, setting.id);
-              
-              if (generationLog) {
-                console.log(`Already generated ${generationLog.tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
-                continue;
-              }
-              
-              filteredSettings.push(setting);
-              processingRef.current.add(setting.task_list_id);
+          
+          // Send only the critical information to the edge function
+          const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
+            body: { 
+              forceCheck: forceCheck,
+              settings: filteredSettings.map(s => ({
+                id: s.id,
+                task_list_id: s.task_list_id,
+                enabled: s.enabled,
+                daily_task_count: s.daily_task_count,
+                days_of_week: s.days_of_week
+              }))
             }
-            
-            if (filteredSettings.length === 0) {
-              console.log('No task lists need processing, skipping check');
-              return;
-            }
-            
-            // Send only the critical information to the edge function
-            const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
-              body: { 
-                forceCheck: false,
-                settings: filteredSettings.map(s => ({
-                  id: s.id,
-                  task_list_id: s.task_list_id,
-                  enabled: s.enabled,
-                  daily_task_count: s.daily_task_count,
-                  days_of_week: s.days_of_week
-                }))
-              }
-            });
-            
-            // Clear the processing flags
-            filteredSettings.forEach(s => {
+          });
+          
+          // Clear the processing flags
+          filteredSettings.forEach(s => {
+            if (s.task_list_id) {
               processingRef.current.delete(s.task_list_id);
-            });
-            
-            if (error) {
-              console.error('Error response from recurring tasks check:', error);
-              throw error;
             }
-            
-            console.log('Recurring tasks check result:', data);
-            
-            // Update last checked time
-            setLastChecked(new Date());
-            
-            // Invalidate tasks query to refresh the task list
+          });
+          
+          if (error) {
+            console.error('Error response from recurring tasks check:', error);
+            throw error;
+          }
+          
+          console.log('Recurring tasks check result:', data);
+          
+          // Invalidate tasks query to refresh the task list if new tasks were created
+          const tasksCreated = data.results.some(result => result.status === 'created');
+          if (tasksCreated) {
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
             queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-          } catch (error) {
-            console.error('Error checking recurring tasks:', error);
-            // Clear processing flags in case of error
-            settings.forEach(s => {
-              if (s.task_list_id) {
-                processingRef.current.delete(s.task_list_id);
-              }
-            });
           }
-        } else {
-          console.log('No active recurring task settings found for today, skipping check');
+        } catch (error) {
+          console.error('Error checking recurring tasks:', error);
+          // Clear processing flags in case of error
+          settings.forEach(s => {
+            if (s.task_list_id) {
+              processingRef.current.delete(s.task_list_id);
+            }
+          });
         }
-      } catch (error) {
-        console.error('Error in checkRecurringTasks:', error);
-      } finally {
-        setIsChecking(false);
+      } else {
+        console.log('No active recurring task settings found for today, skipping check');
       }
-    };
+    } catch (error) {
+      console.error('Error in checkRecurringTasks:', error);
+    } finally {
+      setIsLocalChecking(false);
+      isGlobalCheckInProgress = false;
+    }
+  }, [settings, queryClient, checkGenerationLog]);
 
-    // Check on mount if there are any enabled recurring task settings
-    // and we haven't checked in the last hour
-    if ((!lastChecked || 
-        (new Date().getTime() - lastChecked.getTime() > 60 * 60 * 1000)) && 
-        settings && settings.length > 0 && !isChecking) {
+  useEffect(() => {
+    // Run an initial check when settings are first loaded
+    if (settings && settings.length > 0 && !isLocalChecking && !isGlobalCheckInProgress) {
       checkRecurringTasks();
     }
+  }, [settings, checkRecurringTasks, isLocalChecking]);
 
-    // Set up an interval to check periodically (every 3 hours instead of every hour)
+  useEffect(() => {
+    // Set up an interval to check once per hour during daytime hours (7am-10pm)
     const interval = setInterval(() => {
       try {
         const currentHour = new Date().getHours();
         // Only check during daytime hours (7am-10pm)
-        if (currentHour >= 7 && currentHour < 22 && !isChecking) {
+        if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !isGlobalCheckInProgress) {
           checkRecurringTasks();
         }
       } catch (error) {
         console.error('Error in interval check:', error);
       }
-    }, 3 * 60 * 60 * 1000); // Check every 3 hours
+    }, 60 * 60 * 1000); // Check every hour
 
     return () => clearInterval(interval);
-  }, [settings, lastChecked, queryClient, isChecking]);
+  }, [checkRecurringTasks, isLocalChecking]);
+
+  return {
+    checkRecurringTasks,
+    isChecking: isLocalChecking
+  };
 };

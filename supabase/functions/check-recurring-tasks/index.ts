@@ -1,9 +1,13 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+// Semaphore to prevent concurrent processing of the same task list
+const processingLists = new Set();
 
 interface RecurringTaskSetting {
   id: number;
@@ -63,33 +67,77 @@ Deno.serve(async (req) => {
     // Handle different request scenarios
     let settings: RecurringTaskSetting[] = [];
     let specificListId: number | null = null;
+    const forceCheck = !!body.forceCheck;
     
     if (body.specificListId) {
       specificListId = body.specificListId;
       console.log(`Processing specific list ID: ${specificListId}`);
       
-      // Get only the most recent enabled setting for the specific task list
-      // that includes today's day of week
-      const { data: specificSettings, error: specificError } = await supabaseClient
-        .from('recurring_task_settings')
-        .select('*')
-        .eq('enabled', true)
-        .eq('task_list_id', specificListId)
-        .contains('days_of_week', [dayOfWeek])
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (specificError) {
-        console.error('Error fetching specific task list settings:', specificError);
-        throw specificError;
+      // If this list is already being processed, skip to prevent duplicates
+      if (processingLists.has(specificListId)) {
+        console.log(`List ${specificListId} is already being processed, skipping`);
+        return new Response(JSON.stringify({ 
+          success: true, 
+          results: [{ 
+            task_list_id: specificListId, 
+            status: 'skipped', 
+            reason: 'concurrent_processing' 
+          }]
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
       }
       
-      if (specificSettings && specificSettings.length > 0) {
-        settings = specificSettings;
+      // Mark this list as being processed
+      processingLists.add(specificListId);
+      
+      try {
+        // Get only the most recent enabled setting for the specific task list
+        // that includes today's day of week
+        const { data: specificSettings, error: specificError } = await supabaseClient
+          .from('recurring_task_settings')
+          .select('*')
+          .eq('enabled', true)
+          .eq('task_list_id', specificListId)
+          .contains('days_of_week', [dayOfWeek])
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (specificError) {
+          console.error('Error fetching specific task list settings:', specificError);
+          throw specificError;
+        }
+        
+        if (specificSettings && specificSettings.length > 0) {
+          settings = specificSettings;
+        }
+      } finally {
+        // Ensure we remove the list from processing even if there's an error
+        setTimeout(() => {
+          processingLists.delete(specificListId);
+        }, 5000);
       }
     } else if (body.settings && Array.isArray(body.settings)) {
       // If settings are provided in the request, use them
       settings = body.settings;
+      
+      // Mark all lists as being processed
+      for (const setting of settings) {
+        if (setting.task_list_id && !processingLists.has(setting.task_list_id)) {
+          processingLists.add(setting.task_list_id);
+        }
+      }
+      
+      // Ensure we remove the lists from processing
+      setTimeout(() => {
+        for (const setting of settings) {
+          if (setting.task_list_id) {
+            processingLists.delete(setting.task_list_id);
+          }
+        }
+      }, 5000);
+      
       console.log(`Using provided settings: ${settings.length} items`);
     } else {
       // Otherwise fetch all enabled settings for today's day of week
@@ -121,13 +169,28 @@ Deno.serve(async (req) => {
         }
         
         settings = Array.from(latestSettingsByList.values());
+        
+        // Mark all lists as being processed
+        for (const setting of settings) {
+          if (setting.task_list_id && !processingLists.has(setting.task_list_id)) {
+            processingLists.add(setting.task_list_id);
+          }
+        }
+        
+        // Ensure we remove the lists from processing
+        setTimeout(() => {
+          for (const setting of settings) {
+            if (setting.task_list_id) {
+              processingLists.delete(setting.task_list_id);
+            }
+          }
+        }, 5000);
       }
     }
     
     console.log(`Processing ${settings.length} recurring task settings`);
     
     const results = [];
-    const forceCheck = !!body.forceCheck;
 
     for (const setting of settings) {
       try {
@@ -164,7 +227,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Count all tasks (regardless of status) for this list created today
+        // Count ALL tasks (regardless of status) for this list created today
         const { data: todayTasks, error: todayTasksError } = await supabaseClient
           .from('Tasks')
           .select('id, "Task Name", Progress, date_started, date_due, project_id')
@@ -187,7 +250,7 @@ Deno.serve(async (req) => {
         
         console.log(`List ${setting.task_list_id} has ${todayTaskCount} tasks today, goal is ${dailyTaskGoal}`);
         
-        if (todayTaskCount >= dailyTaskGoal) {
+        if (todayTaskCount >= dailyTaskGoal && !forceCheck) {
           console.log(`Already have enough tasks for list ${setting.task_list_id}, skipping`);
           results.push({ 
             task_list_id: setting.task_list_id, 
@@ -221,7 +284,19 @@ Deno.serve(async (req) => {
 
         const listName = taskList?.name || `List ${setting.task_list_id}`;
         const tasksToCreate = [];
-        const neededTasks = Math.max(0, dailyTaskGoal - todayTaskCount);
+        const neededTasks = forceCheck 
+          ? (dailyTaskGoal - (existingLogs?.[0]?.tasks_generated || 0)) 
+          : Math.max(0, dailyTaskGoal - todayTaskCount);
+        
+        if (neededTasks <= 0) {
+          console.log(`No new tasks needed for list ${setting.task_list_id} (${listName})`);
+          results.push({ 
+            task_list_id: setting.task_list_id, 
+            status: 'skipped', 
+            reason: 'no_tasks_needed' 
+          });
+          continue;
+        }
         
         console.log(`Creating ${neededTasks} new tasks for list ${setting.task_list_id} (${listName})`);
         
@@ -275,11 +350,12 @@ Deno.serve(async (req) => {
           console.log(`Successfully created ${newTasks?.length || 0} tasks for list ${setting.task_list_id}`);
           
           // Record the successful generation
+          const totalTasksGenerated = (existingLogs?.[0]?.tasks_generated || 0) + (newTasks?.length || 0);
           await updateGenerationLog(
             supabaseClient, 
             setting.task_list_id, 
             setting.id, 
-            (todayTaskCount + (newTasks?.length || 0))
+            totalTasksGenerated
           );
           
           results.push({ 

@@ -9,6 +9,54 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      goal_completion_notifications: {
+        Row: {
+          completed_at: string
+          goal_type: string
+          id: number
+          is_deleted: boolean
+          is_redeemed: boolean
+          project_goal_id: number
+          project_id: number
+          reward: string | null
+        }
+        Insert: {
+          completed_at?: string
+          goal_type: string
+          id?: number
+          is_deleted?: boolean
+          is_redeemed?: boolean
+          project_goal_id: number
+          project_id: number
+          reward?: string | null
+        }
+        Update: {
+          completed_at?: string
+          goal_type?: string
+          id?: number
+          is_deleted?: boolean
+          is_redeemed?: boolean
+          project_goal_id?: number
+          project_id?: number
+          reward?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_completion_notifications_project_goal_id_fkey"
+            columns: ["project_goal_id"]
+            isOneToOne: false
+            referencedRelation: "project_goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_completion_notifications_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "Projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_calendar_settings: {
         Row: {
           calendar_id: string | null

@@ -1,9 +1,12 @@
+
 import { TaskScheduler } from '@/components/TaskScheduler';
 import { useRecurringTasksCheck } from '@/hooks/useRecurringTasksCheck';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
+import { GoalNotificationsPanel } from '@/components/goals/GoalNotificationsPanel';
+import { useGoalNotifications } from '@/hooks/useGoalNotifications';
 
 const Index = () => {
   // Initialize hooks for recurring tasks check
@@ -14,6 +17,7 @@ const Index = () => {
   useRecurringProjectsCheck();
   
   const queryClient = useQueryClient();
+  const { data: goalNotifications = [], isLoading: isLoadingNotifications } = useGoalNotifications();
   
   // Function to shuffle today's tasks
   const handleShuffleTasks = async () => {
@@ -122,7 +126,15 @@ const Index = () => {
     }
   };
   
-  return <TaskScheduler onShuffleTasks={handleShuffleTasks} />;
+  return (
+    <>
+      <TaskScheduler onShuffleTasks={handleShuffleTasks} />
+      <GoalNotificationsPanel 
+        notifications={goalNotifications} 
+        isLoading={isLoadingNotifications} 
+      />
+    </>
+  );
 };
 
 export default Index;

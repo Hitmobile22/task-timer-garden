@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -85,7 +84,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const inProgressTask = activeTasks.find(task => task.Progress === 'In progress');
       setTimerStarted(!!inProgressTask);
       
-      // Allow time blocks to be selected as the active task too
       const firstTask = activeTasks.find(task => !isTaskInFuture(task) && task.Progress !== 'Backlog');
       if (firstTask) {
         setActiveTaskId(firstTask.id);
@@ -114,7 +112,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         queryKey: ['task-lists']
       });
       
-      // After successfully creating tasks, sync with Google Calendar
       syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after creating tasks:", err));
       
       toast.success('Tasks created successfully');
@@ -183,7 +180,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         }
       }
       
-      // After successfully creating a time block and rescheduling tasks, sync with Google Calendar
       syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after creating time block:", err));
       
     } catch (error) {
@@ -196,21 +192,15 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     try {
       const targetTask = activeTasks?.find(t => t.id === taskId);
       
-      // Remove this check to allow time blocks to be started as tasks
-      // if (isTaskTimeBlock(targetTask)) {
-      //   toast.info("Time blocks can't be started as tasks");
-      //   return;
-      // }
-      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      const notStartedTasks = activeTasks?.filter(t => {
-        // Allow time blocks to be scheduled with other tasks
-        // if (isTaskTimeBlock(t)) {
-        //   return false;
-        // }
+      
+      const tasksToReschedule = activeTasks?.filter(t => {
+        if (isTaskTimeBlock(t)) {
+          return false;
+        }
         
         const taskDate = t.date_started ? new Date(t.date_started) : null;
         const isValidProgress = t.Progress === 'Not started' || t.Progress === 'In progress';
@@ -248,8 +238,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       
-      for (const task of notStartedTasks) {
-        if (task.id === taskId || currentTask && task.id === currentTask.id) continue;
+      for (const task of tasksToReschedule) {
+        if (task.id === taskId || (currentTask && task.id === currentTask.id) || isTaskTimeBlock(task)) continue;
         if (nextStartTime >= tomorrow) break;
         
         let taskStartTime = new Date(nextStartTime);
@@ -292,7 +282,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         queryKey: ['active-tasks']
       });
       
-      // After successfully starting a task, sync with Google Calendar
       syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after starting task:", err));
       
       toast.success('Timer started with selected task');
@@ -305,7 +294,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const handleShuffleTasks = async () => {
     if (onShuffleTasks) {
       await onShuffleTasks();
-      // Sync after external shuffle function completes
       syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after shuffling tasks:", err));
       return;
     }
@@ -412,7 +400,6 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       
-      // After successfully shuffling tasks, sync with Google Calendar
       syncGoogleCalendar().catch(err => console.error("Failed to sync calendar after shuffling tasks:", err));
       
       toast.success('Tasks shuffled successfully');

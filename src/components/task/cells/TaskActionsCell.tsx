@@ -3,9 +3,10 @@ import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ListFilter, PencilIcon, Trash2, Check, X, Lock } from "lucide-react";
+import { ListFilter, PencilIcon, Trash2, Check, X, Lock, Archive } from "lucide-react";
 import { Task } from '@/types/task.types';
 import { isTaskTimeBlock } from '@/utils/taskUtils';
+import { useArchiveActions } from '@/hooks/useArchiveActions';
 
 interface TaskActionsCellProps {
   task: Task;
@@ -31,6 +32,7 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   const currentList = taskLists?.find(list => list.id === task.task_list_id);
   const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
   const isTimeBlock = isTaskTimeBlock(task);
+  const { archiveTask } = useArchiveActions();
 
   React.useEffect(() => {
     console.log('TaskActionsCell: task_list_id changed:', task.task_list_id);
@@ -54,6 +56,10 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
     }
   };
   
+  const handleArchiveTask = () => {
+    archiveTask.mutate(task.id);
+  };
+
   return (
     <TableCell>
       <div className="flex items-center gap-2">
@@ -141,6 +147,14 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
               onClick={() => onDeleteTask(task.id)}
             >
               <Trash2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleArchiveTask}
+              title="Archive task"
+            >
+              <Archive className="h-4 w-4" />
             </Button>
           </>
         )}

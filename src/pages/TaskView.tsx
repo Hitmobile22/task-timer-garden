@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { MenuBar } from "@/components/MenuBar";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Archive, ArchiveRestore } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
 import { DndContext, closestCenter } from '@dnd-kit/core';
@@ -11,6 +11,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Task, Subtask, SortField, SortOrder } from '@/types/task.types';
 import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
+import { useArchiveActions } from '@/hooks/useArchiveActions';
 import { generateRandomColor } from '@/utils/taskUtils';
 import { Input } from "@/components/ui/input";
 import {
@@ -46,6 +47,8 @@ export function TaskView() {
   const [editingProject, setEditingProject] = React.useState<any>(null);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const { archiveCompletedTasks, archiveTaskList, archiveProject } = useArchiveActions();
 
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
@@ -53,20 +56,23 @@ export function TaskView() {
       const { data, error } = await supabase
         .from('TaskLists')
         .select('*')
+        .eq('archived', showArchived)
         .order('order', { ascending: true });
       
       if (error) throw error;
       console.log('TaskView: Available task lists:', data);
       return data;
     },
+    enabled: true
   });
 
   const { data: tasks, isLoading: tasksLoading } = useQuery({
-    queryKey: ['tasks'],
+    queryKey: ['tasks', showArchived],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('Tasks')
         .select('*')
+        .eq('archived', showArchived)
         .order('date_started', { ascending: false });
       
       if (error) throw error;
@@ -91,11 +97,12 @@ export function TaskView() {
   });
 
   const { data: projects } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ['projects', showArchived],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('Projects')
         .select('*')
+        .eq('archived', showArchived)
         .order('sort_order', { ascending: true });
       
       if (error) throw error;
@@ -574,6 +581,26 @@ export function TaskView() {
     }
   };
 
+  const toggleArchiveView = () => {
+    setShowArchived(!showArchived);
+  };
+
+  const handleArchiveCompletedTasks = () => {
+    archiveCompletedTasks.mutate();
+  };
+
+  const handleArchiveTaskList = (listId: number) => {
+    if (window.confirm('Are you sure you want to archive this list? All tasks in this list will be archived and recurring tasks will be disabled.')) {
+      archiveTaskList.mutate(listId);
+    }
+  };
+
+  const handleArchiveProject = (projectId: number) => {
+    if (window.confirm('Are you sure you want to archive this project? All tasks in this project will be archived and recurring tasks will be disabled.')) {
+      archiveProject.mutate(projectId);
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 space-y-8 animate-fadeIn" style={{
       background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
@@ -605,6 +632,33 @@ export function TaskView() {
               onNewTaskListNameChange={setNewTaskListName}
               onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
             />
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleArchiveCompletedTasks}
+                className="flex items-center gap-2"
+              >
+                <Archive className="h-4 w-4" />
+                Archive Completed
+              </Button>
+              <Button 
+                variant={showArchived ? "default" : "outline"} 
+                onClick={toggleArchiveView}
+                className="flex items-center gap-2"
+              >
+                {showArchived ? (
+                  <>
+                    <ArchiveRestore className="h-4 w-4" />
+                    Show Active
+                  </>
+                ) : (
+                  <>
+                    <Archive className="h-4 w-4" />
+                    Show Archived
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           <DndContext collisionDetection={closestCenter}>
@@ -671,6 +725,17 @@ export function TaskView() {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
+                      {!showArchived && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-white hover:bg-white/20"
+                          onClick={() => handleArchiveTaskList(list?.id)}
+                          title="Archive list"
+                        >
+                          <Archive className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -735,6 +800,16 @@ export function TaskView() {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                          {!showArchived && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleArchiveProject(project.id)}
+                              title="Archive project"
+                            >
+                              <Archive className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                       
@@ -832,3 +907,4 @@ export function TaskView() {
 }
 
 export default TaskView;
+

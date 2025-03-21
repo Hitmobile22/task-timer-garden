@@ -22,7 +22,8 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Task archived successfully');
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Archive task error:', error);
       toast.error('Failed to archive task');
     }
   });
@@ -30,13 +31,13 @@ export const useArchiveActions = () => {
   // Archive a project and all its tasks
   const archiveProject = useMutation({
     mutationFn: async (projectId: number) => {
-      // Disable recurring settings
+      // First disable recurring settings
       await supabase
         .from('recurring_task_settings')
         .update({ enabled: false })
         .eq('project_id', projectId);
 
-      // Archive project
+      // Then archive project
       const { error: projectError } = await supabase
         .from('Projects')
         .update({ archived: true })
@@ -44,7 +45,7 @@ export const useArchiveActions = () => {
 
       if (projectError) throw projectError;
       
-      // Archive tasks in the project
+      // Finally archive tasks in the project
       const { error: tasksError } = await supabase
         .from('Tasks')
         .update({ archived: true })
@@ -59,7 +60,8 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Project archived successfully');
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Archive project error:', error);
       toast.error('Failed to archive project');
     }
   });
@@ -67,13 +69,13 @@ export const useArchiveActions = () => {
   // Archive a task list and all its tasks
   const archiveTaskList = useMutation({
     mutationFn: async (listId: number) => {
-      // Disable recurring task settings
+      // First disable recurring task settings
       await supabase
         .from('recurring_task_settings')
         .update({ enabled: false })
         .eq('task_list_id', listId);
 
-      // Archive task list
+      // Then archive task list
       const { error: listError } = await supabase
         .from('TaskLists')
         .update({ archived: true })
@@ -81,7 +83,7 @@ export const useArchiveActions = () => {
 
       if (listError) throw listError;
       
-      // Archive tasks in the list
+      // Finally archive tasks in the list
       const { error: tasksError } = await supabase
         .from('Tasks')
         .update({ archived: true })
@@ -96,7 +98,8 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task list archived successfully');
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Archive task list error:', error);
       toast.error('Failed to archive task list');
     }
   });
@@ -117,7 +120,8 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Completed tasks archived successfully');
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Archive completed tasks error:', error);
       toast.error('Failed to archive completed tasks');
     }
   });

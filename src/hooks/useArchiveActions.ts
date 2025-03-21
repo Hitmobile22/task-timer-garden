@@ -14,7 +14,7 @@ export const useArchiveActions = () => {
         .update({ archived: true })
         .eq('id', taskId);
       
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       return { success: true };
     },
     onSuccess: () => {
@@ -22,8 +22,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Task archived successfully');
     },
-    onError: (error: any) => {
-      console.error('Error archiving task:', error.message);
+    onError: () => {
       toast.error('Failed to archive task');
     }
   });
@@ -43,7 +42,7 @@ export const useArchiveActions = () => {
         .update({ archived: true })
         .eq('id', projectId);
 
-      if (projectError) throw new Error(projectError.message);
+      if (projectError) throw projectError;
       
       // Archive tasks in the project
       const { error: tasksError } = await supabase
@@ -51,7 +50,7 @@ export const useArchiveActions = () => {
         .update({ archived: true })
         .eq('project_id', projectId);
 
-      if (tasksError) throw new Error(tasksError.message);
+      if (tasksError) throw tasksError;
       
       return { success: true };
     },
@@ -60,8 +59,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Project archived successfully');
     },
-    onError: (error: any) => {
-      console.error('Error archiving project:', error.message);
+    onError: () => {
       toast.error('Failed to archive project');
     }
   });
@@ -81,7 +79,7 @@ export const useArchiveActions = () => {
         .update({ archived: true })
         .eq('id', listId);
 
-      if (listError) throw new Error(listError.message);
+      if (listError) throw listError;
       
       // Archive tasks in the list
       const { error: tasksError } = await supabase
@@ -89,7 +87,7 @@ export const useArchiveActions = () => {
         .update({ archived: true })
         .eq('task_list_id', listId);
 
-      if (tasksError) throw new Error(tasksError.message);
+      if (tasksError) throw tasksError;
       
       return { success: true };
     },
@@ -98,8 +96,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task list archived successfully');
     },
-    onError: (error: any) => {
-      console.error('Error archiving task list:', error.message);
+    onError: () => {
       toast.error('Failed to archive task list');
     }
   });
@@ -112,7 +109,7 @@ export const useArchiveActions = () => {
         .update({ archived: true })
         .eq('Progress', 'Completed');
 
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       return { success: true };
     },
     onSuccess: () => {
@@ -120,8 +117,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Completed tasks archived successfully');
     },
-    onError: (error: any) => {
-      console.error('Error archiving completed tasks:', error.message);
+    onError: () => {
       toast.error('Failed to archive completed tasks');
     }
   });

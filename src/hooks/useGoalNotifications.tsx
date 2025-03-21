@@ -31,7 +31,7 @@ export const useGoalNotifications = () => {
         .eq('is_redeemed', false)
         .order('completed_at', { ascending: false });
       
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       
       return notifications.map(notification => ({
         ...notification,

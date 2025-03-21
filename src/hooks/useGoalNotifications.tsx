@@ -2,10 +2,25 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 
+interface GoalNotification {
+  id: number;
+  project_goal_id: number;
+  project_id: number;
+  goal_type: string;
+  reward: string | null;
+  completed_at: string;
+  is_deleted: boolean;
+  is_redeemed: boolean;
+  project_name: string;
+  Projects?: {
+    "Project Name": string;
+  } | null;
+}
+
 export const useGoalNotifications = () => {
   return useQuery({
     queryKey: ['goal-notifications'],
-    queryFn: async () => {
+    queryFn: async (): Promise<GoalNotification[]> => {
       const { data: notifications, error } = await supabase
         .from('goal_completion_notifications')
         .select(`
@@ -16,7 +31,7 @@ export const useGoalNotifications = () => {
         .eq('is_redeemed', false)
         .order('completed_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) throw new Error(error.message);
       
       return notifications.map(notification => ({
         ...notification,

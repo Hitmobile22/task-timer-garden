@@ -3,16 +3,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
 
-interface ArchiveResponse {
-  success: boolean;
-}
+// Use a simpler type structure
+type ArchiveResponse = { success: boolean };
 
 export const useArchiveActions = () => {
   const queryClient = useQueryClient();
 
   // Archive a single task
-  const archiveTask = useMutation<ArchiveResponse, Error, number>({
-    mutationFn: async (taskId) => {
+  const archiveTask = useMutation({
+    mutationFn: async (taskId: number): Promise<ArchiveResponse> => {
       const { error } = await supabase
         .from('Tasks')
         .update({ archived: true })
@@ -26,15 +25,15 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Task archived successfully');
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error('Archive task error:', error);
       toast.error('Failed to archive task');
     }
   });
 
   // Archive a project and all its tasks
-  const archiveProject = useMutation<ArchiveResponse, Error, number>({
-    mutationFn: async (projectId) => {
+  const archiveProject = useMutation({
+    mutationFn: async (projectId: number): Promise<ArchiveResponse> => {
       // First disable recurring settings
       await supabase
         .from('recurring_task_settings')
@@ -64,15 +63,15 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Project archived successfully');
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error('Archive project error:', error);
       toast.error('Failed to archive project');
     }
   });
 
   // Archive a task list and all its tasks
-  const archiveTaskList = useMutation<ArchiveResponse, Error, number>({
-    mutationFn: async (listId) => {
+  const archiveTaskList = useMutation({
+    mutationFn: async (listId: number): Promise<ArchiveResponse> => {
       // First disable recurring task settings
       await supabase
         .from('recurring_task_settings')
@@ -102,15 +101,15 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task list archived successfully');
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error('Archive task list error:', error);
       toast.error('Failed to archive task list');
     }
   });
 
   // Archive all completed tasks
-  const archiveCompletedTasks = useMutation<ArchiveResponse, Error, void>({
-    mutationFn: async () => {
+  const archiveCompletedTasks = useMutation({
+    mutationFn: async (): Promise<ArchiveResponse> => {
       const { error } = await supabase
         .from('Tasks')
         .update({ archived: true })
@@ -124,7 +123,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Completed tasks archived successfully');
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error('Archive completed tasks error:', error);
       toast.error('Failed to archive completed tasks');
     }

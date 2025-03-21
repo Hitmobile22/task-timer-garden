@@ -4,14 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
 
 // Define a simple type for the response
-type ArchiveResponse = { success: boolean };
+interface ArchiveResponse {
+  success: boolean;
+}
 
 export const useArchiveActions = () => {
   const queryClient = useQueryClient();
 
   // Archive a single task
-  const archiveTask = useMutation({
-    mutationFn: async (taskId: number) => {
+  const archiveTask = useMutation<ArchiveResponse, Error, number>({
+    mutationFn: async (taskId: number): Promise<ArchiveResponse> => {
       const { error } = await supabase
         .from('Tasks')
         .update({ archived: true })
@@ -32,8 +34,8 @@ export const useArchiveActions = () => {
   });
 
   // Archive a project and all its tasks
-  const archiveProject = useMutation({
-    mutationFn: async (projectId: number) => {
+  const archiveProject = useMutation<ArchiveResponse, Error, number>({
+    mutationFn: async (projectId: number): Promise<ArchiveResponse> => {
       // First disable recurring settings
       await supabase
         .from('recurring_task_settings')
@@ -70,8 +72,8 @@ export const useArchiveActions = () => {
   });
 
   // Archive a task list and all its tasks
-  const archiveTaskList = useMutation({
-    mutationFn: async (listId: number) => {
+  const archiveTaskList = useMutation<ArchiveResponse, Error, number>({
+    mutationFn: async (listId: number): Promise<ArchiveResponse> => {
       // First disable recurring task settings
       await supabase
         .from('recurring_task_settings')
@@ -108,8 +110,8 @@ export const useArchiveActions = () => {
   });
 
   // Archive all completed tasks
-  const archiveCompletedTasks = useMutation({
-    mutationFn: async () => {
+  const archiveCompletedTasks = useMutation<ArchiveResponse, Error, void>({
+    mutationFn: async (): Promise<ArchiveResponse> => {
       const { error } = await supabase
         .from('Tasks')
         .update({ archived: true })

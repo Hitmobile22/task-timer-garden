@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -92,6 +91,14 @@
   @apply w-full max-w-5xl mx-auto;
 }
 
+.task-filters-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+  align-items: center;
+}
+
 .timer-controls {
   @apply flex justify-center gap-2 md:gap-4 flex-wrap;
 }
@@ -128,25 +135,30 @@
     padding: 1rem;
   }
 
-  /* Timer container specific styles */
+  .task-filters-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .task-filters-item {
+    width: 100%;
+  }
+
   .timer-container {
     width: 100% !important;
     margin: 0 auto !important;
     padding: 1rem !important;
   }
 
-  /* Adjust task list for mobile */
   .task-list {
     width: 100% !important;
     padding: 0.5rem !important;
   }
 
-  /* Task name cell width */
   .task-name-cell {
     min-width: 280px !important;
   }
   
-  /* Improve modal responsiveness */
   .dialog-content {
     width: 100% !important;
     padding: 1rem !important;
@@ -225,3 +237,4 @@ html, body {
   width: 100%;
   max-width: 100%;
 }
+

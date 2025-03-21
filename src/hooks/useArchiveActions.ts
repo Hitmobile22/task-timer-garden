@@ -20,7 +20,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Task archived successfully');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error archiving task:', error);
       toast.error('Failed to archive task');
     }
@@ -52,7 +52,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Project archived successfully');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error archiving project:', error);
       toast.error('Failed to archive project');
     }
@@ -84,7 +84,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task list archived successfully');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error archiving task list:', error);
       toast.error('Failed to archive task list');
     }
@@ -104,7 +104,7 @@ export const useArchiveActions = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       toast.success('Completed tasks archived successfully');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error archiving completed tasks:', error);
       toast.error('Failed to archive completed tasks');
     }

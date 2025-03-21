@@ -139,6 +139,7 @@ export type Database = {
       }
       Projects: {
         Row: {
+          archived: boolean | null
           created_at: string
           date_due: string | null
           date_started: string | null
@@ -153,6 +154,7 @@ export type Database = {
           task_list_id: number | null
         }
         Insert: {
+          archived?: boolean | null
           created_at?: string
           date_due?: string | null
           date_started?: string | null
@@ -167,6 +169,7 @@ export type Database = {
           task_list_id?: number | null
         }
         Update: {
+          archived?: boolean | null
           created_at?: string
           date_due?: string | null
           date_started?: string | null
@@ -231,6 +234,7 @@ export type Database = {
       }
       recurring_task_settings: {
         Row: {
+          archived: boolean | null
           created_at: string | null
           daily_task_count: number | null
           days_of_week: string[] | null
@@ -240,6 +244,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          archived?: boolean | null
           created_at?: string | null
           daily_task_count?: number | null
           days_of_week?: string[] | null
@@ -249,6 +254,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          archived?: boolean | null
           created_at?: string | null
           daily_task_count?: number | null
           days_of_week?: string[] | null
@@ -336,6 +342,7 @@ export type Database = {
       }
       TaskLists: {
         Row: {
+          archived: boolean | null
           color: string | null
           created_at: string
           id: number
@@ -345,6 +352,7 @@ export type Database = {
           position: number | null
         }
         Insert: {
+          archived?: boolean | null
           color?: string | null
           created_at?: string
           id?: number
@@ -354,6 +362,7 @@ export type Database = {
           position?: number | null
         }
         Update: {
+          archived?: boolean | null
           color?: string | null
           created_at?: string
           id?: number

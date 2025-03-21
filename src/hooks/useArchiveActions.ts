@@ -3,16 +3,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
 
-type ArchiveTaskResponse = { success: boolean };
-type ArchiveProjectResponse = { success: boolean };
-type ArchiveTaskListResponse = { success: boolean };
-type ArchiveCompletedTasksResponse = { success: boolean };
+interface ArchiveResponse {
+  success: boolean;
+}
 
 export const useArchiveActions = () => {
   const queryClient = useQueryClient();
 
   // Archive a single task
-  const archiveTask = useMutation<ArchiveTaskResponse, Error, number>({
+  const archiveTask = useMutation<ArchiveResponse, Error, number>({
     mutationFn: async (taskId) => {
       const { error } = await supabase
         .from('Tasks')
@@ -34,7 +33,7 @@ export const useArchiveActions = () => {
   });
 
   // Archive a project and all its tasks
-  const archiveProject = useMutation<ArchiveProjectResponse, Error, number>({
+  const archiveProject = useMutation<ArchiveResponse, Error, number>({
     mutationFn: async (projectId) => {
       // First disable recurring settings
       await supabase
@@ -72,7 +71,7 @@ export const useArchiveActions = () => {
   });
 
   // Archive a task list and all its tasks
-  const archiveTaskList = useMutation<ArchiveTaskListResponse, Error, number>({
+  const archiveTaskList = useMutation<ArchiveResponse, Error, number>({
     mutationFn: async (listId) => {
       // First disable recurring task settings
       await supabase
@@ -110,7 +109,7 @@ export const useArchiveActions = () => {
   });
 
   // Archive all completed tasks
-  const archiveCompletedTasks = useMutation<ArchiveCompletedTasksResponse, Error, void>({
+  const archiveCompletedTasks = useMutation<ArchiveResponse, Error, void>({
     mutationFn: async () => {
       const { error } = await supabase
         .from('Tasks')

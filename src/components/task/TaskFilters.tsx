@@ -63,7 +63,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
           <div className="flex items-center gap-2">
             <Dialog open={showNewTaskListDialog} onOpenChange={onNewTaskListDialogChange}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="flex-shrink-0">
+                <Button variant="outline" size="icon" className="flex-shrink-0" title="New Task List">
                   <Plus className="h-4 w-4" />
                 </Button>
               </DialogTrigger>
@@ -95,6 +95,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
               size="icon"
               onClick={() => onProjectModalChange(true)}
               className="flex-shrink-0"
+              title="New Project"
             >
               <Plus className="h-4 w-4" />
             </Button>

@@ -636,25 +636,30 @@ export function TaskView() {
               <Button 
                 variant="outline" 
                 onClick={handleArchiveCompletedTasks}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-xs sm:text-sm"
+                size="sm"
               >
                 <Archive className="h-4 w-4" />
-                Archive Completed
+                <span className="hidden sm:inline">Archive</span>
+                <span>Completed</span>
               </Button>
               <Button 
                 variant={showArchived ? "default" : "outline"} 
                 onClick={toggleArchiveView}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-xs sm:text-sm"
+                size="sm"
               >
                 {showArchived ? (
                   <>
                     <ArchiveRestore className="h-4 w-4" />
-                    Show Active
+                    <span className="hidden sm:inline">Show</span>
+                    <span>Active</span>
                   </>
                 ) : (
                   <>
                     <Archive className="h-4 w-4" />
-                    Show Archived
+                    <span className="hidden sm:inline">Show</span>
+                    <span>Archived</span>
                   </>
                 )}
               </Button>
@@ -907,4 +912,3 @@ export function TaskView() {
 }
 
 export default TaskView;
-

@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 
-interface GoalNotification {
+export interface GoalNotification {
   id: number;
   project_goal_id: number;
   project_id: number;

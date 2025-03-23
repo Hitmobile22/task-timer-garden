@@ -88,25 +88,53 @@ export const useRecurringProjectsCheck = () => {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Get ALL tasks for today for this project (regardless of status)
-      const { data: todayTasks, error: todayTasksError } = await supabase
+      // Check if we've already generated tasks for this project today (using generation logs)
+      const { data: generationLogs, error: logsError } = await supabase
+        .from('recurring_task_generation_logs')
+        .select('*')
+        .eq('project_id', project.id)
+        .gte('generation_date', today.toISOString())
+        .lt('generation_date', tomorrow.toISOString())
+        .maybeSingle();
+
+      if (logsError) throw logsError;
+      
+      // If we already have a generation log for today, skip task creation
+      if (generationLogs) {
+        console.log(`Already generated tasks for project ${project.id} (${project["Project Name"]}) today according to logs`);
+        return;
+      }
+
+      // Get ALL tasks EVER created for this project for today (including archived/deleted ones)
+      const { data: allTodayTasks, error: allTasksError } = await supabase
         .from('Tasks')
         .select('id, "Task Name", Progress')
         .eq('project_id', project.id)
         .gte('date_started', today.toISOString())
         .lt('date_started', tomorrow.toISOString());
 
-      if (todayTasksError) throw todayTasksError;
+      if (allTasksError) throw allTasksError;
 
-      const todayTaskCount = todayTasks?.length || 0;
+      const allTodayTaskCount = allTodayTasks?.length || 0;
       
-      if (todayTaskCount > 0) {
-        console.log(`Found ${todayTaskCount} tasks created today for project ${project.id} (${project["Project Name"]})`);
+      if (allTodayTaskCount > 0) {
+        console.log(`Found ${allTodayTaskCount} tasks created today for project ${project.id} (${project["Project Name"]})`);
+        
+        // Create a generation log to mark that we've created tasks for this project today
+        await supabase
+          .from('recurring_task_generation_logs')
+          .insert({
+            project_id: project.id,
+            tasks_generated: allTodayTaskCount,
+            generation_date: new Date().toISOString()
+          });
+          
+        return;
       }
 
       // Calculate how many tasks to add
       const taskCount = project.recurringTaskCount || 1;
-      const neededTasks = Math.max(0, taskCount - todayTaskCount);
+      const neededTasks = Math.max(0, taskCount - allTodayTaskCount);
 
       // If we need to create tasks
       if (neededTasks > 0) {
@@ -114,7 +142,7 @@ export const useRecurringProjectsCheck = () => {
         
         // Create tasks starting at 9am with 30 min intervals
         const newTasks = [];
-        const existingTaskNames = todayTasks?.map(task => task["Task Name"]) || [];
+        const existingTaskNames = allTodayTasks?.map(task => task["Task Name"]) || [];
         
         for (let i = 0; i < neededTasks; i++) {
           // All tasks start at 9:00 AM, with 30 minute intervals if there are multiple
@@ -129,12 +157,12 @@ export const useRecurringProjectsCheck = () => {
           taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
           
           // Create a unique task name
-          let taskName = `${project["Project Name"]} - Task ${todayTaskCount + i + 1}`;
+          let taskName = `${project["Project Name"]} - Task ${allTodayTaskCount + i + 1}`;
           let uniqueNameCounter = 1;
           
           // Ensure we don't create duplicate task names
           while (existingTaskNames.includes(taskName)) {
-            taskName = `${project["Project Name"]} - Task ${todayTaskCount + i + 1} (${uniqueNameCounter})`;
+            taskName = `${project["Project Name"]} - Task ${allTodayTaskCount + i + 1} (${uniqueNameCounter})`;
             uniqueNameCounter++;
           }
           
@@ -148,7 +176,7 @@ export const useRecurringProjectsCheck = () => {
             task_list_id: project.task_list_id || 1,
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),
-            order: todayTaskCount + i,
+            order: allTodayTaskCount + i,
             archived: false,
           });
         }
@@ -161,6 +189,15 @@ export const useRecurringProjectsCheck = () => {
           if (insertError) throw insertError;
           
           console.log(`Successfully created ${newTasks.length} tasks for project ${project.id}`);
+          
+          // Log generation to prevent duplicate generation
+          await supabase
+            .from('recurring_task_generation_logs')
+            .insert({
+              project_id: project.id,
+              tasks_generated: newTasks.length,
+              generation_date: new Date().toISOString()
+            });
         }
       } else {
         console.log(`No new tasks needed for project ${project.id} (${project["Project Name"]})`);

@@ -23,7 +23,7 @@ export const useArchiveActions = () => {
   };
 
   // Archive a single task
-  const archiveTask = useMutation<ArchiveResponse, Error, number>({
+  const archiveTask = useMutation({
     mutationFn: archiveTaskFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -64,7 +64,7 @@ export const useArchiveActions = () => {
   };
 
   // Archive a project and all its tasks
-  const archiveProject = useMutation<ArchiveResponse, Error, number>({
+  const archiveProject = useMutation({
     mutationFn: archiveProjectFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -105,7 +105,7 @@ export const useArchiveActions = () => {
   };
 
   // Archive a task list and all its tasks
-  const archiveTaskList = useMutation<ArchiveResponse, Error, number>({
+  const archiveTaskList = useMutation({
     mutationFn: archiveTaskListFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['task-lists'] });
@@ -130,7 +130,7 @@ export const useArchiveActions = () => {
   };
 
   // Archive all completed tasks
-  const archiveCompletedTasks = useMutation<ArchiveResponse, Error, void>({
+  const archiveCompletedTasks = useMutation({
     mutationFn: archiveCompletedTasksFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });

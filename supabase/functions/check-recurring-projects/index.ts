@@ -78,6 +78,28 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Check if we've already created tasks for this project today
+      const { data: generationLogs, error: logsError } = await supabaseClient
+        .from('recurring_task_generation_logs')
+        .select('*')
+        .eq('project_id', project.id)
+        .gte('generation_date', today.toISOString())
+        .lt('generation_date', tomorrow.toISOString())
+        .maybeSingle();
+        
+      if (logsError) {
+        console.error(`Error checking generation logs for project ${project.id}:`, logsError);
+      } else if (generationLogs) {
+        console.log(`Already generated ${generationLogs.tasks_generated} tasks for project ${project.id} today, skipping`);
+        results.push({ 
+          project_id: project.id, 
+          status: 'skipped', 
+          reason: 'already_generated',
+          existing: generationLogs.tasks_generated
+        });
+        continue;
+      }
+
       // Get ALL tasks for today for this project (regardless of status)
       const { data: todayTasks, error: todayTasksError } = await supabaseClient
         .from('Tasks')
@@ -102,6 +124,25 @@ Deno.serve(async (req) => {
       console.log(`Project ${project.id} has ${todayTaskCount} tasks today, daily goal is ${taskCount}`);
       
       // If we already have enough tasks for today (regardless of status), don't create new ones
+      if (todayTaskCount > 0) {
+        // Create a generation log to mark that we've checked this project today
+        const { error: logInsertError } = await supabaseClient
+          .from('recurring_task_generation_logs')
+          .insert({
+            project_id: project.id,
+            tasks_generated: todayTaskCount,
+            generation_date: new Date().toISOString()
+          });
+          
+        if (logInsertError) {
+          console.error(`Error creating generation log for project ${project.id}:`, logInsertError);
+        }
+        
+        console.log(`Found existing tasks for project ${project.id}, created generation log`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'has_existing_tasks', existing: todayTaskCount });
+        continue;
+      }
+      
       if (todayTaskCount >= taskCount) {
         console.log(`No new tasks needed for project ${project.id} (${project['Project Name']}) - has ${todayTaskCount} tasks today`);
         results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks_today', existing: todayTaskCount });
@@ -171,6 +212,20 @@ Deno.serve(async (req) => {
         }
 
         console.log(`Created ${newTasks.length} tasks for project ${project.id}`);
+        
+        // Create a generation log to prevent duplicate creation
+        const { error: logInsertError } = await supabaseClient
+          .from('recurring_task_generation_logs')
+          .insert({
+            project_id: project.id,
+            tasks_generated: newTasks.length,
+            generation_date: new Date().toISOString()
+          });
+          
+        if (logInsertError) {
+          console.error(`Error creating generation log for project ${project.id}:`, logInsertError);
+        }
+        
         results.push({ project_id: project.id, status: 'created', tasks_created: newTasks.length });
       }
     }

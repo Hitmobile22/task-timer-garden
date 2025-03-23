@@ -89,7 +89,6 @@ export const useRecurringProjectsCheck = () => {
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       // Get ALL tasks for today for this project (regardless of status)
-      // This is the key change - we now count completed tasks too
       const { data: todayTasks, error: todayTasksError } = await supabase
         .from('Tasks')
         .select('id, "Task Name", Progress')
@@ -113,20 +112,37 @@ export const useRecurringProjectsCheck = () => {
       if (neededTasks > 0) {
         console.log(`Creating ${neededTasks} recurring tasks for project: ${project["Project Name"]}`);
         
-        // Create tasks starting at 9am today with 30 min intervals
-        const startingTime = new Date(today);
-        startingTime.setHours(9, 0, 0, 0);
-
+        // Create tasks starting at 9am with 30 min intervals
         const newTasks = [];
+        const existingTaskNames = todayTasks?.map(task => task["Task Name"]) || [];
+        
         for (let i = 0; i < neededTasks; i++) {
-          const taskStartTime = new Date(startingTime);
-          taskStartTime.setMinutes(startingTime.getMinutes() + (i * 30));
+          // All tasks start at 9:00 AM, with 30 minute intervals if there are multiple
+          const taskStartTime = new Date(today);
+          taskStartTime.setHours(9, 0, 0, 0);
+          
+          if (i > 0) {
+            taskStartTime.setMinutes(i * 30);
+          }
           
           const taskEndTime = new Date(taskStartTime);
           taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
+          
+          // Create a unique task name
+          let taskName = `${project["Project Name"]} - Task ${todayTaskCount + i + 1}`;
+          let uniqueNameCounter = 1;
+          
+          // Ensure we don't create duplicate task names
+          while (existingTaskNames.includes(taskName)) {
+            taskName = `${project["Project Name"]} - Task ${todayTaskCount + i + 1} (${uniqueNameCounter})`;
+            uniqueNameCounter++;
+          }
+          
+          // Add new task name to tracking array
+          existingTaskNames.push(taskName);
 
           newTasks.push({
-            "Task Name": `${project["Project Name"]} Task ${todayTaskCount + i + 1}`,
+            "Task Name": taskName,
             Progress: "Not started" as const,
             project_id: project.id,
             task_list_id: project.task_list_id || 1,

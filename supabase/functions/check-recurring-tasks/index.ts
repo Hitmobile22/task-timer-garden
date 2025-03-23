@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
@@ -9,29 +8,15 @@ const corsHeaders = {
 // Semaphore to prevent concurrent processing of the same task list
 const processingLists = new Set();
 
+// Cache to prevent duplicate task generation
+const generationCache = new Map();
+
 interface RecurringTaskSetting {
   id: number;
   task_list_id: number;
   enabled: boolean;
   daily_task_count: number;
   days_of_week: string[];
-}
-
-interface TaskInfo {
-  id: number;
-  "Task Name": string;
-  Progress: string;
-  date_started: string;
-  date_due: string;
-  project_id: number | null;
-}
-
-interface GerationLogEntry {
-  id: number;
-  task_list_id: number;
-  setting_id: number;
-  generation_date: string;
-  tasks_generated: number;
 }
 
 Deno.serve(async (req) => {
@@ -227,6 +212,18 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Create a unique cache key for this generation attempt
+        const cacheKey = `${setting.task_list_id}-${today.toISOString().split('T')[0]}`;
+        if (generationCache.has(cacheKey) && !forceCheck) {
+          console.log(`Already processed list ${setting.task_list_id} today (from cache), skipping`);
+          results.push({ 
+            task_list_id: setting.task_list_id, 
+            status: 'skipped', 
+            reason: 'already_generated_cache'
+          });
+          continue;
+        }
+
         // Count ALL tasks (regardless of status) for this list created today
         const { data: todayTasks, error: todayTasksError } = await supabaseClient
           .from('Tasks')
@@ -261,6 +258,9 @@ Deno.serve(async (req) => {
           
           // Update or create generation log entry
           await updateGenerationLog(supabaseClient, setting.task_list_id, setting.id, todayTaskCount);
+          
+          // Add to cache
+          generationCache.set(cacheKey, true);
           
           continue;
         }
@@ -308,18 +308,44 @@ Deno.serve(async (req) => {
           .neq('progress', 'Completed');
           
         const project = projects && projects.length > 0 ? projects[0] : null;
+
+        // Check for existing task names to avoid duplicates
+        const existingTaskNames = todayTasks ? todayTasks.map(task => task["Task Name"]) : [];
         
         for (let i = 0; i < neededTasks; i++) {
-          // Always start tasks at 9am with 30-minute increments 
+          // Always start tasks exactly at 9am (consistent time)
           const taskStartTime = new Date(today);
-          taskStartTime.setHours(9, i * 30, 0, 0); // 9:00, 9:30, 10:00, etc.
+          taskStartTime.setHours(9, 0 + (i * 30), 0, 0); // All start at 9:00 with 30-min increments
           
           const taskEndTime = new Date(taskStartTime);
           taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
           
-          const taskName = project 
-            ? `${project['Project Name']} - Task ${todayTaskCount + i + 1}`
-            : `${listName} - Task ${todayTaskCount + i + 1}`;
+          let taskNumber = i + 1;
+          let taskName = '';
+          
+          if (project) {
+            // For project tasks, create a consistent naming pattern
+            taskName = `${project['Project Name']} - Task ${todayTaskCount + taskNumber}`;
+            
+            // Ensure we don't create duplicate task names
+            let uniqueNameCounter = 1;
+            while (existingTaskNames.includes(taskName)) {
+              taskName = `${project['Project Name']} - Task ${todayTaskCount + taskNumber} (${uniqueNameCounter})`;
+              uniqueNameCounter++;
+            }
+          } else {
+            taskName = `${listName} - Task ${todayTaskCount + taskNumber}`;
+            
+            // Ensure we don't create duplicate task names
+            let uniqueNameCounter = 1;
+            while (existingTaskNames.includes(taskName)) {
+              taskName = `${listName} - Task ${todayTaskCount + taskNumber} (${uniqueNameCounter})`;
+              uniqueNameCounter++;
+            }
+          }
+          
+          // Add the task name to our tracking array to prevent duplicates in this batch
+          existingTaskNames.push(taskName);
             
           tasksToCreate.push({
             "Task Name": taskName,
@@ -357,6 +383,9 @@ Deno.serve(async (req) => {
             setting.id, 
             totalTasksGenerated
           );
+          
+          // Add to cache to prevent duplicate processing
+          generationCache.set(cacheKey, true);
           
           results.push({ 
             task_list_id: setting.task_list_id, 

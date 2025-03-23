@@ -41,6 +41,9 @@ Deno.serve(async (req) => {
 
     const results = [];
     
+    // Track existing task names to avoid duplicates
+    const existingTaskNamesByProject = new Map();
+    
     for (const project of projects) {
       // Skip if project doesn't have start/due dates
       if (!project.date_started || !project.date_due) {
@@ -76,7 +79,6 @@ Deno.serve(async (req) => {
       }
 
       // Get ALL tasks for today for this project (regardless of status)
-      // This is the key change - we now count completed tasks too
       const { data: todayTasks, error: todayTasksError } = await supabaseClient
         .from('Tasks')
         .select('id, "Task Name", Progress')
@@ -89,6 +91,9 @@ Deno.serve(async (req) => {
         results.push({ project_id: project.id, status: 'error', error: 'today_tasks_check_failed' });
         continue;
       }
+
+      // Store existing task names for this project to avoid duplicates
+      existingTaskNamesByProject.set(project.id, todayTasks?.map(task => task["Task Name"]) || []);
 
       // Calculate how many tasks to add - taking into account ALL tasks for today
       const taskCount = project.recurringTaskCount || 1;
@@ -113,17 +118,36 @@ Deno.serve(async (req) => {
 
       // Create new tasks for today
       const tasksToCreate = [];
+      const existingNames = existingTaskNamesByProject.get(project.id) || [];
       
       for (let i = 0; i < neededTasks; i++) {
-        // Always start tasks at 9am with 30-minute increments 
+        // Always start tasks at exactly 9am 
         const taskStartTime = new Date(today);
-        taskStartTime.setHours(9, i * 30, 0, 0); // 9:00, 9:30, 10:00, etc.
+        taskStartTime.setHours(9, 0, 0, 0); 
+        
+        // If we need multiple tasks, space them 30 minutes apart
+        if (i > 0) {
+          taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
+        }
         
         const taskEndTime = new Date(taskStartTime);
         taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
         
+        // Create a unique task name
+        let taskName = `${project['Project Name']} - Task ${todayTaskCount + i + 1}`;
+        let uniqueNameCounter = 1;
+        
+        // Ensure we don't create duplicate task names
+        while (existingNames.includes(taskName)) {
+          taskName = `${project['Project Name']} - Task ${todayTaskCount + i + 1} (${uniqueNameCounter})`;
+          uniqueNameCounter++;
+        }
+        
+        // Add new task name to tracking array
+        existingNames.push(taskName);
+        
         tasksToCreate.push({
-          "Task Name": `${project['Project Name']} - Task ${todayTaskCount + i + 1}`,
+          "Task Name": taskName,
           Progress: "Not started",
           date_started: taskStartTime.toISOString(),
           date_due: taskEndTime.toISOString(),

@@ -27,10 +27,12 @@ import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { ProjectModal } from '@/components/project/ProjectModal';
 import { RecurringTasksModal, RecurringTaskSettings } from '@/components/task/RecurringTasksModal';
 import { syncGoogleCalendar } from '@/components/task/GoogleCalendarIntegration';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function TaskView() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [editingTaskId, setEditingTaskId] = React.useState<number | null>(null);
   const [editingTaskName, setEditingTaskName] = React.useState("");
   const [expandedTasks, setExpandedTasks] = React.useState<number[]>([]);
@@ -616,7 +618,7 @@ export function TaskView() {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
-          <div className="flex justify-between items-center mb-6">
+          <div className={`${isMobile ? 'flex flex-col gap-4' : 'flex justify-between items-center'} mb-6`}>
             <TaskFilters
               searchQuery={searchQuery}
               progressFilter={progressFilter}
@@ -912,3 +914,4 @@ export function TaskView() {
 }
 
 export default TaskView;
+

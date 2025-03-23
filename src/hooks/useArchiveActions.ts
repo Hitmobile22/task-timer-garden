@@ -8,11 +8,17 @@ interface ArchiveResponse {
   success: boolean;
 }
 
+// Define mutation types to avoid excessive type instantiation
+type ArchiveMutationParams = {
+  onSuccess: () => void;
+  onError: (error: Error) => void;
+}
+
 export const useArchiveActions = () => {
   const queryClient = useQueryClient();
 
   // Archive a single task
-  const archiveTask = useMutation({
+  const archiveTask = useMutation<ArchiveResponse, Error, number>({
     mutationFn: async (taskId: number): Promise<ArchiveResponse> => {
       const { error } = await supabase
         .from('Tasks')
@@ -34,7 +40,7 @@ export const useArchiveActions = () => {
   });
 
   // Archive a project and all its tasks
-  const archiveProject = useMutation({
+  const archiveProject = useMutation<ArchiveResponse, Error, number>({
     mutationFn: async (projectId: number): Promise<ArchiveResponse> => {
       // First disable recurring settings
       await supabase
@@ -72,7 +78,7 @@ export const useArchiveActions = () => {
   });
 
   // Archive a task list and all its tasks
-  const archiveTaskList = useMutation({
+  const archiveTaskList = useMutation<ArchiveResponse, Error, number>({
     mutationFn: async (listId: number): Promise<ArchiveResponse> => {
       // First disable recurring task settings
       await supabase
@@ -110,7 +116,7 @@ export const useArchiveActions = () => {
   });
 
   // Archive all completed tasks
-  const archiveCompletedTasks = useMutation({
+  const archiveCompletedTasks = useMutation<ArchiveResponse, Error, void>({
     mutationFn: async (): Promise<ArchiveResponse> => {
       const { error } = await supabase
         .from('Tasks')

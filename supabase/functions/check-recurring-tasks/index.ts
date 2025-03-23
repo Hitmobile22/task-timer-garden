@@ -5,6 +5,64 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper function to update or create generation log entry
+async function updateGenerationLog(
+  supabaseClient: any, 
+  taskListId: number, 
+  settingId: number, 
+  tasksGenerated: number
+) {
+  try {
+    // First try to update existing record for today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const { data: existingLog, error: selectError } = await supabaseClient
+      .from('recurring_task_generation_logs')
+      .select('id')
+      .eq('task_list_id', taskListId)
+      .eq('setting_id', settingId)
+      .gte('generation_date', today.toISOString())
+      .lt('generation_date', tomorrow.toISOString())
+      .maybeSingle();
+      
+    if (selectError) {
+      console.error('Error checking for existing generation log:', selectError);
+      return;
+    }
+    
+    if (existingLog) {
+      // Update existing record
+      const { error: updateError } = await supabaseClient
+        .from('recurring_task_generation_logs')
+        .update({ tasks_generated: tasksGenerated })
+        .eq('id', existingLog.id);
+        
+      if (updateError) {
+        console.error('Error updating generation log:', updateError);
+      }
+    } else {
+      // Insert new record
+      const { error: insertError } = await supabaseClient
+        .from('recurring_task_generation_logs')
+        .insert({
+          task_list_id: taskListId,
+          setting_id: settingId,
+          tasks_generated: tasksGenerated,
+          generation_date: new Date().toISOString()
+        });
+        
+      if (insertError) {
+        console.error('Error creating generation log:', insertError);
+      }
+    }
+  } catch (error) {
+    console.error('Error in updateGenerationLog:', error);
+  }
+}
+
 // Semaphore to prevent concurrent processing of the same task list
 const processingLists = new Set();
 
@@ -423,61 +481,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
-// Helper function to update or create generation log entry
-async function updateGenerationLog(
-  supabaseClient: any, 
-  taskListId: number, 
-  settingId: number, 
-  tasksGenerated: number
-) {
-  try {
-    // First try to update existing record for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const { data: existingLog, error: selectError } = await supabaseClient
-      .from('recurring_task_generation_logs')
-      .select('id')
-      .eq('task_list_id', taskListId)
-      .eq('setting_id', settingId)
-      .gte('generation_date', today.toISOString())
-      .lt('generation_date', tomorrow.toISOString())
-      .maybeSingle();
-      
-    if (selectError) {
-      console.error('Error checking for existing generation log:', selectError);
-      return;
-    }
-    
-    if (existingLog) {
-      // Update existing record
-      const { error: updateError } = await supabaseClient
-        .from('recurring_task_generation_logs')
-        .update({ tasks_generated: tasksGenerated })
-        .eq('id', existingLog.id);
-        
-      if (updateError) {
-        console.error('Error updating generation log:', updateError);
-      }
-    } else {
-      // Insert new record
-      const { error: insertError } = await supabaseClient
-        .from('recurring_task_generation_logs')
-        .insert({
-          task_list_id: taskListId,
-          setting_id: settingId,
-          tasks_generated: tasksGenerated,
-          generation_date: new Date().toISOString()
-        });
-        
-      if (insertError) {
-        console.error('Error creating generation log:', insertError);
-      }
-    }
-  } catch (error) {
-    console.error('Error in updateGenerationLog:', error);
-  }
-}

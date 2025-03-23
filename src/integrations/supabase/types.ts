@@ -197,6 +197,7 @@ export type Database = {
         Row: {
           generation_date: string
           id: number
+          project_id: number | null
           setting_id: number | null
           task_list_id: number | null
           tasks_generated: number
@@ -204,6 +205,7 @@ export type Database = {
         Insert: {
           generation_date?: string
           id?: number
+          project_id?: number | null
           setting_id?: number | null
           task_list_id?: number | null
           tasks_generated?: number
@@ -211,11 +213,19 @@ export type Database = {
         Update: {
           generation_date?: string
           id?: number
+          project_id?: number | null
           setting_id?: number | null
           task_list_id?: number | null
           tasks_generated?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "recurring_task_generation_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "Projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "recurring_task_generation_logs_setting_id_fkey"
             columns: ["setting_id"]

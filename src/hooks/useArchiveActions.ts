@@ -40,9 +40,9 @@ export const useArchiveActions = () => {
   const archiveProjectFn = async (projectId: number): Promise<ArchiveResponse> => {
     // First disable recurring settings
     await supabase
-      .from('recurring_task_settings')
-      .update({ enabled: false })
-      .eq('project_id', projectId);
+      .from('Projects')
+      .update({ isRecurring: false })
+      .eq('id', projectId);
 
     // Then archive project
     const { error: projectError } = await supabase

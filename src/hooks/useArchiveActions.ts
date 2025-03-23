@@ -11,17 +11,20 @@ interface ArchiveResponse {
 export const useArchiveActions = () => {
   const queryClient = useQueryClient();
 
+  // Define mutation functions separately to avoid excessive type instantiation
+  const archiveTaskFn = async (taskId: number): Promise<ArchiveResponse> => {
+    const { error } = await supabase
+      .from('Tasks')
+      .update({ archived: true })
+      .eq('id', taskId);
+    
+    if (error) throw new Error(error.message);
+    return { success: true };
+  };
+
   // Archive a single task
   const archiveTask = useMutation<ArchiveResponse, Error, number>({
-    mutationFn: async (taskId: number): Promise<ArchiveResponse> => {
-      const { error } = await supabase
-        .from('Tasks')
-        .update({ archived: true })
-        .eq('id', taskId);
-      
-      if (error) throw new Error(error.message);
-      return { success: true };
-    },
+    mutationFn: archiveTaskFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
@@ -33,34 +36,36 @@ export const useArchiveActions = () => {
     }
   });
 
+  // Define project archive function separately
+  const archiveProjectFn = async (projectId: number): Promise<ArchiveResponse> => {
+    // First disable recurring settings
+    await supabase
+      .from('recurring_task_settings')
+      .update({ enabled: false })
+      .eq('project_id', projectId);
+
+    // Then archive project
+    const { error: projectError } = await supabase
+      .from('Projects')
+      .update({ archived: true })
+      .eq('id', projectId);
+
+    if (projectError) throw new Error(projectError.message);
+    
+    // Finally archive tasks in the project
+    const { error: tasksError } = await supabase
+      .from('Tasks')
+      .update({ archived: true })
+      .eq('project_id', projectId);
+
+    if (tasksError) throw new Error(tasksError.message);
+    
+    return { success: true };
+  };
+
   // Archive a project and all its tasks
-  // Explicitly specify all generic types to avoid infinite type instantiation
   const archiveProject = useMutation<ArchiveResponse, Error, number>({
-    mutationFn: async (projectId: number): Promise<ArchiveResponse> => {
-      // First disable recurring settings
-      await supabase
-        .from('recurring_task_settings')
-        .update({ enabled: false })
-        .eq('project_id', projectId);
-
-      // Then archive project
-      const { error: projectError } = await supabase
-        .from('Projects')
-        .update({ archived: true })
-        .eq('id', projectId);
-
-      if (projectError) throw new Error(projectError.message);
-      
-      // Finally archive tasks in the project
-      const { error: tasksError } = await supabase
-        .from('Tasks')
-        .update({ archived: true })
-        .eq('project_id', projectId);
-
-      if (tasksError) throw new Error(tasksError.message);
-      
-      return { success: true };
-    },
+    mutationFn: archiveProjectFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -72,33 +77,36 @@ export const useArchiveActions = () => {
     }
   });
 
+  // Define task list archive function separately
+  const archiveTaskListFn = async (listId: number): Promise<ArchiveResponse> => {
+    // First disable recurring task settings
+    await supabase
+      .from('recurring_task_settings')
+      .update({ enabled: false })
+      .eq('task_list_id', listId);
+
+    // Then archive task list
+    const { error: listError } = await supabase
+      .from('TaskLists')
+      .update({ archived: true })
+      .eq('id', listId);
+
+    if (listError) throw new Error(listError.message);
+    
+    // Finally archive tasks in the list
+    const { error: tasksError } = await supabase
+      .from('Tasks')
+      .update({ archived: true })
+      .eq('task_list_id', listId);
+
+    if (tasksError) throw new Error(tasksError.message);
+    
+    return { success: true };
+  };
+
   // Archive a task list and all its tasks
   const archiveTaskList = useMutation<ArchiveResponse, Error, number>({
-    mutationFn: async (listId: number): Promise<ArchiveResponse> => {
-      // First disable recurring task settings
-      await supabase
-        .from('recurring_task_settings')
-        .update({ enabled: false })
-        .eq('task_list_id', listId);
-
-      // Then archive task list
-      const { error: listError } = await supabase
-        .from('TaskLists')
-        .update({ archived: true })
-        .eq('id', listId);
-
-      if (listError) throw new Error(listError.message);
-      
-      // Finally archive tasks in the list
-      const { error: tasksError } = await supabase
-        .from('Tasks')
-        .update({ archived: true })
-        .eq('task_list_id', listId);
-
-      if (tasksError) throw new Error(tasksError.message);
-      
-      return { success: true };
-    },
+    mutationFn: archiveTaskListFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['task-lists'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -110,17 +118,20 @@ export const useArchiveActions = () => {
     }
   });
 
+  // Define completed tasks archive function separately
+  const archiveCompletedTasksFn = async (): Promise<ArchiveResponse> => {
+    const { error } = await supabase
+      .from('Tasks')
+      .update({ archived: true })
+      .eq('Progress', 'Completed');
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+  };
+
   // Archive all completed tasks
   const archiveCompletedTasks = useMutation<ArchiveResponse, Error, void>({
-    mutationFn: async (): Promise<ArchiveResponse> => {
-      const { error } = await supabase
-        .from('Tasks')
-        .update({ archived: true })
-        .eq('Progress', 'Completed');
-
-      if (error) throw new Error(error.message);
-      return { success: true };
-    },
+    mutationFn: archiveCompletedTasksFn,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });

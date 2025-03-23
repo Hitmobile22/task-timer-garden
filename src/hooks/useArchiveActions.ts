@@ -8,12 +8,6 @@ interface ArchiveResponse {
   success: boolean;
 }
 
-// Define mutation types to avoid excessive type instantiation
-type ArchiveMutationParams = {
-  onSuccess: () => void;
-  onError: (error: Error) => void;
-}
-
 export const useArchiveActions = () => {
   const queryClient = useQueryClient();
 
@@ -40,6 +34,7 @@ export const useArchiveActions = () => {
   });
 
   // Archive a project and all its tasks
+  // Explicitly specify all generic types to avoid infinite type instantiation
   const archiveProject = useMutation<ArchiveResponse, Error, number>({
     mutationFn: async (projectId: number): Promise<ArchiveResponse> => {
       // First disable recurring settings

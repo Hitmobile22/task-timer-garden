@@ -137,6 +137,44 @@ export type Database = {
           },
         ]
       }
+      project_notifications: {
+        Row: {
+          created_at: string | null
+          days_remaining: number
+          due_date: string
+          id: number
+          is_read: boolean | null
+          project_id: number | null
+          project_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          days_remaining: number
+          due_date: string
+          id?: number
+          is_read?: boolean | null
+          project_id?: number | null
+          project_name: string
+        }
+        Update: {
+          created_at?: string | null
+          days_remaining?: number
+          due_date?: string
+          id?: number
+          is_read?: boolean | null
+          project_id?: number | null
+          project_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_notifications_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "Projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       Projects: {
         Row: {
           archived: boolean | null

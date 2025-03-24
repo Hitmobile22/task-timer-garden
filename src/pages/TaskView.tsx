@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +15,7 @@ import { TaskFilters } from '@/components/task/TaskFilters';
 import { useArchiveActions } from '@/hooks/useArchiveActions';
 import { generateRandomColor } from '@/utils/taskUtils';
 import { Input } from "@/components/ui/input";
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   Select,
   SelectContent,
@@ -607,8 +609,9 @@ export function TaskView() {
     <div className="min-h-screen p-6 space-y-8 animate-fadeIn" style={{
       background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
     }}>
-      <div className="container mx-auto max-w-4xl">
+      <div className="container mx-auto max-w-4xl flex justify-between items-center">
         <MenuBar />
+        <NotificationBell />
       </div>
       
       <main className="container mx-auto max-w-4xl space-y-8">
@@ -914,4 +917,3 @@ export function TaskView() {
 }
 
 export default TaskView;
-

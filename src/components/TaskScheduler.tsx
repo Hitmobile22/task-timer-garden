@@ -5,11 +5,10 @@ import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
 import { Button } from './ui/button';
 import { Circle } from 'lucide-react';
-import { MoreVertical, Shuffle } from 'lucide-react';
+import { Shuffle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import { TASK_LIST_COLORS, DEFAULT_LIST_COLOR } from '@/constants/taskColors';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Task, Subtask } from '@/types/task.types';
@@ -17,6 +16,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
 import { syncGoogleCalendar } from './task/GoogleCalendarIntegration';
+import { NotificationBell } from './notifications/NotificationBell';
 
 interface SubTask {
   name: string;
@@ -454,18 +454,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   }}>
       <div className="container mx-auto flex justify-between items-center py-4">
         <MenuBar />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-              <MoreVertical className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => navigate('/tasks')}>
-              Task View
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <NotificationBell />
       </div>
       
       <main className="container mx-auto space-y-4 md:space-y-8">
@@ -502,3 +491,4 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       </main>
     </div>;
 };
+

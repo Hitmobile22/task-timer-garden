@@ -1,4 +1,3 @@
-
 import { TaskScheduler } from '@/components/TaskScheduler';
 import { useRecurringTasksCheck } from '@/hooks/useRecurringTasksCheck';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
@@ -9,20 +8,14 @@ import { GoalNotificationsPanel } from '@/components/goals/GoalNotificationsPane
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
 
 const Index = () => {
-  // Initialize hooks for recurring tasks check
   useRecurringTasksCheck();
-  
-  // We don't need to call this again since it's already called inside TaskScheduler
-  // but leaving here for clarity
   useRecurringProjectsCheck();
   
   const queryClient = useQueryClient();
   const { data: goalNotifications = [], isLoading: isLoadingNotifications } = useGoalNotifications();
   
-  // Function to shuffle today's tasks
   const handleShuffleTasks = async () => {
     try {
-      // Fetch active tasks
       const { data: activeTasks, error } = await supabase
         .from('Tasks')
         .select('*')
@@ -35,28 +28,24 @@ const Index = () => {
         return;
       }
       
-      // Filter to only include today's tasks using the updated logic
       const now = new Date();
       const today = new Date(now);
-      today.setHours(0, 0, 0, 0); // Start of today (midnight)
+      today.setHours(0, 0, 0, 0);
       
       const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1); // Start of tomorrow
+      tomorrow.setDate(tomorrow.getDate() + 1);
       
       const tomorrow5AM = new Date(tomorrow);
-      tomorrow5AM.setHours(5, 0, 0, 0); // 5AM tomorrow
+      tomorrow5AM.setHours(5, 0, 0, 0);
       
       let todayTasks;
-      // If we're in late night hours (after 9PM)
       if (now.getHours() >= 21) {
-        // Include tasks from midnight today to 5AM tomorrow
         todayTasks = activeTasks.filter(task => {
           const taskDate = task.date_started ? new Date(task.date_started) : null;
           if (!taskDate) return false;
           return taskDate >= today && taskDate <= tomorrow5AM;
         });
       } else {
-        // Include tasks from midnight today to midnight tomorrow (full day)
         todayTasks = activeTasks.filter(task => {
           const taskDate = task.date_started ? new Date(task.date_started) : null;
           if (!taskDate) return false;
@@ -69,21 +58,18 @@ const Index = () => {
         return;
       }
       
-      // Find the current in-progress task
       const currentTask = todayTasks.find(t => t.Progress === 'In progress');
       const tasksToShuffle = todayTasks
         .filter(t => t.Progress !== 'Completed' && (!currentTask || t.id !== currentTask.id))
-        .sort(() => Math.random() - 0.5); // Shuffle remaining tasks
+        .sort(() => Math.random() - 0.5);
       
-      // Start scheduling from current time or after current task
       const currentTime = new Date();
       let nextStartTime: Date;
       
       if (currentTask) {
         const currentTaskEndTime = new Date(currentTask.date_due);
-        nextStartTime = new Date(currentTaskEndTime.getTime() + 5 * 60 * 1000); // 5 min break after current task
+        nextStartTime = new Date(currentTaskEndTime.getTime() + 5 * 60 * 1000);
       } else if (tasksToShuffle.length > 0) {
-        // If no current task, make the first shuffled task the current one
         const firstTask = tasksToShuffle.shift();
         await supabase
           .from('Tasks')
@@ -94,13 +80,12 @@ const Index = () => {
           })
           .eq('id', firstTask.id);
           
-        nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000); // 30 min after (25 min task + 5 min break)
+        nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       } else {
         toast.error("No tasks available to shuffle");
         return;
       }
       
-      // Update all remaining tasks with new shuffled schedule
       for (const task of tasksToShuffle) {
         const taskStartTime = new Date(nextStartTime);
         const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
@@ -114,7 +99,7 @@ const Index = () => {
           })
           .eq('id', task.id);
         
-        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000); // 5 min break
+        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
       }
       
       queryClient.invalidateQueries({ queryKey: ['tasks'] });

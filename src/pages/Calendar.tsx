@@ -13,6 +13,7 @@ import { WeekView } from '@/components/calendar/WeekView';
 import { MonthView } from '@/components/calendar/MonthView';
 import { CalendarHeader } from '@/components/calendar/CalendarHeader';
 import { getTasksForDay, getTaskColor } from '@/components/calendar/CalendarUtils';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 export type Task = {
   id: number;
@@ -117,6 +118,7 @@ const Calendar = () => {
     >
       <div className="container mx-auto max-w-4xl flex justify-between items-center">
         <MenuBar />
+        <NotificationBell />
       </div>
       
       <main className="container mx-auto max-w-4xl space-y-8">

@@ -180,3 +180,29 @@ export function throttle<T extends (...args: any[]) => any>(
     }
   };
 }
+
+/**
+ * Calculates the number of days between two dates
+ */
+export function daysBetween(date1: Date, date2: Date): number {
+  const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
+  const diffTime = Math.abs(date2.getTime() - date1.getTime());
+  return Math.floor(diffTime / oneDay);
+}
+
+/**
+ * Formats a date in a friendly format (e.g., "3 days left", "Due tomorrow", "Due today")
+ */
+export function formatDueDateStatus(dueDate: Date): string {
+  const today = new Date();
+  const days = daysBetween(today, dueDate);
+  
+  if (areDatesOnSameDay(today, dueDate)) {
+    return "Due today";
+  } else if (dueDate < today) {
+    return days === 1 ? "Overdue by 1 day" : `Overdue by ${days} days`;
+  } else {
+    if (days === 1) return "Due tomorrow";
+    return `${days} days left`;
+  }
+}

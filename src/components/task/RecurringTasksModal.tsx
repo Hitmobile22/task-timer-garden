@@ -229,6 +229,7 @@ export const RecurringTasksModal = ({
           setIsCheckingTasks(true);
           // Get the current day
           const currentDay = getCurrentDayName();
+          console.log(`Current day is ${currentDay}, selected days are ${settings.daysOfWeek.join(', ')}`);
           
           // Only check if the current day is in the selected days
           if (settings.daysOfWeek.includes(currentDay)) {
@@ -246,7 +247,8 @@ export const RecurringTasksModal = ({
               const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
                 body: { 
                   forceCheck: true,
-                  specificListId: listId
+                  specificListId: listId,
+                  currentDay: currentDay
                 }
               });
               

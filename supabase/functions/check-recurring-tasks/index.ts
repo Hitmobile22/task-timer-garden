@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
@@ -103,8 +104,12 @@ Deno.serve(async (req) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    // Get current day of week
-    const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+    // Get current day of week - use the one passed from client if available
+    // This ensures consistency between client and server day determination
+    let dayOfWeek = body.currentDay;
+    if (!dayOfWeek) {
+      dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+    }
     console.log(`Current day of week: ${dayOfWeek}`);
 
     // Handle different request scenarios
@@ -164,6 +169,20 @@ Deno.serve(async (req) => {
     } else if (body.settings && Array.isArray(body.settings)) {
       // If settings are provided in the request, use them
       settings = body.settings;
+      
+      // Log any day of week issues for debugging
+      for (const setting of settings) {
+        console.log(`Checking setting for list ${setting.task_list_id}:`);
+        console.log(`  - days_of_week: ${JSON.stringify(setting.days_of_week)}`);
+        console.log(`  - includes current day (${dayOfWeek}): ${setting.days_of_week.includes(dayOfWeek)}`);
+      }
+      
+      // Filter out settings that don't match today's day of week unless forcing
+      if (!forceCheck) {
+        const originalCount = settings.length;
+        settings = settings.filter(s => s.days_of_week.includes(dayOfWeek));
+        console.log(`Filtered settings from ${originalCount} to ${settings.length} based on day of week (${dayOfWeek})`);
+      }
       
       // Mark all lists as being processed
       for (const setting of settings) {

@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -50,6 +51,8 @@ export function areDatesOnSameDay(date1: Date, date2: Date): boolean {
  * Gets the current day name (e.g., 'Monday', 'Tuesday', etc.)
  */
 export function getCurrentDayName(): string {
+  // Use the en-US locale to ensure consistent day names that match our stored values
+  // This ensures we always get 'Monday', 'Tuesday', etc. regardless of user locale
   return new Date().toLocaleDateString('en-US', { weekday: 'long' });
 }
 

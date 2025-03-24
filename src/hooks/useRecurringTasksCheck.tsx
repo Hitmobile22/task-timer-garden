@@ -166,6 +166,10 @@ export const useRecurringTasksCheck = () => {
         return;
       }
       
+      // Get the current day name for logging
+      const currentDayName = getCurrentDayName();
+      console.log(`Running recurring task check on ${currentDayName}`);
+      
       if (settings && settings.length > 0) {
         try {
           console.log('Checking recurring tasks...');
@@ -177,6 +181,15 @@ export const useRecurringTasksCheck = () => {
           
           for (const setting of settings) {
             if (!setting.task_list_id) {
+              continue;
+            }
+            
+            // Debug log the days of week for this setting
+            console.log(`Task list ${setting.task_list_id} scheduled days:`, setting.days_of_week);
+            
+            // Explicitly check if today's day is in the days_of_week array
+            if (!setting.days_of_week.includes(currentDayName) && !forceCheck) {
+              console.log(`Task list ${setting.task_list_id} not scheduled for today (${currentDayName}), skipping`);
               continue;
             }
             
@@ -221,7 +234,8 @@ export const useRecurringTasksCheck = () => {
                 enabled: s.enabled,
                 daily_task_count: s.daily_task_count,
                 days_of_week: s.days_of_week
-              }))
+              })),
+              currentDay: currentDayName
             }
           });
           

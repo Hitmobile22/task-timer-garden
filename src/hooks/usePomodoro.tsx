@@ -310,7 +310,6 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       
       if (validTaskExists) {
         setIsRunning(true);
-        toast.info("Timer started automatically");
       }
     }
   }, [autoStart, activeTaskId, activeTasks?.length]);

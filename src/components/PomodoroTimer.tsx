@@ -47,7 +47,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     retryFullscreen,
     isTransitioning,
     getTodayTasks,
-    activeTasks
+    activeTasks,
+    isCountdownToNextTask
   } = usePomodoro(activeTaskId, autoStart);
 
   const { data: taskLists } = useQuery({
@@ -79,7 +80,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     enabled: !!currentTask?.project_id,
   });
 
-  const isVisible = useTimerVisibility(currentTask, getNextTask);
+  // Enhanced visibility check to include upcoming task countdown
+  const isVisible = useTimerVisibility(currentTask, getNextTask, isCountdownToNextTask);
+  
   const {
     isMuted,
     setIsMuted,
@@ -94,7 +97,15 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   useEffect(() => {
     let tickInterval: NodeJS.Timeout | null = null;
 
-    if (isRunning && timeLeft !== null && !isBreak && !isMuted && isVisible) {
+    if (isRunning && timeLeft !== null && !isBreak && !isMuted && isVisible && soundSettings.tick !== 'none') {
+      console.log("Setting up tick sound interval");
+      
+      // Force an immediate tick sound when starting
+      setTimeout(() => {
+        console.log("Playing initial tick sound");
+        playSound('tick');
+      }, 100);
+      
       // Create a precise interval for consistent tick sounds
       const tickDelay = 1000; // 1 second between ticks
       
@@ -103,8 +114,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         tickInterval = setTimeout(scheduleTick, tickDelay);
       };
       
-      // Start the first tick and schedule the rest
-      scheduleTick();
+      // Start the scheduled ticks
+      tickInterval = setTimeout(scheduleTick, tickDelay);
     }
 
     return () => {
@@ -112,7 +123,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         clearTimeout(tickInterval);
       }
     };
-  }, [isRunning, isBreak, timeLeft, isMuted, isVisible, playSound]);
+  }, [isRunning, isBreak, timeLeft, isMuted, isVisible, playSound, soundSettings.tick]);
 
   // Handle task completion and break sounds
   useEffect(() => {
@@ -186,6 +197,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         currentTask={currentTask}
         formatTime={formatTime}
         getNextTask={getNextTask}
+        isCountdownToNextTask={isCountdownToNextTask}
       />
 
       <SubtaskDisplay 

@@ -10,6 +10,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const [isRunning, setIsRunning] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentSubtaskIndex, setCurrentSubtaskIndex] = useState(0);
+  const [isCountdownToNextTask, setIsCountdownToNextTask] = useState(false);
   const isTransitioning = useRef(false);
   const shouldBeFullscreen = useRef(false);
   const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -149,6 +150,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
   });
 
+  // Enhanced getNextTask to get upcoming tasks within 10 min
   const getNextTask = () => {
     if (!activeTasks || activeTasks.length === 0) return null;
 
@@ -160,6 +162,18 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       const timeDiff = startTime.getTime() - now.getTime();
       return timeDiff > 0 && timeDiff <= 10 * 60 * 1000;
     });
+  };
+
+  // Calculate time left for countdown to next task
+  const calculateTimeToNextTask = (nextTask: any) => {
+    if (!nextTask || !nextTask.date_started) return null;
+    
+    const now = new Date();
+    const startTime = new Date(nextTask.date_started);
+    const diffInSeconds = Math.floor((startTime.getTime() - now.getTime()) / 1000);
+    
+    if (diffInSeconds <= 0) return null;
+    return diffInSeconds;
   };
 
   const calculateTimeLeft = (task: any) => {
@@ -283,6 +297,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
   };
 
+  // Subtask rotation
   useEffect(() => {
     if (subtasks && subtasks.length > 0) {
       const interval = setInterval(() => {
@@ -293,27 +308,52 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
   }, [subtasks]);
 
+  // Updated to check for next task and set countdown timer
   useEffect(() => {
     if (currentTask && !isBreak) {
+      setIsCountdownToNextTask(false);
       const remaining = calculateTimeLeft(currentTask);
       setTimeLeft(remaining);
     } else if (isBreak) {
       setTimeLeft(5 * 60);
+    } else if (!currentTask) {
+      const nextTask = getNextTask();
+      if (nextTask) {
+        const timeToNext = calculateTimeToNextTask(nextTask);
+        if (timeToNext && timeToNext <= 10 * 60) {
+          setIsCountdownToNextTask(true);
+          setIsBreak(true);
+          setTimeLeft(timeToNext);
+        } else {
+          setIsCountdownToNextTask(false);
+        }
+      } else {
+        setIsCountdownToNextTask(false);
+      }
     }
-  }, [currentTask, isBreak]);
+  }, [currentTask, isBreak, activeTasks]);
 
+  // Auto start timer if needed
   useEffect(() => {
     if ((autoStart || activeTaskId) && activeTasks && activeTasks.length > 0 && !isRunning) {
+      // Check for current task first
       const validTaskExists = activeTasks.some(t => 
         t.Progress !== 'Backlog' && !isTaskInFuture(t)
       );
       
       if (validTaskExists) {
         setIsRunning(true);
+      } else {
+        // If no current task, check for upcoming task within 10 minutes
+        const nextTask = getNextTask();
+        if (nextTask && calculateTimeToNextTask(nextTask) && calculateTimeToNextTask(nextTask)! <= 10 * 60) {
+          setIsRunning(true);
+        }
       }
     }
   }, [autoStart, activeTaskId, activeTasks?.length]);
 
+  // Main timer interval
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
@@ -327,14 +367,35 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
             console.log("Saving fullscreen state before transition:", shouldBeFullscreen.current);
             
             if (isBreak) {
-              setIsBreak(false);
-              toast.success("Break finished! Starting next task.");
+              if (isCountdownToNextTask) {
+                // When countdown to next task finishes, refresh tasks
+                queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+                setIsBreak(false);
+                setIsCountdownToNextTask(false);
+                toast.success("Time to start the next task!");
+              } else {
+                setIsBreak(false);
+                toast.success("Break finished! Starting next task.");
+              }
               
               transitionTimeoutRef.current = setTimeout(() => {
                 isTransitioning.current = false;
-              }, 500); // Increased from 300 to 500 ms
+              }, 500);
               
-              return calculateTimeLeft(currentTask);
+              // Check if we have a current task after the break
+              if (currentTask) {
+                return calculateTimeLeft(currentTask);
+              } else {
+                // Check for next task again after break
+                const nextTask = getNextTask();
+                if (nextTask) {
+                  setIsCountdownToNextTask(true);
+                  return calculateTimeToNextTask(nextTask);
+                } else {
+                  setIsRunning(false);
+                  return 0;
+                }
+              }
             } else if (currentTask) {
               if (currentTask.Progress !== 'Backlog' && !isTaskInFuture(currentTask)) {
                 updateTaskProgress.mutate(currentTask.id);
@@ -343,7 +404,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
                 
                 transitionTimeoutRef.current = setTimeout(() => {
                   isTransitioning.current = false;
-                }, 500); // Increased from 300 to 500 ms
+                }, 500);
                 
                 return 5 * 60;
               } else {
@@ -352,10 +413,24 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
                 
                 transitionTimeoutRef.current = setTimeout(() => {
                   isTransitioning.current = false;
-                }, 500); // Increased from 300 to 500 ms
+                }, 500);
                 
                 return prev;
               }
+            } else {
+              // If no current task but timer ended, check for next task
+              const nextTask = getNextTask();
+              if (nextTask) {
+                const timeToNext = calculateTimeToNextTask(nextTask);
+                if (timeToNext && timeToNext <= 10 * 60) {
+                  setIsCountdownToNextTask(true);
+                  setIsBreak(true);
+                  return timeToNext;
+                }
+              }
+              
+              setIsRunning(false);
+              return 0;
             }
           }
           return prev - 1;
@@ -370,7 +445,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
         transitionTimeoutRef.current = null;
       }
     };
-  }, [isRunning, currentTask, isBreak, timeLeft]);
+  }, [isRunning, currentTask, isBreak, timeLeft, isCountdownToNextTask]);
 
   const handleReset = () => {
     if (!currentTask) {
@@ -409,6 +484,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     retryFullscreen,
     isTransitioning,
     getTodayTasks,
-    activeTasks
+    activeTasks,
+    isCountdownToNextTask
   };
 };

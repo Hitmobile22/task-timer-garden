@@ -1,16 +1,20 @@
-
 import { useState, useEffect } from 'react';
 
-export const useTimerVisibility = (currentTask: any, getNextTask: () => any) => {
+export const useTimerVisibility = (
+  currentTask: any, 
+  getNextTask: () => any,
+  isCountdownToNextTask: boolean = false
+) => {
   const [isVisible, setIsVisible] = useState(true);
 
   const shouldShowTimer = () => {
-    if (!currentTask) return false;
+    // If we're already showing a countdown to next task, always show
+    if (isCountdownToNextTask) return true;
+    
+    // If there's a current task, show the timer
+    if (currentTask) return true;
 
-    if (new Date() >= new Date(currentTask.date_started)) {
-      return true;
-    }
-
+    // Otherwise, check if we need to show a countdown for an upcoming task
     const nextTask = getNextTask();
     if (nextTask) {
       const now = new Date();
@@ -24,7 +28,7 @@ export const useTimerVisibility = (currentTask: any, getNextTask: () => any) => 
 
   useEffect(() => {
     setIsVisible(shouldShowTimer());
-  }, [currentTask, getNextTask]);
+  }, [currentTask, getNextTask, isCountdownToNextTask]);
 
   return isVisible;
 };

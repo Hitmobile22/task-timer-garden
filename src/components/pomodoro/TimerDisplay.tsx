@@ -10,6 +10,7 @@ interface TimerDisplayProps {
   currentTask: any;
   formatTime: (seconds: number) => string;
   getNextTask: () => any;
+  isCountdownToNextTask?: boolean;
 }
 
 export const TimerDisplay: React.FC<TimerDisplayProps> = ({
@@ -17,10 +18,16 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
   isBreak,
   currentTask,
   formatTime,
-  getNextTask
+  getNextTask,
+  isCountdownToNextTask = false
 }) => {
+  const nextTask = getNextTask();
+  
+  // Calculate progress differently for countdown to next task
   const progress = timeLeft === null ? 0 : isBreak
-    ? ((5 * 60 - timeLeft) / (5 * 60)) * 100
+    ? isCountdownToNextTask 
+      ? ((10 * 60 - (timeLeft > 10 * 60 ? 10 * 60 : timeLeft)) / (10 * 60)) * 100
+      : ((5 * 60 - timeLeft) / (5 * 60)) * 100
     : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
 
   // Get project details to display project name instead of just ID
@@ -41,9 +48,27 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
     enabled: !!currentTask?.project_id,
   });
 
-  const getProjectName = () => {
-    if (!currentTask?.project_id) return null;
-    return projectData?.["Project Name"] || `Project ${currentTask.project_id}`;
+  // Get project details for next task
+  const { data: nextProjectData } = useQuery({
+    queryKey: ['project', nextTask?.project_id],
+    queryFn: async () => {
+      if (!nextTask?.project_id) return null;
+      
+      const { data, error } = await supabase
+        .from('Projects')
+        .select('*')
+        .eq('id', nextTask.project_id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!nextTask?.project_id,
+  });
+
+  const getProjectName = (task: any, projectData: any) => {
+    if (!task?.project_id) return null;
+    return projectData?.["Project Name"] || `Project ${task.project_id}`;
   };
 
   const getTimerColor = () => {
@@ -77,7 +102,7 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
       <div className="space-y-2 w-full">
         {isBreak ? (
           <h2 className="text-2xl font-semibold text-primary truncate">
-            Break Time
+            {isCountdownToNextTask ? "Starting Soon" : "Break Time"}
           </h2>
         ) : (
           <h2 className="text-2xl font-semibold text-primary truncate">
@@ -90,14 +115,20 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
             {currentTask?.IsTimeBlock === 'Yes' ? 'Time Block' : 'Work Session'}
             {currentTask.project_id && (
               <span className="ml-1 text-xs bg-primary/10 px-1 py-0.5 rounded">
-                {getProjectName()}
+                {getProjectName(currentTask, projectData)}
               </span>
             )}
           </p>
         )}
-        {isBreak && getNextTask() && (
+        
+        {(isBreak || isCountdownToNextTask) && nextTask && (
           <p className="text-primary/80">
-            Next up: {getNextTask()?.["Task Name"]}
+            {isCountdownToNextTask ? "Countdown to:" : "Next up:"} {nextTask?.["Task Name"]}
+            {nextTask.project_id && (
+              <span className="ml-1 text-xs bg-primary/10 px-1 py-0.5 rounded">
+                {getProjectName(nextTask, nextProjectData)}
+              </span>
+            )}
           </p>
         )}
       </div>

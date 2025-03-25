@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
@@ -6,52 +5,103 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function getCurrentDayOfWeek() {
+  return new Date().toLocaleDateString('en-US', { weekday: 'long' });
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Create a Supabase client with the Auth context
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
 
-    // Get today's date at midnight
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Parse request body
+    const currentDayOfWeek = getCurrentDayOfWeek();
+    console.log(`Current day of week: ${currentDayOfWeek}`);
+
     const body = await req.json();
     console.log("Received request body:", JSON.stringify(body));
     
     const forceCheck = !!body.forceCheck;
     const projects = body.projects || [];
+    const specificDayOfWeek = body.dayOfWeek || currentDayOfWeek;
 
-    console.log(`Processing ${projects.length} recurring projects`);
+    console.log(`Processing ${projects.length} recurring projects on ${specificDayOfWeek}`);
 
     const results = [];
     
-    // Track existing task names to avoid duplicates
     const existingTaskNamesByProject = new Map();
     
+    const projectTaskListIds = projects
+      .map(p => p.task_list_id)
+      .filter(id => id !== null && id !== undefined);
+    
+    const taskListSettingsMap = new Map();
+    
+    if (projectTaskListIds.length > 0) {
+      const { data: taskListSettings, error: settingsError } = await supabaseClient
+        .from('recurring_task_settings')
+        .select('*')
+        .in('task_list_id', projectTaskListIds)
+        .eq('enabled', true)
+        .order('created_at', { ascending: false });
+        
+      if (settingsError) {
+        console.error('Error fetching task list settings:', settingsError);
+      } else if (taskListSettings && taskListSettings.length > 0) {
+        for (const setting of taskListSettings) {
+          if (!setting.task_list_id) continue;
+          
+          if (!taskListSettingsMap.has(setting.task_list_id)) {
+            taskListSettingsMap.set(setting.task_list_id, setting);
+          }
+        }
+        
+        console.log(`Retrieved settings for ${taskListSettingsMap.size} task lists`);
+      }
+    }
+    
     for (const project of projects) {
-      // Skip if project doesn't have required fields
       if (!project || !project.id) {
         console.log(`Invalid project data, skipping`);
         results.push({ project_id: project?.id, status: 'skipped', reason: 'invalid_project' });
         continue;
       }
 
-      // Skip if project doesn't have start/due dates
       if (!project.date_started || !project.date_due) {
         console.log(`Project ${project.id} missing start/due dates, skipping`);
         results.push({ project_id: project.id, status: 'skipped', reason: 'missing_dates' });
+        continue;
+      }
+      
+      let shouldRunToday = true;
+      if (!forceCheck && project.task_list_id) {
+        const listSetting = taskListSettingsMap.get(project.task_list_id);
+        if (listSetting && Array.isArray(listSetting.days_of_week)) {
+          shouldRunToday = listSetting.days_of_week.includes(specificDayOfWeek);
+          console.log(`Project ${project.id} task list ${project.task_list_id} configured days: ${listSetting.days_of_week.join(', ')}`);
+          console.log(`Should run today (${specificDayOfWeek})? ${shouldRunToday}`);
+        }
+      }
+      
+      if (!shouldRunToday && !forceCheck) {
+        console.log(`Project ${project.id} not scheduled to run on ${specificDayOfWeek}, skipping`);
+        results.push({ 
+          project_id: project.id, 
+          status: 'skipped', 
+          reason: 'not_scheduled_for_today',
+          day: specificDayOfWeek
+        });
         continue;
       }
 
@@ -60,9 +110,7 @@ Deno.serve(async (req) => {
       startDate.setHours(0, 0, 0, 0);
       dueDate.setHours(23, 59, 59, 999);
 
-      // Skip if today is outside the project date range
       if (today < startDate || today > dueDate) {
-        // Check if project is overdue and update name if needed
         if (today > dueDate && !project['Project Name'].includes('(overdue)')) {
           const { error: updateError } = await supabaseClient
             .from('Projects')
@@ -81,7 +129,6 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Check if we've already created tasks for this project today
       const { data: generationLogs, error: logsError } = await supabaseClient
         .from('recurring_task_generation_logs')
         .select('*')
@@ -103,7 +150,6 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Get ALL tasks for today for this project (regardless of status)
       const { data: todayTasks, error: todayTasksError } = await supabaseClient
         .from('Tasks')
         .select('id, "Task Name", Progress')
@@ -117,18 +163,14 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Store existing task names for this project to avoid duplicates
       existingTaskNamesByProject.set(project.id, todayTasks?.map(task => task["Task Name"]) || []);
 
-      // Calculate how many tasks to add - taking into account ALL tasks for today
       const taskCount = project.recurringTaskCount || 1;
       const todayTaskCount = todayTasks?.length || 0;
       
       console.log(`Project ${project.id} has ${todayTaskCount} tasks today, daily goal is ${taskCount}`);
       
-      // If we already have tasks for today and force check is not enabled, don't create new ones
       if (todayTaskCount > 0 && !forceCheck) {
-        // Create a generation log to mark that we've checked this project today
         const { error: logInsertError } = await supabaseClient
           .from('recurring_task_generation_logs')
           .insert({
@@ -146,7 +188,6 @@ Deno.serve(async (req) => {
         continue;
       }
       
-      // If we already have enough tasks for today, skip
       if (todayTaskCount >= taskCount && !forceCheck) {
         console.log(`No new tasks needed for project ${project.id} (${project['Project Name']}) - has ${todayTaskCount} tasks today`);
         results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks_today', existing: todayTaskCount });
@@ -161,16 +202,13 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Create new tasks for today
       const tasksToCreate = [];
       const existingNames = existingTaskNamesByProject.get(project.id) || [];
       
       for (let i = 0; i < neededTasks; i++) {
-        // Always start tasks at exactly 9am 
         const taskStartTime = new Date(today);
         taskStartTime.setHours(9, 0, 0, 0); 
         
-        // If we need multiple tasks, space them 30 minutes apart
         if (i > 0) {
           taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
         }
@@ -178,17 +216,14 @@ Deno.serve(async (req) => {
         const taskEndTime = new Date(taskStartTime);
         taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
         
-        // Create a unique task name
         let taskName = `${project['Project Name']} - Task ${todayTaskCount + i + 1}`;
         let uniqueNameCounter = 1;
         
-        // Ensure we don't create duplicate task names
         while (existingNames.includes(taskName)) {
           taskName = `${project['Project Name']} - Task ${todayTaskCount + i + 1} (${uniqueNameCounter})`;
           uniqueNameCounter++;
         }
         
-        // Add new task name to tracking array
         existingNames.push(taskName);
         
         tasksToCreate.push({
@@ -217,7 +252,6 @@ Deno.serve(async (req) => {
 
         console.log(`Created ${newTasks.length} tasks for project ${project.id}`);
         
-        // Create a generation log to prevent duplicate creation
         const { error: logInsertError } = await supabaseClient
           .from('recurring_task_generation_logs')
           .insert({

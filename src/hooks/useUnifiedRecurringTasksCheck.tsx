@@ -74,7 +74,7 @@ export const useUnifiedRecurringTasksCheck = () => {
             continue;
           }
           
-          // Only fetch enabled settings
+          // Only fetch enabled settings for today's day
           const { data, error } = await supabase
             .from('recurring_task_settings')
             .select('*')
@@ -90,8 +90,14 @@ export const useUnifiedRecurringTasksCheck = () => {
           }
           
           if (data && data.length > 0) {
-            console.log(`Active recurring setting for task list ${taskListId}:`, data[0]);
-            activeSettings.push(data[0]);
+            // Double-check that current day is in days_of_week array (extra validation)
+            if (data[0].days_of_week.includes(dayOfWeek)) {
+              console.log(`Active recurring setting for task list ${taskListId}:`, data[0]);
+              console.log(`Configured days: ${data[0].days_of_week.join(', ')}, Today: ${dayOfWeek}`);
+              activeSettings.push(data[0]);
+            } else {
+              console.log(`Task list ${taskListId} does not include today (${dayOfWeek}) in days of week:`, data[0].days_of_week);
+            }
           }
         }
         
@@ -203,7 +209,18 @@ export const useUnifiedRecurringTasksCheck = () => {
 
       // First check recurring task lists
       if (listSettings && listSettings.length > 0) {
-        await checkRecurringTaskLists(listSettings, currentDayName, forceCheck);
+        const settingsForToday = listSettings.filter(setting => 
+          setting.days_of_week && 
+          Array.isArray(setting.days_of_week) && 
+          setting.days_of_week.includes(currentDayName)
+        );
+        
+        if (settingsForToday.length > 0) {
+          console.log(`Found ${settingsForToday.length} settings active for today (${currentDayName})`);
+          await checkRecurringTaskLists(settingsForToday, currentDayName, forceCheck);
+        } else {
+          console.log(`No task list settings configured for today (${currentDayName})`);
+        }
       } else {
         console.log('No active recurring task list settings found for today, skipping check');
       }
@@ -248,7 +265,7 @@ export const useUnifiedRecurringTasksCheck = () => {
         console.log(`Task list ${setting.task_list_id} scheduled days:`, setting.days_of_week);
         
         // Explicitly check if today's day is in the days_of_week array
-        if (!setting.days_of_week.includes(currentDayName) && !forceCheck) {
+        if (!setting.days_of_week || !Array.isArray(setting.days_of_week) || !setting.days_of_week.includes(currentDayName)) {
           console.log(`Task list ${setting.task_list_id} not scheduled for today (${currentDayName}), skipping`);
           continue;
         }

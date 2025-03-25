@@ -198,6 +198,13 @@ export const RecurringTasksModal = ({
     try {
       console.log(`Saving recurring task settings for list ID ${listId}:`, settings);
       
+      // Validate that at least one day is selected
+      if (settings.enabled && (!settings.daysOfWeek || settings.daysOfWeek.length === 0)) {
+        toast.error('Please select at least one day of the week');
+        setIsSaving(false);
+        return;
+      }
+      
       // Always create a new settings record for this list
       // This ensures we have a clear history and the most recent settings are always used
       const { data, error } = await supabase
@@ -342,6 +349,11 @@ export const RecurringTasksModal = ({
                 onChange={(days) => updateSettings({ daysOfWeek: days })}
                 disabled={!settings.enabled || isSaving}
               />
+              {settings.enabled && settings.daysOfWeek.length === 0 && (
+                <p className="text-xs text-red-500">
+                  Please select at least one day
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isSaving || isCheckingTasks}>

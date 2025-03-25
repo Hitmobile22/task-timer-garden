@@ -158,7 +158,15 @@ Deno.serve(async (req) => {
         }
         
         if (specificSettings && specificSettings.length > 0) {
-          settings = specificSettings;
+          // Double-check the days of week match (defensive)
+          if (specificSettings[0].days_of_week.includes(dayOfWeek) || forceCheck) {
+            settings = specificSettings;
+            console.log(`Confirmed setting for list ${specificListId} includes today (${dayOfWeek})`, 
+              specificSettings[0].days_of_week);
+          } else {
+            console.log(`Setting for list ${specificListId} does not include today (${dayOfWeek})`, 
+              specificSettings[0].days_of_week);
+          }
         }
       } finally {
         // Ensure we remove the list from processing even if there's an error
@@ -180,7 +188,11 @@ Deno.serve(async (req) => {
       // Filter out settings that don't match today's day of week unless forcing
       if (!forceCheck) {
         const originalCount = settings.length;
-        settings = settings.filter(s => s.days_of_week.includes(dayOfWeek));
+        settings = settings.filter(s => 
+          s.days_of_week && 
+          Array.isArray(s.days_of_week) && 
+          s.days_of_week.includes(dayOfWeek)
+        );
         console.log(`Filtered settings from ${originalCount} to ${settings.length} based on day of week (${dayOfWeek})`);
       }
       
@@ -222,6 +234,12 @@ Deno.serve(async (req) => {
         for (const setting of allSettings) {
           if (!setting.task_list_id) continue;
           
+          // Double-check days of week - stricter validation
+          if (!setting.days_of_week || !Array.isArray(setting.days_of_week) || !setting.days_of_week.includes(dayOfWeek)) {
+            console.log(`Skipping setting for list ${setting.task_list_id} - not configured for ${dayOfWeek}`);
+            continue;
+          }
+          
           const existingSetting = latestSettingsByList.get(setting.task_list_id);
           
           if (!existingSetting || 
@@ -262,6 +280,19 @@ Deno.serve(async (req) => {
             task_list_id: setting?.task_list_id || null, 
             status: 'skipped', 
             reason: 'invalid_setting' 
+          });
+          continue;
+        }
+        
+        // Final check to verify the setting is for today's day of week
+        if (!forceCheck && (!setting.days_of_week || !Array.isArray(setting.days_of_week) || !setting.days_of_week.includes(dayOfWeek))) {
+          console.log(`Skipping setting for list ${setting.task_list_id} - not configured for ${dayOfWeek}`);
+          results.push({
+            task_list_id: setting.task_list_id,
+            status: 'skipped',
+            reason: 'wrong_day',
+            configured_days: setting.days_of_week,
+            current_day: dayOfWeek
           });
           continue;
         }

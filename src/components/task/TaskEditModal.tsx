@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { PointerDownOutsideEvent, FocusOutsideEvent } from "@radix-ui/react-popover";
 
 interface TaskEditModalProps {
   task: Task;
@@ -181,6 +183,23 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   const preventPropagation = (e: React.MouseEvent | React.KeyboardEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
+  
+  // Custom event handlers for Radix UI Popover
+  const handleInteractOutside = (event: PointerDownOutsideEvent | FocusOutsideEvent) => {
+    event.preventDefault();
+  };
+  
+  const handleOpenAutoFocus = (event: Event) => {
+    event.preventDefault();
+  };
+  
+  const handleFocusOutside = (event: FocusOutsideEvent) => {
+    event.preventDefault();
+  };
+  
+  const handlePointerDownOutside = (event: PointerDownOutsideEvent) => {
+    event.preventDefault();
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -258,10 +277,10 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 <PopoverContent 
                   className="w-auto p-0" 
                   align="start"
-                  onInteractOutside={preventPropagation}
-                  onOpenAutoFocus={preventPropagation}
-                  onFocusOutside={preventPropagation}
-                  onPointerDownOutside={preventPropagation}
+                  onInteractOutside={handleInteractOutside}
+                  onOpenAutoFocus={handleOpenAutoFocus}
+                  onFocusOutside={handleFocusOutside}
+                  onPointerDownOutside={handlePointerDownOutside}
                 >
                   <div onKeyDown={preventPropagation} onClick={preventPropagation}>
                     <Calendar
@@ -309,10 +328,10 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 <PopoverContent 
                   className="w-auto p-0" 
                   align="start"
-                  onInteractOutside={preventPropagation}
-                  onOpenAutoFocus={preventPropagation}
-                  onFocusOutside={preventPropagation}
-                  onPointerDownOutside={preventPropagation}
+                  onInteractOutside={handleInteractOutside}
+                  onOpenAutoFocus={handleOpenAutoFocus}
+                  onFocusOutside={handleFocusOutside}
+                  onPointerDownOutside={handlePointerDownOutside}
                 >
                   <div onKeyDown={preventPropagation} onClick={preventPropagation}>
                     <Calendar

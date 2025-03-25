@@ -19,6 +19,7 @@ export const useUnifiedRecurringTasksCheck = () => {
   const queryClient = useQueryClient();
   const processingRef = useRef<Set<number>>(new Set());
   const mountedRef = useRef<boolean>(false);
+  const projectsCheckCompletedRef = useRef<boolean>(false);
 
   // Query for active recurring task settings - Task Lists
   const { data: listSettings } = useQuery({
@@ -195,6 +196,7 @@ export const useUnifiedRecurringTasksCheck = () => {
       lastFullCheck.inProgress = true;
       lastFullCheck.timestamp = now;
       setIsLocalChecking(true);
+      projectsCheckCompletedRef.current = false;
       
       // Early morning check (before 7am don't generate tasks)
       const currentHour = new Date().getHours();
@@ -207,29 +209,34 @@ export const useUnifiedRecurringTasksCheck = () => {
       const currentDayName = getCurrentDayName();
       console.log(`Running unified recurring task check on ${currentDayName}`);
 
-      // First check recurring task lists
-      if (listSettings && listSettings.length > 0) {
-        const settingsForToday = listSettings.filter(setting => 
-          setting.days_of_week && 
-          Array.isArray(setting.days_of_week) && 
-          setting.days_of_week.includes(currentDayName)
-        );
-        
-        if (settingsForToday.length > 0) {
-          console.log(`Found ${settingsForToday.length} settings active for today (${currentDayName})`);
-          await checkRecurringTaskLists(settingsForToday, currentDayName, forceCheck);
-        } else {
-          console.log(`No task list settings configured for today (${currentDayName})`);
-        }
-      } else {
-        console.log('No active recurring task list settings found for today, skipping check');
-      }
-      
-      // Then check recurring projects
+      // First check recurring projects - their tasks should be generated first
       if (projects && projects.length > 0) {
-        await checkRecurringProjects(projects, forceCheck);
+        await checkRecurringProjects(projects, currentDayName, forceCheck);
+        projectsCheckCompletedRef.current = true;
       } else {
         console.log('No active recurring projects found, skipping check');
+        projectsCheckCompletedRef.current = true;
+      }
+      
+      // Then check recurring task lists, which should consider tasks already created by projects
+      if (listSettings && listSettings.length > 0) {
+        // Brief delay to ensure project task generation has completed
+        setTimeout(async () => {
+          const settingsForToday = listSettings.filter(setting => 
+            setting.days_of_week && 
+            Array.isArray(setting.days_of_week) && 
+            setting.days_of_week.includes(currentDayName)
+          );
+          
+          if (settingsForToday.length > 0) {
+            console.log(`Found ${settingsForToday.length} settings active for today (${currentDayName})`);
+            await checkRecurringTaskLists(settingsForToday, currentDayName, forceCheck);
+          } else {
+            console.log(`No task list settings configured for today (${currentDayName})`);
+          }
+        }, 2000);
+      } else {
+        console.log('No active recurring task list settings found for today, skipping check');
       }
       
       // Update last checked time
@@ -242,13 +249,107 @@ export const useUnifiedRecurringTasksCheck = () => {
       isGlobalCheckInProgress = false;
       lastFullCheck.inProgress = false;
     }
-  }, [listSettings, projects, queryClient, checkGenerationLog]);
+  }, [listSettings, projects, checkGenerationLog]);
+
+  // Check recurring projects
+  const checkRecurringProjects = useCallback(async (projects, currentDayName, forceCheck) => {
+    try {
+      console.log(`Checking ${projects.length} recurring projects...`);
+      
+      const now = new Date();
+      const rateLimitMs = 15 * 60 * 1000; // 15 minutes
+      const filteredProjects = [];
+      
+      for (const project of projects) {
+        // Skip if we're already processing this project
+        if (processingRef.current.has(project.id)) {
+          console.log(`Already processing project ${project.id}, skipping`);
+          continue;
+        }
+        
+        // Skip if we're rate-limited for this project
+        const lastCheck = lastGlobalCheck.get(project.id);
+        if (!forceCheck && lastCheck && (now.getTime() - lastCheck.getTime()) < rateLimitMs) {
+          console.log(`Rate limiting check for project ${project.id}, last checked ${Math.round((now.getTime() - lastCheck.getTime()) / 1000 / 60)} minutes ago`);
+          continue;
+        }
+        
+        // Check if we already have a generation log for today
+        const generationLog = await checkGenerationLog(null, project.id);
+        
+        if (generationLog && !forceCheck) {
+          console.log(`Already generated ${generationLog.tasks_generated} tasks for project ${project.id} today, skipping`);
+          continue;
+        }
+        
+        filteredProjects.push(project);
+        processingRef.current.add(project.id);
+        lastGlobalCheck.set(project.id, now);
+      }
+      
+      if (filteredProjects.length === 0) {
+        console.log('No projects need processing, skipping check');
+        return;
+      }
+      
+      // Send the projects to the check-recurring-projects function
+      const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
+        body: {
+          forceCheck: forceCheck,
+          dayOfWeek: currentDayName,
+          projects: filteredProjects.map(p => ({
+            id: p.id,
+            "Project Name": p["Project Name"],
+            task_list_id: p.task_list_id,
+            isRecurring: p.isRecurring,
+            recurringTaskCount: p.recurringTaskCount,
+            date_started: p.date_started,
+            date_due: p.date_due,
+            progress: p.progress
+          }))
+        }
+      });
+      
+      // Clear the processing flags
+      filteredProjects.forEach(p => {
+        processingRef.current.delete(p.id);
+      });
+      
+      if (error) {
+        console.error('Error response from recurring projects check:', error);
+        throw error;
+      }
+      
+      console.log('Recurring projects check result:', data);
+      
+      // Invalidate tasks query to refresh the task list if new tasks were created
+      const tasksCreated = data?.results?.some(result => result.status === 'created');
+      if (tasksCreated) {
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      }
+    } catch (error) {
+      console.error('Error checking recurring projects:', error);
+      // Clear processing flags in case of error
+      if (projects) {
+        projects.forEach(p => {
+          processingRef.current.delete(p.id);
+        });
+      }
+    }
+  }, [checkGenerationLog, queryClient]);
 
   // Check recurring task lists
   const checkRecurringTaskLists = useCallback(async (settings, currentDayName, forceCheck) => {
     try {
       console.log('Checking recurring task lists...');
       console.log('Active recurring task list settings:', settings.length);
+      
+      // Wait for projects check to complete
+      if (!projectsCheckCompletedRef.current) {
+        console.log('Waiting for projects check to complete before processing task lists...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
       
       // Create a filtered list excluding any task lists we're already processing
       // and task lists that already have generation logs for today
@@ -305,14 +406,14 @@ export const useUnifiedRecurringTasksCheck = () => {
       const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
         body: { 
           forceCheck: forceCheck,
+          currentDay: currentDayName,
           settings: filteredSettings.map(s => ({
             id: s.id,
             task_list_id: s.task_list_id,
             enabled: s.enabled,
             daily_task_count: s.daily_task_count,
             days_of_week: s.days_of_week
-          })),
-          currentDay: currentDayName
+          }))
         }
       });
       
@@ -344,94 +445,6 @@ export const useUnifiedRecurringTasksCheck = () => {
           if (s.task_list_id) {
             processingRef.current.delete(s.task_list_id);
           }
-        });
-      }
-    }
-  }, [checkGenerationLog, queryClient]);
-
-  // Check recurring projects
-  const checkRecurringProjects = useCallback(async (projects, forceCheck) => {
-    try {
-      // For each recurring project, invoke the check-recurring-projects function
-      console.log(`Checking ${projects.length} recurring projects...`);
-      
-      const now = new Date();
-      const rateLimitMs = 15 * 60 * 1000; // 15 minutes
-      const filteredProjects = [];
-      
-      for (const project of projects) {
-        // Skip if we're already processing this project
-        if (processingRef.current.has(project.id)) {
-          console.log(`Already processing project ${project.id}, skipping`);
-          continue;
-        }
-        
-        // Skip if we're rate-limited for this project
-        const lastCheck = lastGlobalCheck.get(project.id);
-        if (!forceCheck && lastCheck && (now.getTime() - lastCheck.getTime()) < rateLimitMs) {
-          console.log(`Rate limiting check for project ${project.id}, last checked ${Math.round((now.getTime() - lastCheck.getTime()) / 1000 / 60)} minutes ago`);
-          continue;
-        }
-        
-        // Check if we already have a generation log for today
-        const generationLog = await checkGenerationLog(null, project.id);
-        
-        if (generationLog && !forceCheck) {
-          console.log(`Already generated ${generationLog.tasks_generated} tasks for project ${project.id} today, skipping`);
-          continue;
-        }
-        
-        filteredProjects.push(project);
-        processingRef.current.add(project.id);
-        lastGlobalCheck.set(project.id, now);
-      }
-      
-      if (filteredProjects.length === 0) {
-        console.log('No projects need processing, skipping check');
-        return;
-      }
-      
-      // Send the projects to the check-recurring-projects function
-      const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
-        body: {
-          forceCheck: forceCheck,
-          projects: filteredProjects.map(p => ({
-            id: p.id,
-            "Project Name": p["Project Name"],
-            task_list_id: p.task_list_id,
-            isRecurring: p.isRecurring,
-            recurringTaskCount: p.recurringTaskCount,
-            date_started: p.date_started,
-            date_due: p.date_due,
-            progress: p.progress
-          }))
-        }
-      });
-      
-      // Clear the processing flags
-      filteredProjects.forEach(p => {
-        processingRef.current.delete(p.id);
-      });
-      
-      if (error) {
-        console.error('Error response from recurring projects check:', error);
-        throw error;
-      }
-      
-      console.log('Recurring projects check result:', data);
-      
-      // Invalidate tasks query to refresh the task list if new tasks were created
-      const tasksCreated = data?.results?.some(result => result.status === 'created');
-      if (tasksCreated) {
-        queryClient.invalidateQueries({ queryKey: ['tasks'] });
-        queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-      }
-    } catch (error) {
-      console.error('Error checking recurring projects:', error);
-      // Clear processing flags in case of error
-      if (projects) {
-        projects.forEach(p => {
-          processingRef.current.delete(p.id);
         });
       }
     }

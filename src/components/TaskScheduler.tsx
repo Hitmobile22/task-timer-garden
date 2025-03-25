@@ -3,15 +3,12 @@ import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
 import { PomodoroTimer } from './PomodoroTimer';
 import { MenuBar } from './MenuBar';
-import { Button } from './ui/button';
-import { Circle } from 'lucide-react';
-import { Shuffle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
-import { TASK_LIST_COLORS, DEFAULT_LIST_COLOR } from '@/constants/taskColors';
+import { TASK_LIST_COLORS } from '@/constants/taskColors';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Task, Subtask } from '@/types/task.types';
+import { Task } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
@@ -491,4 +488,3 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       </main>
     </div>;
 };
-

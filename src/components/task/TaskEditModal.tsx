@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { DismissEvent } from "@radix-ui/react-dismissable-layer";
 
 interface TaskEditModalProps {
   task: Task;
@@ -183,7 +182,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     e.stopPropagation();
   };
   
-  const handleInteractOutside = (event: DismissEvent) => {
+  const handleInteractOutside = (event: any) => {
     event.preventDefault();
   };
   
@@ -191,11 +190,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     event.preventDefault();
   };
   
-  const handleFocusOutside = (event: React.FocusEvent) => {
-    event.preventDefault();
-  };
-  
-  const handlePointerDownOutside = (event: React.PointerEvent) => {
+  const handlePointerDownOutside = (event: any) => {
     event.preventDefault();
   };
 

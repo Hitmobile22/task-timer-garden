@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,8 +15,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-// Import from the correct package
-import type { DismissEvent } from "@radix-ui/react-dismissable-layer";
 
 type Status = Database['public']['Enums']['status'];
 interface SubTask {
@@ -276,8 +273,7 @@ export const TaskForm = ({
     e.stopPropagation();
   };
   
-  // Updated event handlers with correct types
-  const handleInteractOutside = (event: DismissEvent) => {
+  const handleInteractOutside = (event: any) => {
     event.preventDefault();
   };
   
@@ -285,11 +281,7 @@ export const TaskForm = ({
     event.preventDefault();
   };
   
-  const handleFocusOutside = (event: React.FocusEvent) => {
-    event.preventDefault();
-  };
-  
-  const handlePointerDownOutside = (event: React.PointerEvent) => {
+  const handlePointerDownOutside = (event: any) => {
     event.preventDefault();
   };
   

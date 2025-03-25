@@ -26,18 +26,14 @@ Deno.serve(async (req) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Find projects that are recurring and should generate tasks today
-    const { data: projects, error: projectsError } = await supabaseClient
-      .from('Projects')
-      .select('*')
-      .eq('isRecurring', true)
-      .neq('progress', 'Completed');
+    // Parse request body
+    const body = await req.json();
+    console.log("Received request body:", JSON.stringify(body));
+    
+    const forceCheck = !!body.forceCheck;
+    const projects = body.projects || [];
 
-    if (projectsError) {
-      throw projectsError;
-    }
-
-    console.log(`Found ${projects.length} recurring projects to check`);
+    console.log(`Processing ${projects.length} recurring projects`);
 
     const results = [];
     
@@ -45,6 +41,13 @@ Deno.serve(async (req) => {
     const existingTaskNamesByProject = new Map();
     
     for (const project of projects) {
+      // Skip if project doesn't have required fields
+      if (!project || !project.id) {
+        console.log(`Invalid project data, skipping`);
+        results.push({ project_id: project?.id, status: 'skipped', reason: 'invalid_project' });
+        continue;
+      }
+
       // Skip if project doesn't have start/due dates
       if (!project.date_started || !project.date_due) {
         console.log(`Project ${project.id} missing start/due dates, skipping`);
@@ -89,7 +92,7 @@ Deno.serve(async (req) => {
         
       if (logsError) {
         console.error(`Error checking generation logs for project ${project.id}:`, logsError);
-      } else if (generationLogs) {
+      } else if (generationLogs && !forceCheck) {
         console.log(`Already generated ${generationLogs.tasks_generated} tasks for project ${project.id} today, skipping`);
         results.push({ 
           project_id: project.id, 
@@ -123,8 +126,8 @@ Deno.serve(async (req) => {
       
       console.log(`Project ${project.id} has ${todayTaskCount} tasks today, daily goal is ${taskCount}`);
       
-      // If we already have enough tasks for today (regardless of status), don't create new ones
-      if (todayTaskCount > 0) {
+      // If we already have tasks for today and force check is not enabled, don't create new ones
+      if (todayTaskCount > 0 && !forceCheck) {
         // Create a generation log to mark that we've checked this project today
         const { error: logInsertError } = await supabaseClient
           .from('recurring_task_generation_logs')
@@ -143,7 +146,8 @@ Deno.serve(async (req) => {
         continue;
       }
       
-      if (todayTaskCount >= taskCount) {
+      // If we already have enough tasks for today, skip
+      if (todayTaskCount >= taskCount && !forceCheck) {
         console.log(`No new tasks needed for project ${project.id} (${project['Project Name']}) - has ${todayTaskCount} tasks today`);
         results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks_today', existing: todayTaskCount });
         continue;

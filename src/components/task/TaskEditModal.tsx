@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { PointerDownOutsideEvent, FocusOutsideEvent } from "@radix-ui/react-popover";
+import type { DismissEvent } from "@radix-ui/react-dismissable-layer";
 
 interface TaskEditModalProps {
   task: Task;
@@ -184,8 +183,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     e.stopPropagation();
   };
   
-  // Custom event handlers for Radix UI Popover
-  const handleInteractOutside = (event: PointerDownOutsideEvent | FocusOutsideEvent) => {
+  const handleInteractOutside = (event: DismissEvent) => {
     event.preventDefault();
   };
   
@@ -193,11 +191,11 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     event.preventDefault();
   };
   
-  const handleFocusOutside = (event: FocusOutsideEvent) => {
+  const handleFocusOutside = (event: React.FocusEvent) => {
     event.preventDefault();
   };
   
-  const handlePointerDownOutside = (event: PointerDownOutsideEvent) => {
+  const handlePointerDownOutside = (event: React.PointerEvent) => {
     event.preventDefault();
   };
 
@@ -279,7 +277,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                   align="start"
                   onInteractOutside={handleInteractOutside}
                   onOpenAutoFocus={handleOpenAutoFocus}
-                  onFocusOutside={handleFocusOutside}
                   onPointerDownOutside={handlePointerDownOutside}
                 >
                   <div onKeyDown={preventPropagation} onClick={preventPropagation}>
@@ -330,7 +327,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                   align="start"
                   onInteractOutside={handleInteractOutside}
                   onOpenAutoFocus={handleOpenAutoFocus}
-                  onFocusOutside={handleFocusOutside}
                   onPointerDownOutside={handlePointerDownOutside}
                 >
                   <div onKeyDown={preventPropagation} onClick={preventPropagation}>

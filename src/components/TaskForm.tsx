@@ -16,7 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { PointerDownOutsideEvent, FocusOutsideEvent } from "@radix-ui/react-popover";
+// Import from the correct package
+import type { DismissEvent } from "@radix-ui/react-dismissable-layer";
 
 type Status = Database['public']['Enums']['status'];
 interface SubTask {
@@ -275,8 +276,8 @@ export const TaskForm = ({
     e.stopPropagation();
   };
   
-  // Custom event handlers for Radix UI Popover
-  const handleInteractOutside = (event: PointerDownOutsideEvent | FocusOutsideEvent) => {
+  // Updated event handlers with correct types
+  const handleInteractOutside = (event: DismissEvent) => {
     event.preventDefault();
   };
   
@@ -284,11 +285,11 @@ export const TaskForm = ({
     event.preventDefault();
   };
   
-  const handleFocusOutside = (event: FocusOutsideEvent) => {
+  const handleFocusOutside = (event: React.FocusEvent) => {
     event.preventDefault();
   };
   
-  const handlePointerDownOutside = (event: PointerDownOutsideEvent) => {
+  const handlePointerDownOutside = (event: React.PointerEvent) => {
     event.preventDefault();
   };
   
@@ -524,7 +525,6 @@ export const TaskForm = ({
                   align="start"
                   onInteractOutside={handleInteractOutside}
                   onOpenAutoFocus={handleOpenAutoFocus}
-                  onFocusOutside={handleFocusOutside}
                   onPointerDownOutside={handlePointerDownOutside}
                 >
                   <div className="p-4 space-y-4" onClick={preventPropagation}>

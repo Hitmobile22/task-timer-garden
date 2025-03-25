@@ -51,7 +51,6 @@ export const TaskForm = ({
     }
   });
   
-  // Task form state
   const [numTasks, setNumTasks] = useState<string>("none");
   const [tasks, setTasks] = useState<Task[]>([{
     name: "",
@@ -63,12 +62,11 @@ export const TaskForm = ({
   const [selectedMinutes, setSelectedMinutes] = useState<string>('');
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
   
-  // Time block modal state
   const [showTimeBlockModal, setShowTimeBlockModal] = useState(false);
   const [timeBlockName, setTimeBlockName] = useState("");
   const [timeBlockDate, setTimeBlockDate] = useState<Date | undefined>(undefined);
   const [timeBlockDuration, setTimeBlockDuration] = useState<string>("30");
-  
+
   const handleNumTasksChange = (value: string) => {
     setNumTasks(value);
     if (value === "none") {
@@ -173,12 +171,10 @@ export const TaskForm = ({
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
         const taskStartTime = new Date(currentTime.getTime() + delayMilliseconds);
-        // Add 30 minutes for each previous task (25min task + 5min break)
         taskStartTime.setMinutes(taskStartTime.getMinutes() + i * 30);
         const taskDueTime = new Date(taskStartTime);
         taskDueTime.setMinutes(taskDueTime.getMinutes() + 25);
 
-        // Create main task with timestamps and delay info
         const {
           data: taskData,
           error: taskError
@@ -192,7 +188,6 @@ export const TaskForm = ({
         }]).select().single();
         if (taskError) throw taskError;
 
-        // Create subtasks
         if (task.subtasks.length > 0) {
           const subtasksToInsert = task.subtasks.map(subtask => ({
             "Task Name": subtask.name,
@@ -206,7 +201,6 @@ export const TaskForm = ({
         }
       }
 
-      // Reset form state
       setTasks([{
         name: "",
         subtasks: []
@@ -259,7 +253,6 @@ export const TaskForm = ({
         
       if (error) throw error;
       
-      // Reset form state
       setTimeBlockName("");
       setTimeBlockDate(undefined);
       setTimeBlockDuration("30");
@@ -274,6 +267,10 @@ export const TaskForm = ({
       console.error('Error creating time block:', error);
       toast.error('Failed to create time block');
     }
+  };
+  
+  const preventPropagation = (e: React.MouseEvent | React.TouchEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
   };
   
   return (
@@ -470,7 +467,7 @@ export const TaskForm = ({
       </form>
       
       <Dialog open={showTimeBlockModal} onOpenChange={setShowTimeBlockModal}>
-        <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
+        <DialogContent className="sm:max-w-[425px]" onClick={preventPropagation}>
           <DialogHeader>
             <DialogTitle>Create Time Block</DialogTitle>
           </DialogHeader>
@@ -483,6 +480,7 @@ export const TaskForm = ({
                 value={timeBlockName}
                 onChange={(e) => setTimeBlockName(e.target.value)}
                 placeholder="Meeting, Break, Lunch, etc."
+                onClick={preventPropagation}
               />
             </div>
             
@@ -496,6 +494,7 @@ export const TaskForm = ({
                       "w-full justify-start text-left font-normal",
                       !timeBlockDate && "text-muted-foreground"
                     )}
+                    onClick={preventPropagation}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {timeBlockDate ? format(timeBlockDate, "PPP p") : <span>Pick date and time</span>}
@@ -504,12 +503,12 @@ export const TaskForm = ({
                 <PopoverContent 
                   className="w-auto p-0" 
                   align="start"
-                  onInteractOutside={(e) => e.preventDefault()}
-                  onOpenAutoFocus={(e) => e.preventDefault()}
-                  onFocusOutside={(e) => e.preventDefault()}
-                  onPointerDownOutside={(e) => e.preventDefault()}
+                  onInteractOutside={preventPropagation}
+                  onOpenAutoFocus={preventPropagation}
+                  onFocusOutside={preventPropagation}
+                  onPointerDownOutside={preventPropagation}
                 >
-                  <div className="p-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-4 space-y-4" onClick={preventPropagation}>
                     <Calendar
                       mode="single"
                       selected={timeBlockDate}
@@ -535,7 +534,10 @@ export const TaskForm = ({
                           newDate.setMinutes(minutes);
                           setTimeBlockDate(new Date(newDate));
                         }}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={preventPropagation}
+                        onTouchStart={preventPropagation}
+                        onMouseDown={preventPropagation}
+                        className="pointer-events-auto z-[60]"
                       />
                     </div>
                   </div>
@@ -549,7 +551,7 @@ export const TaskForm = ({
                 value={timeBlockDuration}
                 onValueChange={setTimeBlockDuration}
               >
-                <SelectTrigger>
+                <SelectTrigger onClick={preventPropagation}>
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent>

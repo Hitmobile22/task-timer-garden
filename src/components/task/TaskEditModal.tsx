@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -68,7 +67,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       
       if (task.details) {
         try {
-          // Handle string format
           if (typeof task.details === 'string') {
             try {
               const parsed = JSON.parse(task.details);
@@ -81,15 +79,12 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 });
               }
             } catch {
-              // Not valid JSON, use default
               setDetails({
                 type: 'doc',
                 content: [{ type: 'paragraph', content: [{ type: 'text', text: task.details }] }]
               });
             }
-          } 
-          // Handle object format
-          else if (typeof task.details === 'object' && task.details !== null) {
+          } else if (typeof task.details === 'object' && task.details !== null) {
             if ('type' in task.details && 'content' in task.details) {
               setDetails(task.details as unknown as EditorContent);
             } else {
@@ -99,7 +94,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
               });
             }
           } else {
-            // Default empty state
             setDetails({
               type: 'doc',
               content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
@@ -140,7 +134,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     
     if (task.details) {
       if (typeof task.details === 'object' && task.details !== null) {
-        // Safe property access with type checking
         if ('isTimeBlock' in task.details && typeof task.details.isTimeBlock === 'boolean') {
           isTimeBlock = task.details.isTimeBlock;
         }
@@ -151,12 +144,10 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
             isTimeBlock = Boolean(parsedDetails.isTimeBlock);
           }
         } catch (e) {
-          // Not valid JSON, ignore
         }
       }
     }
     
-    // Preserve the isTimeBlock property
     updatedDetails.isTimeBlock = isTimeBlock;
     
     try {
@@ -187,7 +178,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     return format(date, 'M/d h:mm a');
   };
 
-  const preventPropagation = (e: React.MouseEvent | React.KeyboardEvent) => {
+  const preventPropagation = (e: React.MouseEvent | React.KeyboardEvent | React.TouchEvent) => {
     e.stopPropagation();
   };
 
@@ -204,6 +195,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
               value={taskName}
               onChange={(e) => setTaskName(e.target.value)}
               className="w-full"
+              onClick={preventPropagation}
             />
           </div>
           
@@ -214,7 +206,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 value={tempProgress}
                 onValueChange={(value: Task['Progress']) => setTempProgress(value)}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" onClick={preventPropagation}>
                   <SelectValue placeholder="Select progress" />
                 </SelectTrigger>
                 <SelectContent>
@@ -232,7 +224,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 value={String(tempListId)}
                 onValueChange={(value) => setTempListId(Number(value))}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full" onClick={preventPropagation}>
                   <SelectValue placeholder="Select list" />
                 </SelectTrigger>
                 <SelectContent>
@@ -257,6 +249,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !selectedStartDate && "text-muted-foreground"
                     )}
+                    onClick={preventPropagation}
                   >
                     <Clock className="mr-2 h-4 w-4" />
                     {selectedStartDate ? formatDateTime(selectedStartDate) : <span>Start time</span>}
@@ -265,10 +258,10 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 <PopoverContent 
                   className="w-auto p-0" 
                   align="start"
-                  onInteractOutside={(e) => e.preventDefault()}
-                  onOpenAutoFocus={(e) => e.preventDefault()}
-                  onFocusOutside={(e) => e.preventDefault()}
-                  onPointerDownOutside={(e) => e.preventDefault()}
+                  onInteractOutside={preventPropagation}
+                  onOpenAutoFocus={preventPropagation}
+                  onFocusOutside={preventPropagation}
+                  onPointerDownOutside={preventPropagation}
                 >
                   <div onKeyDown={preventPropagation} onClick={preventPropagation}>
                     <Calendar
@@ -276,6 +269,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                       selected={selectedStartDate}
                       onSelect={(date) => date && setSelectedStartDate(date)}
                       initialFocus
+                      className="pointer-events-auto"
                     />
                     <div className="border-t p-3">
                       <Input
@@ -288,6 +282,10 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                           newDate.setMinutes(parseInt(minutes));
                           setSelectedStartDate(newDate);
                         }}
+                        onClick={preventPropagation}
+                        onTouchStart={preventPropagation}
+                        onMouseDown={preventPropagation}
+                        className="pointer-events-auto z-[60]"
                       />
                     </div>
                   </div>
@@ -302,6 +300,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                       "w-full justify-start text-left font-normal",
                       !selectedEndDate && "text-muted-foreground"
                     )}
+                    onClick={preventPropagation}
                   >
                     <Clock className="mr-2 h-4 w-4" />
                     {selectedEndDate ? formatDateTime(selectedEndDate) : <span>End time</span>}
@@ -310,10 +309,10 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                 <PopoverContent 
                   className="w-auto p-0" 
                   align="start"
-                  onInteractOutside={(e) => e.preventDefault()}
-                  onOpenAutoFocus={(e) => e.preventDefault()}
-                  onFocusOutside={(e) => e.preventDefault()}
-                  onPointerDownOutside={(e) => e.preventDefault()}
+                  onInteractOutside={preventPropagation}
+                  onOpenAutoFocus={preventPropagation}
+                  onFocusOutside={preventPropagation}
+                  onPointerDownOutside={preventPropagation}
                 >
                   <div onKeyDown={preventPropagation} onClick={preventPropagation}>
                     <Calendar
@@ -321,6 +320,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                       selected={selectedEndDate}
                       onSelect={(date) => date && setSelectedEndDate(date)}
                       initialFocus
+                      className="pointer-events-auto"
                     />
                     <div className="border-t p-3">
                       <Input
@@ -333,6 +333,10 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
                           newDate.setMinutes(parseInt(minutes));
                           setSelectedEndDate(newDate);
                         }}
+                        onClick={preventPropagation}
+                        onTouchStart={preventPropagation}
+                        onMouseDown={preventPropagation}
+                        className="pointer-events-auto z-[60]"
                       />
                     </div>
                   </div>

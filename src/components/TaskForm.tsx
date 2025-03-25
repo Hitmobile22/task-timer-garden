@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -471,7 +470,7 @@ export const TaskForm = ({
       </form>
       
       <Dialog open={showTimeBlockModal} onOpenChange={setShowTimeBlockModal}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Create Time Block</DialogTitle>
           </DialogHeader>
@@ -502,8 +501,15 @@ export const TaskForm = ({
                     {timeBlockDate ? format(timeBlockDate, "PPP p") : <span>Pick date and time</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <div className="p-4 space-y-4">
+                <PopoverContent 
+                  className="w-auto p-0" 
+                  align="start"
+                  onInteractOutside={(e) => e.preventDefault()}
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                  onFocusOutside={(e) => e.preventDefault()}
+                  onPointerDownOutside={(e) => e.preventDefault()}
+                >
+                  <div className="p-4 space-y-4" onClick={(e) => e.stopPropagation()}>
                     <Calendar
                       mode="single"
                       selected={timeBlockDate}
@@ -516,6 +522,7 @@ export const TaskForm = ({
                         }
                       }}
                       initialFocus
+                      className="pointer-events-auto"
                     />
                     <div className="flex gap-2 items-center">
                       <Input
@@ -528,6 +535,7 @@ export const TaskForm = ({
                           newDate.setMinutes(minutes);
                           setTimeBlockDate(new Date(newDate));
                         }}
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
                   </div>

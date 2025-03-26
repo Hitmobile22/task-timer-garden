@@ -3,18 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Minus, Clock } from "lucide-react";
+import { Plus, Minus, Clock, Check } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSubtasksFromAI } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, addDays, isBefore, startOfDay } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Status = Database['public']['Enums']['status'];
 interface SubTask {
@@ -30,6 +31,11 @@ interface TimeBlockProps {
   startDate: Date;
   duration: string;
 }
+
+type TimeBlockType = 'single' | 'week';
+type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+
+const DAYS_OF_WEEK: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 export const TaskForm = ({
   onTasksCreate,
@@ -66,6 +72,9 @@ export const TaskForm = ({
   const [timeBlockName, setTimeBlockName] = useState("");
   const [timeBlockDate, setTimeBlockDate] = useState<Date | undefined>(undefined);
   const [timeBlockDuration, setTimeBlockDuration] = useState<string>("30");
+  const [timeBlockType, setTimeBlockType] = useState<TimeBlockType>("single");
+  const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>([]);
+  const [timeOnly, setTimeOnly] = useState<string>("");
 
   const handleNumTasksChange = (value: string) => {
     setNumTasks(value);
@@ -223,49 +232,143 @@ export const TaskForm = ({
       return;
     }
     
-    if (!timeBlockDate) {
-      toast.error("Please select a start time");
-      return;
-    }
-    
-    if (!timeBlockDuration) {
-      toast.error("Please select a duration");
-      return;
-    }
-    
-    try {
-      const startTime = new Date(timeBlockDate);
-      const endTime = new Date(startTime);
-      const durationMinutes = parseInt(timeBlockDuration);
-      endTime.setMinutes(startTime.getMinutes() + durationMinutes);
-      
-      const { data: timeBlockData, error } = await supabase
-        .from('Tasks')
-        .insert([{
-          "Task Name": timeBlockName,
-          "Progress": "Not started",
-          "date_started": startTime.toISOString(),
-          "date_due": endTime.toISOString(),
-          "details": { isTimeBlock: true }
-        }])
-        .select()
-        .single();
-        
-      if (error) throw error;
-      
-      setTimeBlockName("");
-      setTimeBlockDate(undefined);
-      setTimeBlockDuration("30");
-      setShowTimeBlockModal(false);
-      
-      if (onTimeBlockCreate) {
-        onTimeBlockCreate(timeBlockData);
+    if (timeBlockType === 'single') {
+      if (!timeBlockDate) {
+        toast.error("Please select a start time");
+        return;
       }
       
-      toast.success("Time block created successfully");
-    } catch (error) {
-      console.error('Error creating time block:', error);
-      toast.error('Failed to create time block');
+      if (!timeBlockDuration) {
+        toast.error("Please select a duration");
+        return;
+      }
+      
+      try {
+        const startTime = new Date(timeBlockDate);
+        const endTime = new Date(startTime);
+        const durationMinutes = parseInt(timeBlockDuration);
+        endTime.setMinutes(startTime.getMinutes() + durationMinutes);
+        
+        const { data: timeBlockData, error } = await supabase
+          .from('Tasks')
+          .insert([{
+            "Task Name": timeBlockName,
+            "Progress": "Not started",
+            "date_started": startTime.toISOString(),
+            "date_due": endTime.toISOString(),
+            "details": { isTimeBlock: true }
+          }])
+          .select()
+          .single();
+          
+        if (error) throw error;
+        
+        setTimeBlockName("");
+        setTimeBlockDate(undefined);
+        setTimeBlockDuration("30");
+        setShowTimeBlockModal(false);
+        
+        if (onTimeBlockCreate) {
+          onTimeBlockCreate(timeBlockData);
+        }
+        
+        toast.success("Time block created successfully");
+      } catch (error) {
+        console.error('Error creating time block:', error);
+        toast.error('Failed to create time block');
+      }
+    } else if (timeBlockType === 'week') {
+      if (selectedDays.length === 0) {
+        toast.error("Please select at least one day of the week");
+        return;
+      }
+      
+      if (!timeOnly) {
+        toast.error("Please select a start time");
+        return;
+      }
+      
+      if (!timeBlockDuration) {
+        toast.error("Please select a duration");
+        return;
+      }
+      
+      try {
+        const today = new Date();
+        const currentDayIndex = (today.getDay() + 6) % 7; // Convert to Monday=0, Sunday=6 format
+        const dayIndexMap: Record<DayOfWeek, number> = {
+          'Monday': 0,
+          'Tuesday': 1,
+          'Wednesday': 2,
+          'Thursday': 3,
+          'Friday': 4,
+          'Saturday': 5,
+          'Sunday': 6
+        };
+        
+        // Parse the time string
+        const [hours, minutes] = timeOnly.split(':').map(Number);
+        
+        const timeBlocksToCreate = [];
+        
+        for (const day of selectedDays) {
+          const dayIndex = dayIndexMap[day];
+          let daysToAdd = (dayIndex - currentDayIndex + 7) % 7;
+          
+          // If it's the current day, check if the time has already passed
+          if (daysToAdd === 0) {
+            const now = new Date();
+            const selectedTime = new Date();
+            selectedTime.setHours(hours, minutes, 0, 0);
+            
+            // If the time has already passed today, schedule it for next week
+            if (isBefore(selectedTime, now)) {
+              daysToAdd = 7;
+            }
+          }
+          
+          const blockDate = addDays(today, daysToAdd);
+          blockDate.setHours(hours, minutes, 0, 0);
+          
+          const endTime = new Date(blockDate);
+          const durationMinutes = parseInt(timeBlockDuration);
+          endTime.setMinutes(blockDate.getMinutes() + durationMinutes);
+          
+          timeBlocksToCreate.push({
+            "Task Name": `${timeBlockName} (${day})`,
+            "Progress": "Not started",
+            "date_started": blockDate.toISOString(),
+            "date_due": endTime.toISOString(),
+            "details": { isTimeBlock: true }
+          });
+        }
+        
+        if (timeBlocksToCreate.length > 0) {
+          const { data: timeBlockData, error } = await supabase
+            .from('Tasks')
+            .insert(timeBlocksToCreate)
+            .select();
+            
+          if (error) throw error;
+          
+          setTimeBlockName("");
+          setTimeBlockDate(undefined);
+          setTimeOnly("");
+          setTimeBlockDuration("30");
+          setSelectedDays([]);
+          setShowTimeBlockModal(false);
+          
+          if (onTimeBlockCreate && timeBlockData?.length) {
+            // Pass the first created block to maintain compatibility
+            onTimeBlockCreate(timeBlockData[0]);
+          }
+          
+          toast.success(`${timeBlocksToCreate.length} time block(s) created successfully`);
+        }
+      } catch (error) {
+        console.error('Error creating time blocks:', error);
+        toast.error('Failed to create time blocks');
+      }
     }
   };
   
@@ -283,6 +386,14 @@ export const TaskForm = ({
   
   const handlePointerDownOutside = (event: any) => {
     event.preventDefault();
+  };
+
+  const handleDayToggle = (day: DayOfWeek) => {
+    setSelectedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day) 
+        : [...prev, day]
+    );
   };
   
   return (
@@ -497,64 +608,133 @@ export const TaskForm = ({
             </div>
             
             <div className="space-y-2">
-              <Label>Start Time</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !timeBlockDate && "text-muted-foreground"
-                    )}
-                    onClick={preventPropagation}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {timeBlockDate ? format(timeBlockDate, "PPP p") : <span>Pick date and time</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0" 
-                  align="start"
-                  onInteractOutside={handleInteractOutside}
-                  onOpenAutoFocus={handleOpenAutoFocus}
-                  onPointerDownOutside={handlePointerDownOutside}
-                >
-                  <div className="p-4 space-y-4" onClick={preventPropagation}>
-                    <Calendar
-                      mode="single"
-                      selected={timeBlockDate}
-                      onSelect={date => {
-                        if (date) {
-                          const currentTime = timeBlockDate || new Date();
-                          date.setHours(currentTime.getHours());
-                          date.setMinutes(currentTime.getMinutes());
-                          setTimeBlockDate(date);
-                        }
-                      }}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                    <div className="flex gap-2 items-center">
-                      <Input
-                        type="time"
-                        value={timeBlockDate ? format(timeBlockDate, "HH:mm") : ""}
-                        onChange={e => {
-                          const [hours, minutes] = e.target.value.split(':').map(Number);
-                          const newDate = timeBlockDate || new Date();
-                          newDate.setHours(hours);
-                          newDate.setMinutes(minutes);
-                          setTimeBlockDate(new Date(newDate));
-                        }}
-                        onClick={preventPropagation}
-                        onTouchStart={preventPropagation}
-                        onMouseDown={preventPropagation}
-                        className="pointer-events-auto z-[60]"
-                      />
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="timeBlockType">Time Block Type</Label>
+              <Select
+                value={timeBlockType}
+                onValueChange={(value: TimeBlockType) => {
+                  setTimeBlockType(value);
+                  // Reset related fields
+                  if (value === 'week') {
+                    setTimeBlockDate(undefined);
+                  } else {
+                    setSelectedDays([]);
+                    setTimeOnly("");
+                  }
+                }}
+              >
+                <SelectTrigger id="timeBlockType" onClick={preventPropagation}>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Single</SelectItem>
+                  <SelectItem value="week">Week</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            
+            {timeBlockType === 'single' ? (
+              <div className="space-y-2">
+                <Label>Start Time</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !timeBlockDate && "text-muted-foreground"
+                      )}
+                      onClick={preventPropagation}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {timeBlockDate ? format(timeBlockDate, "PPP p") : <span>Pick date and time</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    className="w-auto p-0" 
+                    align="start"
+                    onInteractOutside={handleInteractOutside}
+                    onOpenAutoFocus={handleOpenAutoFocus}
+                    onPointerDownOutside={handlePointerDownOutside}
+                  >
+                    <div className="p-4 space-y-4" onClick={preventPropagation}>
+                      <Calendar
+                        mode="single"
+                        selected={timeBlockDate}
+                        onSelect={date => {
+                          if (date) {
+                            const currentTime = timeBlockDate || new Date();
+                            date.setHours(currentTime.getHours());
+                            date.setMinutes(currentTime.getMinutes());
+                            setTimeBlockDate(date);
+                          }
+                        }}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          type="time"
+                          value={timeBlockDate ? format(timeBlockDate, "HH:mm") : ""}
+                          onChange={e => {
+                            const [hours, minutes] = e.target.value.split(':').map(Number);
+                            const newDate = timeBlockDate || new Date();
+                            newDate.setHours(hours);
+                            newDate.setMinutes(minutes);
+                            setTimeBlockDate(new Date(newDate));
+                          }}
+                          onClick={preventPropagation}
+                          onTouchStart={preventPropagation}
+                          onMouseDown={preventPropagation}
+                          className="pointer-events-auto z-[60]"
+                        />
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Days of Week</Label>
+                  <div className="grid grid-cols-7 gap-1">
+                    {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => {
+                      const fullDay = DAYS_OF_WEEK[index];
+                      return (
+                        <div 
+                          key={index} 
+                          className={cn(
+                            "flex flex-col items-center justify-center h-8 w-8 rounded-full cursor-pointer text-xs font-medium",
+                            selectedDays.includes(fullDay) 
+                              ? "bg-primary text-primary-foreground" 
+                              : "bg-muted hover:bg-muted/80"
+                          )}
+                          onClick={() => handleDayToggle(fullDay)}
+                        >
+                          {day}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {selectedDays.length > 0 
+                      ? `Selected: ${selectedDays.join(', ')}` 
+                      : 'Select at least one day'}
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="timeOnly">Start Time</Label>
+                  <Input
+                    id="timeOnly"
+                    type="time"
+                    value={timeOnly}
+                    onChange={(e) => setTimeOnly(e.target.value)}
+                    className="w-full"
+                    onClick={preventPropagation}
+                  />
+                </div>
+              </>
+            )}
             
             <div className="space-y-2">
               <Label htmlFor="timeBlockDuration">Duration</Label>

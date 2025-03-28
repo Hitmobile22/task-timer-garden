@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -201,7 +202,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         
         const taskDate = t.date_started ? new Date(t.date_started) : null;
         const isValidProgress = t.Progress === 'Not started' || t.Progress === 'In progress';
-        return isValidProgress && taskDate && taskDate >= today && taskDate < tomorrow;
+        return isValidProgress && taskDate && taskDate < tomorrow;
       }).sort((a, b) => {
         const dateA = a.date_started ? new Date(a.date_started).getTime() : 0;
         const dateB = b.date_started ? new Date(b.date_started).getTime() : 0;
@@ -213,6 +214,13 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       if (!selectedTask) return;
       
+      // Check if the selected task is a time block
+      if (isTaskTimeBlock(selectedTask)) {
+        toast.info("Time blocks can't be started as tasks");
+        return;
+      }
+      
+      // Start the selected task
       const currentTime = new Date();
       if (!currentTask || selectedTask.id === currentTask.id) {
         const {
@@ -225,6 +233,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         if (updateError) throw updateError;
       }
       
+      // Get all time blocks to avoid scheduling conflicts
       const timeBlocks = activeTasks
         ?.filter(t => isTaskTimeBlock(t))
         .map(t => ({
@@ -233,15 +242,19 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         }))
         .sort((a, b) => a.start.getTime() - b.start.getTime()) || [];
       
+      // Determine starting point for rescheduling
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       
+      // Reschedule all affected tasks (from today or earlier)
       for (const task of tasksToReschedule) {
+        // Skip the task we're starting and time blocks
         if (task.id === taskId || (currentTask && task.id === currentTask.id) || isTaskTimeBlock(task)) continue;
         if (nextStartTime >= tomorrow) break;
         
         let taskStartTime = new Date(nextStartTime);
         let taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
         
+        // Avoid scheduling conflicts with time blocks
         let needsRescheduling = true;
         while (needsRescheduling) {
           needsRescheduling = false;

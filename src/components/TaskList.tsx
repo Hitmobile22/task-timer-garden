@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -697,70 +698,87 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleTaskStart = async (taskId: number) => {
     try {
-      const todayTasks = getTodayTasks(dbTasks?.filter(t => t.Progress === 'Not started' || t.Progress === 'In progress') || []);
-      if (todayTasks.length === 0) return;
+      // Get the task we want to start
+      const taskToStart = dbTasks?.find(t => t.id === taskId);
+      if (!taskToStart) {
+        toast.error("Task not found");
+        return;
+      }
       
-      const selectedTask = todayTasks.find(t => t.id === taskId);
-      if (!selectedTask) return;
-      
-      if (isTaskTimeBlock(selectedTask)) {
+      if (isTaskTimeBlock(taskToStart)) {
         toast.info("Time blocks can't be started as tasks");
         return;
       }
+      
+      // Get all active tasks (not completed, not backlog)
+      const activeTasks = dbTasks?.filter(
+        t => t.Progress !== 'Completed' && t.Progress !== 'Backlog' && !isTaskTimeBlock(t)
+      ) || [];
       
       const currentTime = new Date();
       const tomorrow5AM = new Date(currentTime);
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
       
-      const taskToUpdate: Task = {
-        id: selectedTask.id,
-        "Task Name": selectedTask["Task Name"] || "",
-        Progress: "In progress",
-        task_list_id: selectedTask.task_list_id,
-        project_id: selectedTask.project_id || null,
-        date_started: currentTime.toISOString(),
-        date_due: new Date(currentTime.getTime() + 25 * 60000).toISOString(),
-        details: selectedTask.details
-      };
+      // Set the current task to In Progress and schedule it to start now
+      const taskStartTime = new Date(currentTime);
+      const taskEndTime = new Date(currentTime.getTime() + 25 * 60000);
       
+      // Update the task we're starting
       const { error: startError } = await supabase
         .from('Tasks')
         .update({
-          Progress: taskToUpdate.Progress,
-          date_started: taskToUpdate.date_started,
-          date_due: taskToUpdate.date_due
+          Progress: 'In progress',
+          date_started: taskStartTime.toISOString(),
+          date_due: taskEndTime.toISOString()
         })
         .eq('id', taskId);
       
       if (startError) throw startError;
       
-      const otherTasks = todayTasks
-        .filter(t => t.id !== taskId && !isTaskTimeBlock(t) && t.Progress !== 'Backlog')
-        .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
-        
-      let nextStartTime = new Date(currentTime.getTime() + 30 * 60000);
+      console.log(`Started task ${taskId} at ${taskStartTime.toISOString()}`);
+      
+      // Get other tasks that need to be rescheduled (excluding the one we just started)
+      const otherTasks = activeTasks
+        .filter(t => t.id !== taskId)
+        .sort((a, b) => {
+          // Sort by Progress first (In progress comes first)
+          if (a.Progress === 'In progress' && b.Progress !== 'In progress') return -1;
+          if (a.Progress !== 'In progress' && b.Progress === 'In progress') return 1;
+          
+          // Then sort by date
+          return new Date(a.date_started).getTime() - new Date(b.date_started).getTime();
+        });
+      
+      let nextStartTime = new Date(taskEndTime.getTime() + 5 * 60000);
       
       for (const task of otherTasks) {
         if (currentTime.getHours() >= 21 && isAfter(nextStartTime, tomorrow5AM)) {
+          console.log(`Skipping task ${task.id} as it would be scheduled after 5AM tomorrow`);
           break;
         }
         
-        const taskStartTime = new Date(nextStartTime);
-        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60000);
+        // Update other task's schedule
+        const otherTaskStartTime = new Date(nextStartTime);
+        const otherTaskEndTime = new Date(otherTaskStartTime.getTime() + 25 * 60000);
+        
+        console.log(`Scheduling task ${task.id} from ${task.Progress === 'In progress' ? 'In progress' : 'Not started'} to Not started at ${otherTaskStartTime.toISOString()}`);
         
         const { error } = await supabase
           .from('Tasks')
           .update({
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString(),
-            Progress: 'Not started'
+            Progress: 'Not started',
+            date_started: otherTaskStartTime.toISOString(),
+            date_due: otherTaskEndTime.toISOString()
           })
           .eq('id', task.id);
           
-        if (error) throw error;
+        if (error) {
+          console.error(`Error updating task ${task.id}:`, error);
+          continue;
+        }
         
-        nextStartTime = new Date(taskStartTime.getTime() + 30 * 60000);
+        nextStartTime = new Date(otherTaskEndTime.getTime() + 5 * 60000);
       }
       
       onTaskStart?.(taskId);

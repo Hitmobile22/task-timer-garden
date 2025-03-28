@@ -64,10 +64,10 @@ const DaysOfWeekSelector = ({
           <Checkbox
             id={`day-${day}`}
             checked={selectedDays.includes(day)}
-            onCheckedChange={() => {
-              const newDays = selectedDays.includes(day)
-                ? selectedDays.filter(d => d !== day)
-                : [...selectedDays, day];
+            onCheckedChange={(checked) => {
+              const newDays = checked
+                ? [...selectedDays, day]
+                : selectedDays.filter(d => d !== day);
               onChange(newDays);
             }}
             disabled={disabled}

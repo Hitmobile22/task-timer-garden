@@ -28,7 +28,7 @@ export const useTimerVisibility = (
 
   useEffect(() => {
     setIsVisible(shouldShowTimer());
-  }, [currentTask, getNextTask, isCountdownToNextTask]);
+  }, [currentTask, isCountdownToNextTask]);
 
   return isVisible;
 };

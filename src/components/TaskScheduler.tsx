@@ -220,18 +220,20 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         return;
       }
       
-      // Start the selected task
+      // Start the selected task with current time
       const currentTime = new Date();
-      if (!currentTask || selectedTask.id === currentTask.id) {
-        const {
-          error: updateError
-        } = await supabase.from('Tasks').update({
+      
+      // Always update the selected task to current time, regardless of whether it's already "In progress"
+      const { error: updateError } = await supabase
+        .from('Tasks')
+        .update({
           Progress: 'In progress',
           date_started: currentTime.toISOString(),
           date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
-        }).eq('id', taskId);
-        if (updateError) throw updateError;
-      }
+        })
+        .eq('id', taskId);
+        
+      if (updateError) throw updateError;
       
       // Get all time blocks to avoid scheduling conflicts
       const timeBlocks = activeTasks
@@ -242,13 +244,13 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         }))
         .sort((a, b) => a.start.getTime() - b.start.getTime()) || [];
       
-      // Determine starting point for rescheduling
+      // Determine starting point for rescheduling other tasks
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
       
       // Reschedule all affected tasks (from today or earlier)
       for (const task of tasksToReschedule) {
         // Skip the task we're starting and time blocks
-        if (task.id === taskId || (currentTask && task.id === currentTask.id) || isTaskTimeBlock(task)) continue;
+        if (task.id === taskId || (currentTask && task.id === currentTask.id && task.id !== taskId) || isTaskTimeBlock(task)) continue;
         if (nextStartTime >= tomorrow) break;
         
         let taskStartTime = new Date(nextStartTime);
@@ -277,7 +279,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
           error
         } = await supabase.from('Tasks').update({
           date_started: taskStartTime.toISOString(),
-          date_due: taskDueTime.toISOString()
+          date_due: taskDueTime.toISOString(),
+          Progress: 'Not started'
         }).eq('id', task.id);
         
         if (error) throw error;

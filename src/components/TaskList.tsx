@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
-import { format, addDays, isAfter } from 'date-fns';
+import { format, addDays, isAfter, isBefore } from 'date-fns';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -697,11 +698,24 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleTaskStart = async (taskId: number) => {
     try {
-      const todayTasks = getTodayTasks(dbTasks?.filter(t => t.Progress === 'Not started' || t.Progress === 'In progress') || []);
-      if (todayTasks.length === 0) return;
+      // Get all non-completed tasks for scheduling
+      const { data: activeTasks, error } = await supabase
+        .from('Tasks')
+        .select('*')
+        .in('Progress', ['Not started', 'In progress'])
+        .order('date_started', { ascending: true });
       
-      const selectedTask = todayTasks.find(t => t.id === taskId);
-      if (!selectedTask) return;
+      if (error) throw error;
+      if (!activeTasks || activeTasks.length === 0) {
+        toast.error("No tasks available to start");
+        return;
+      }
+      
+      const selectedTask = activeTasks.find(t => t.id === taskId);
+      if (!selectedTask) {
+        toast.error("Task not found");
+        return;
+      }
       
       if (isTaskTimeBlock(selectedTask)) {
         toast.info("Time blocks can't be started as tasks");
@@ -713,6 +727,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
       
+      // Start the selected task and set it to current time
       const taskToUpdate: Task = {
         id: selectedTask.id,
         "Task Name": selectedTask["Task Name"] || "",
@@ -735,8 +750,17 @@ export const TaskList: React.FC<TaskListProps> = ({
       
       if (startError) throw startError;
       
-      const otherTasks = todayTasks
-        .filter(t => t.id !== taskId && !isTaskTimeBlock(t) && t.Progress !== 'Backlog')
+      // Filter and sort tasks to reschedule
+      // Include tasks that are from today or earlier, but not the task we just started
+      const otherTasks = activeTasks
+        .filter(t => {
+          const taskDate = new Date(t.date_started);
+          const isTaskFromTodayOrEarlier = isBefore(taskDate, tomorrow5AM);
+          return t.id !== taskId && 
+                 !isTaskTimeBlock(t) && 
+                 t.Progress !== 'Backlog' &&
+                 isTaskFromTodayOrEarlier;
+        })
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
         
       let nextStartTime = new Date(currentTime.getTime() + 30 * 60000);

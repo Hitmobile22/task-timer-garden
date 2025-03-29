@@ -1,4 +1,3 @@
-
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -84,17 +83,30 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
     input.onchange = async () => {
       if (input.files?.length) {
         const file = input.files[0];
-        toast.promise(uploadImage(file), {
-          loading: 'Uploading image...',
-          success: (url) => {
-            if (url) {
-              editor.chain().focus().setImage({ src: url }).run();
-              return 'Image uploaded successfully';
-            }
-            throw new Error('Failed to get image URL');
-          },
-          error: 'Failed to upload image'
-        });
+        
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error('Image too large. Maximum size is 5MB');
+          return;
+        }
+        
+        const loadingToast = toast.loading('Uploading image...');
+        
+        try {
+          const url = await uploadImage(file);
+          
+          if (url) {
+            editor.chain().focus().setImage({ src: url }).run();
+            toast.dismiss(loadingToast);
+            toast.success('Image uploaded successfully');
+          } else {
+            toast.dismiss(loadingToast);
+            toast.error('Failed to upload image');
+          }
+        } catch (error) {
+          console.error('Error in image upload handler:', error);
+          toast.dismiss(loadingToast);
+          toast.error('Failed to upload image');
+        }
       }
     };
     

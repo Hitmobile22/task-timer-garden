@@ -39,10 +39,30 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
   onTimelineEdit,
 }) => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [currentTaskId, setCurrentTaskId] = React.useState<number | null>(null);
 
+  // When opening the modal, track the current task id to ensure we're editing the correct task
   const handleTaskClick = () => {
     if (editingTaskId === task.id) return; // Don't open modal if already editing
+    setCurrentTaskId(task.id);
     setIsModalOpen(true);
+  };
+
+  // Reset the tracked task id when closing the modal
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setCurrentTaskId(null);
+  };
+
+  // Only proceed with edits if the task id matches
+  const handleEditSave = (newName: string) => {
+    if (currentTaskId === task.id) {
+      console.log("TaskNameCell: Saving task name for task ID:", task.id, "New name:", newName);
+      onEditNameChange(newName);
+      onEditSave(task.id);
+    } else {
+      console.error("TaskNameCell: Task ID mismatch. Current:", currentTaskId, "Expected:", task.id);
+    }
   };
 
   return (
@@ -80,19 +100,18 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
         )}
       </div>
       
-      <TaskEditModal
-        task={task}
-        taskLists={taskLists}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onEditNameChange={(value) => {
-          onEditNameChange(value);
-          onEditSave(task.id);
-        }}
-        onUpdateProgress={onUpdateProgress}
-        onMoveTask={onMoveTask}
-        onTimelineEdit={onTimelineEdit}
-      />
+      {currentTaskId === task.id && (
+        <TaskEditModal
+          task={task}
+          taskLists={taskLists}
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          onEditNameChange={handleEditSave}
+          onUpdateProgress={onUpdateProgress}
+          onMoveTask={onMoveTask}
+          onTimelineEdit={onTimelineEdit}
+        />
+      )}
     </TableCell>
   );
 };

@@ -56,9 +56,11 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   });
   const [startDateOpen, setStartDateOpen] = React.useState(false);
   const [endDateOpen, setEndDateOpen] = React.useState(false);
+  const [taskInitialized, setTaskInitialized] = React.useState(false);
 
-  React.useEffect(() => {
-    if (isOpen && task) {
+  const initializeTaskForm = React.useCallback(() => {
+    if (task) {
+      console.log("TaskEditModal: Initializing task form with data:", task);
       setTaskName(task["Task Name"] || "");
       setTempProgress(task.Progress || "Not started");
       setTempListId(task.task_list_id || 1);
@@ -112,8 +114,19 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
           content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
         });
       }
+      
+      setTaskInitialized(true);
     }
-  }, [isOpen, task]);
+  }, [task]);
+
+  React.useEffect(() => {
+    if (isOpen && task) {
+      console.log("TaskEditModal: Modal opened with task ID:", task.id);
+      initializeTaskForm();
+    } else if (!isOpen) {
+      setTaskInitialized(false);
+    }
+  }, [isOpen, task, initializeTaskForm]);
 
   const handleSave = async () => {
     if (!taskName?.trim()) {
@@ -121,6 +134,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       return;
     }
 
+    console.log("TaskEditModal: Saving task with name:", taskName);
     onEditNameChange(taskName);
     onUpdateProgress(task.id, tempProgress);
     onMoveTask(task.id, tempListId);
@@ -144,6 +158,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
             isTimeBlock = Boolean(parsedDetails.isTimeBlock);
           }
         } catch (e) {
+          // Keep isTimeBlock as false on parse error
         }
       }
     }
@@ -200,168 +215,170 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
         <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
           <DialogTitle>Edit Task</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-4 py-2 overflow-y-auto">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Task Name</label>
-            <Input
-              value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
-              className="w-full"
-              onClick={preventPropagation}
-            />
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {taskInitialized && (
+          <div className="flex flex-col gap-4 py-2 overflow-y-auto">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Progress</label>
-              <Select
-                value={tempProgress}
-                onValueChange={(value: Task['Progress']) => setTempProgress(value)}
-              >
-                <SelectTrigger className="w-full" onClick={preventPropagation}>
-                  <SelectValue placeholder="Select progress" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Not started">Not started</SelectItem>
-                  <SelectItem value="In progress">In progress</SelectItem>
-                  <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="Backlog">Backlog</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">Task Name</label>
+              <Input
+                value={taskName}
+                onChange={(e) => setTaskName(e.target.value)}
+                className="w-full"
+                onClick={preventPropagation}
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Progress</label>
+                <Select
+                  value={tempProgress}
+                  onValueChange={(value: Task['Progress']) => setTempProgress(value)}
+                >
+                  <SelectTrigger className="w-full" onClick={preventPropagation}>
+                    <SelectValue placeholder="Select progress" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Not started">Not started</SelectItem>
+                    <SelectItem value="In progress">In progress</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                    <SelectItem value="Backlog">Backlog</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">List</label>
+                <Select
+                  value={String(tempListId)}
+                  onValueChange={(value) => setTempListId(Number(value))}
+                >
+                  <SelectTrigger className="w-full" onClick={preventPropagation}>
+                    <SelectValue placeholder="Select list" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {taskLists?.map((list) => (
+                      <SelectItem key={list.id} value={String(list.id)}>
+                        {list.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">List</label>
-              <Select
-                value={String(tempListId)}
-                onValueChange={(value) => setTempListId(Number(value))}
-              >
-                <SelectTrigger className="w-full" onClick={preventPropagation}>
-                  <SelectValue placeholder="Select list" />
-                </SelectTrigger>
-                <SelectContent>
-                  {taskLists?.map((list) => (
-                    <SelectItem key={list.id} value={String(list.id)}>
-                      {list.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Timeline</label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !selectedStartDate && "text-muted-foreground"
-                    )}
-                    onClick={preventPropagation}
+              <label className="text-sm font-medium">Timeline</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !selectedStartDate && "text-muted-foreground"
+                      )}
+                      onClick={preventPropagation}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {selectedStartDate ? formatDateTime(selectedStartDate) : <span>Start time</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    className="w-auto p-0" 
+                    align="start"
+                    onInteractOutside={handleInteractOutside}
+                    onOpenAutoFocus={handleOpenAutoFocus}
+                    onPointerDownOutside={handlePointerDownOutside}
                   >
-                    <Clock className="mr-2 h-4 w-4" />
-                    {selectedStartDate ? formatDateTime(selectedStartDate) : <span>Start time</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0" 
-                  align="start"
-                  onInteractOutside={handleInteractOutside}
-                  onOpenAutoFocus={handleOpenAutoFocus}
-                  onPointerDownOutside={handlePointerDownOutside}
-                >
-                  <div onKeyDown={preventPropagation} onClick={preventPropagation}>
-                    <Calendar
-                      mode="single"
-                      selected={selectedStartDate}
-                      onSelect={(date) => date && setSelectedStartDate(date)}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                    <div className="border-t p-3">
-                      <Input
-                        type="time"
-                        value={format(selectedStartDate, "HH:mm")}
-                        onChange={(e) => {
-                          const [hours, minutes] = e.target.value.split(':');
-                          const newDate = new Date(selectedStartDate);
-                          newDate.setHours(parseInt(hours));
-                          newDate.setMinutes(parseInt(minutes));
-                          setSelectedStartDate(newDate);
-                        }}
-                        onClick={preventPropagation}
-                        onTouchStart={preventPropagation}
-                        onMouseDown={preventPropagation}
-                        className="pointer-events-auto z-[60]"
+                    <div onKeyDown={preventPropagation} onClick={preventPropagation}>
+                      <Calendar
+                        mode="single"
+                        selected={selectedStartDate}
+                        onSelect={(date) => date && setSelectedStartDate(date)}
+                        initialFocus
+                        className="pointer-events-auto"
                       />
+                      <div className="border-t p-3">
+                        <Input
+                          type="time"
+                          value={format(selectedStartDate, "HH:mm")}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':');
+                            const newDate = new Date(selectedStartDate);
+                            newDate.setHours(parseInt(hours));
+                            newDate.setMinutes(parseInt(minutes));
+                            setSelectedStartDate(newDate);
+                          }}
+                          onClick={preventPropagation}
+                          onTouchStart={preventPropagation}
+                          onMouseDown={preventPropagation}
+                          className="pointer-events-auto z-[60]"
+                        />
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
 
-              <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !selectedEndDate && "text-muted-foreground"
-                    )}
-                    onClick={preventPropagation}
+                <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !selectedEndDate && "text-muted-foreground"
+                      )}
+                      onClick={preventPropagation}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {selectedEndDate ? formatDateTime(selectedEndDate) : <span>End time</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    className="w-auto p-0" 
+                    align="start"
+                    onInteractOutside={handleInteractOutside}
+                    onOpenAutoFocus={handleOpenAutoFocus}
+                    onPointerDownOutside={handlePointerDownOutside}
                   >
-                    <Clock className="mr-2 h-4 w-4" />
-                    {selectedEndDate ? formatDateTime(selectedEndDate) : <span>End time</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0" 
-                  align="start"
-                  onInteractOutside={handleInteractOutside}
-                  onOpenAutoFocus={handleOpenAutoFocus}
-                  onPointerDownOutside={handlePointerDownOutside}
-                >
-                  <div onKeyDown={preventPropagation} onClick={preventPropagation}>
-                    <Calendar
-                      mode="single"
-                      selected={selectedEndDate}
-                      onSelect={(date) => date && setSelectedEndDate(date)}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                    <div className="border-t p-3">
-                      <Input
-                        type="time"
-                        value={format(selectedEndDate, "HH:mm")}
-                        onChange={(e) => {
-                          const [hours, minutes] = e.target.value.split(':');
-                          const newDate = new Date(selectedEndDate);
-                          newDate.setHours(parseInt(hours));
-                          newDate.setMinutes(parseInt(minutes));
-                          setSelectedEndDate(newDate);
-                        }}
-                        onClick={preventPropagation}
-                        onTouchStart={preventPropagation}
-                        onMouseDown={preventPropagation}
-                        className="pointer-events-auto z-[60]"
+                    <div onKeyDown={preventPropagation} onClick={preventPropagation}>
+                      <Calendar
+                        mode="single"
+                        selected={selectedEndDate}
+                        onSelect={(date) => date && setSelectedEndDate(date)}
+                        initialFocus
+                        className="pointer-events-auto"
                       />
+                      <div className="border-t p-3">
+                        <Input
+                          type="time"
+                          value={format(selectedEndDate, "HH:mm")}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':');
+                            const newDate = new Date(selectedEndDate);
+                            newDate.setHours(parseInt(hours));
+                            newDate.setMinutes(parseInt(minutes));
+                            setSelectedEndDate(newDate);
+                          }}
+                          onClick={preventPropagation}
+                          onTouchStart={preventPropagation}
+                          onMouseDown={preventPropagation}
+                          className="pointer-events-auto z-[60]"
+                        />
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Details</label>
-            <div className="min-h-[150px] max-h-[250px] overflow-y-auto border rounded-md">
-              <RichTextEditor content={details} onChange={setDetails} />
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Details</label>
+              <div className="min-h-[150px] max-h-[250px] overflow-y-auto border rounded-md">
+                <RichTextEditor content={details} onChange={setDetails} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
         <div className="flex justify-end gap-2 mt-4 pt-2 border-t sticky bottom-0 bg-background">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button variant="secondary" onClick={handlePushTask}>Push task</Button>

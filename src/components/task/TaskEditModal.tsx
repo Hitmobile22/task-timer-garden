@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Clock } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format, addDays, isEqual } from "date-fns";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from './editor/RichTextEditor';
 import { supabase } from "@/integrations/supabase/client";
@@ -58,61 +59,98 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   const [endDateOpen, setEndDateOpen] = React.useState(false);
   const [taskInitialized, setTaskInitialized] = React.useState(false);
 
+  // Store the original values for comparison before saving
+  const [originalTaskName, setOriginalTaskName] = React.useState<string>("");
+  const [originalProgress, setOriginalProgress] = React.useState<Task['Progress']>("Not started");
+  const [originalListId, setOriginalListId] = React.useState<number>(1);
+  const [originalStartDate, setOriginalStartDate] = React.useState<Date | null>(null);
+  const [originalEndDate, setOriginalEndDate] = React.useState<Date | null>(null);
+  const [originalDetails, setOriginalDetails] = React.useState<any>(null);
+
   const initializeTaskForm = React.useCallback(() => {
     if (task) {
       console.log("TaskEditModal: Initializing task form with data:", task);
-      setTaskName(task["Task Name"] || "");
-      setTempProgress(task.Progress || "Not started");
-      setTempListId(task.task_list_id || 1);
-      setSelectedStartDate(task.date_started ? new Date(task.date_started) : new Date());
-      setSelectedEndDate(task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000));
+      const taskNameValue = task["Task Name"] || "";
+      const progressValue = task.Progress || "Not started";
+      const listIdValue = task.task_list_id || 1;
+      const startDateValue = task.date_started ? new Date(task.date_started) : new Date();
+      const endDateValue = task.date_due ? new Date(task.date_due) : new Date(Date.now() + 25 * 60 * 1000);
+      
+      // Set current values
+      setTaskName(taskNameValue);
+      setTempProgress(progressValue);
+      setTempListId(listIdValue);
+      setSelectedStartDate(startDateValue);
+      setSelectedEndDate(endDateValue);
+      
+      // Store original values for comparison
+      setOriginalTaskName(taskNameValue);
+      setOriginalProgress(progressValue);
+      setOriginalListId(listIdValue);
+      setOriginalStartDate(startDateValue);
+      setOriginalEndDate(endDateValue);
       
       if (task.details) {
         try {
+          let parsedDetails;
           if (typeof task.details === 'string') {
             try {
-              const parsed = JSON.parse(task.details);
-              if (parsed && typeof parsed === 'object' && 'type' in parsed && 'content' in parsed) {
-                setDetails(parsed as EditorContent);
+              parsedDetails = JSON.parse(task.details);
+              if (parsedDetails && typeof parsedDetails === 'object' && 'type' in parsedDetails && 'content' in parsedDetails) {
+                setDetails(parsedDetails as EditorContent);
+                setOriginalDetails(JSON.stringify(parsedDetails));
               } else {
-                setDetails({
+                const defaultDetails = {
                   type: 'doc',
                   content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-                });
+                };
+                setDetails(defaultDetails);
+                setOriginalDetails(JSON.stringify(defaultDetails));
               }
             } catch {
-              setDetails({
+              const textDetails = {
                 type: 'doc',
                 content: [{ type: 'paragraph', content: [{ type: 'text', text: task.details }] }]
-              });
+              };
+              setDetails(textDetails);
+              setOriginalDetails(JSON.stringify(textDetails));
             }
           } else if (typeof task.details === 'object' && task.details !== null) {
             if ('type' in task.details && 'content' in task.details) {
               setDetails(task.details as unknown as EditorContent);
+              setOriginalDetails(JSON.stringify(task.details));
             } else {
-              setDetails({
+              const defaultDetails = {
                 type: 'doc',
                 content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-              });
+              };
+              setDetails(defaultDetails);
+              setOriginalDetails(JSON.stringify(defaultDetails));
             }
           } else {
-            setDetails({
+            const defaultDetails = {
               type: 'doc',
               content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-            });
+            };
+            setDetails(defaultDetails);
+            setOriginalDetails(JSON.stringify(defaultDetails));
           }
         } catch (e) {
           console.error("Error parsing task details:", e);
-          setDetails({
+          const defaultDetails = {
             type: 'doc',
             content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-          });
+          };
+          setDetails(defaultDetails);
+          setOriginalDetails(JSON.stringify(defaultDetails));
         }
       } else {
-        setDetails({
+        const defaultDetails = {
           type: 'doc',
           content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-        });
+        };
+        setDetails(defaultDetails);
+        setOriginalDetails(JSON.stringify(defaultDetails));
       }
       
       setTaskInitialized(true);
@@ -135,11 +173,49 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     }
 
     console.log("TaskEditModal: Saving task with name:", taskName);
-    onEditNameChange(taskName);
-    onUpdateProgress(task.id, tempProgress);
-    onMoveTask(task.id, tempListId);
-    onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     
+    let updatesApplied = false;
+    
+    // Only update name if it changed
+    if (taskName !== originalTaskName) {
+      onEditNameChange(taskName);
+      updatesApplied = true;
+      toast.success("Task name updated");
+    }
+    
+    // Only update progress if it changed
+    if (tempProgress !== originalProgress) {
+      onUpdateProgress(task.id, tempProgress);
+      updatesApplied = true;
+      toast.success("Task progress updated");
+    }
+    
+    // Only update list if it changed
+    if (tempListId !== originalListId) {
+      onMoveTask(task.id, tempListId);
+      updatesApplied = true;
+      toast.success("Task moved to new list");
+    }
+    
+    // Check if dates have changed using date-fns isEqual
+    const startDateChanged = !originalStartDate || !selectedStartDate || 
+      !isEqual(new Date(originalStartDate), new Date(selectedStartDate));
+    
+    const endDateChanged = !originalEndDate || !selectedEndDate || 
+      !isEqual(new Date(originalEndDate), new Date(selectedEndDate));
+    
+    // Only update timeline if either date changed
+    if (startDateChanged || endDateChanged) {
+      onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
+      updatesApplied = true;
+      toast.success("Task timeline updated");
+    }
+    
+    // Check if details have changed
+    const currentDetailsString = JSON.stringify(details);
+    const detailsChanged = currentDetailsString !== originalDetails;
+    
+    // Handle details update
     const updatedDetails: Record<string, any> = {
       ...(typeof details === 'object' ? details : {}),
     };
@@ -166,13 +242,21 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     updatedDetails.isTimeBlock = isTimeBlock;
     
     try {
-      await supabase
-        .from('Tasks')
-        .update({ details: updatedDetails })
-        .eq('id', task.id);
+      if (detailsChanged) {
+        await supabase
+          .from('Tasks')
+          .update({ details: updatedDetails })
+          .eq('id', task.id);
+        
+        updatesApplied = true;
+        toast.success("Task details updated");
+      }
+      
+      if (!updatesApplied) {
+        toast.info("No changes to save");
+      }
       
       onClose();
-      toast.success("Task updated successfully");
     } catch (error) {
       console.error('Error updating task details:', error);
       toast.error("Failed to update task details");

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -44,26 +43,46 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
   // When opening the modal, track the current task id to ensure we're editing the correct task
   const handleTaskClick = () => {
     if (editingTaskId === task.id) return; // Don't open modal if already editing
+    
+    console.log("TaskNameCell: Opening modal for task ID:", task.id, "Task Name:", task["Task Name"]);
     setCurrentTaskId(task.id);
     setIsModalOpen(true);
   };
 
   // Reset the tracked task id when closing the modal
   const handleModalClose = () => {
+    console.log("TaskNameCell: Closing modal for task ID:", currentTaskId);
     setIsModalOpen(false);
-    setCurrentTaskId(null);
+    // Keep the currentTaskId set until after the modal is fully closed
+    // This ensures we don't lose track of which task we were editing
   };
 
   // Only proceed with edits if the task id matches
   const handleEditSave = (newName: string) => {
+    console.log("TaskNameCell: Saving task name. Current ID:", currentTaskId, "Task ID:", task.id, "New name:", newName);
+    
     if (currentTaskId === task.id) {
-      console.log("TaskNameCell: Saving task name for task ID:", task.id, "New name:", newName);
       onEditNameChange(newName);
       onEditSave(task.id);
     } else {
       console.error("TaskNameCell: Task ID mismatch. Current:", currentTaskId, "Expected:", task.id);
     }
   };
+
+  // Use effect to ensure we're only showing the modal for the current task
+  React.useEffect(() => {
+    if (!isModalOpen) {
+      // Reset the currentTaskId when the modal is closed
+      // Use a small timeout to ensure all operations have completed
+      const timer = setTimeout(() => {
+        if (!isModalOpen) {
+          setCurrentTaskId(null);
+        }
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isModalOpen]);
 
   return (
     <TableCell className="font-medium">
@@ -100,7 +119,7 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
         )}
       </div>
       
-      {currentTaskId === task.id && (
+      {isModalOpen && (
         <TaskEditModal
           task={task}
           taskLists={taskLists}

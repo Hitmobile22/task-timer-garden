@@ -1,4 +1,3 @@
-
 export const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -50,7 +49,6 @@ export const restoreFullscreen = async (
   }
 };
 
-// New utility function to calculate time until next task starts
 export const calculateTimeUntilTaskStart = (taskStartTime: string | Date): number | null => {
   if (!taskStartTime) return null;
   
@@ -60,4 +58,14 @@ export const calculateTimeUntilTaskStart = (taskStartTime: string | Date): numbe
   
   if (diffInSeconds <= 0) return null;
   return diffInSeconds;
+};
+
+export const shouldShowCountdownForTask = (taskStartTime: string | Date): boolean => {
+  if (!taskStartTime) return false;
+  
+  const now = new Date();
+  const startTime = new Date(taskStartTime);
+  const diffInSeconds = Math.floor((startTime.getTime() - now.getTime()) / 1000);
+  
+  return diffInSeconds > 0 && diffInSeconds <= 10 * 60;
 };

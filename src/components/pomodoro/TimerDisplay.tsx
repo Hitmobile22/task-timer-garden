@@ -73,6 +73,10 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
 
   const getTimerColor = () => {
     if (isBreak) {
+      if (isCountdownToNextTask) {
+        // Use a slightly different color for countdown to distinguish it
+        return 'linear-gradient(184.1deg, rgba(255,229,163,1) 44.7%, rgba(246,214,130,1) 67.2%)';
+      }
       return 'linear-gradient(184.1deg, rgba(249,255,182,1) 44.7%, rgba(226,255,172,1) 67.2%)';
     }
 
@@ -97,12 +101,23 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
     return `linear-gradient(109.6deg, hsl(${currentHue}, ${currentSaturation}%, ${currentLightness}%) 11.2%, hsl(${currentHue + 10}, ${currentSaturation - 10}%, ${currentLightness + 5}%) 91.1%)`;
   };
 
+  // Format time until task start
+  const formatStartTime = (task: any) => {
+    if (!task?.date_started) return '';
+    const startTime = new Date(task.date_started);
+    const hours = startTime.getHours();
+    const minutes = startTime.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const formattedHours = hours % 12 || 12;
+    return `${formattedHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  };
+
   return (
     <>
       <div className="space-y-2 w-full">
         {isBreak ? (
           <h2 className="text-2xl font-semibold text-primary truncate">
-            {isCountdownToNextTask ? "Starting Soon" : "Break Time"}
+            {isCountdownToNextTask ? `Starting at ${formatStartTime(nextTask)}` : "Break Time"}
           </h2>
         ) : (
           <h2 className="text-2xl font-semibold text-primary truncate">
@@ -123,7 +138,7 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
         
         {(isBreak || isCountdownToNextTask) && nextTask && (
           <p className="text-primary/80">
-            {isCountdownToNextTask ? "Countdown to:" : "Next up:"} {nextTask?.["Task Name"]}
+            {isCountdownToNextTask ? `Countdown to: ${nextTask?.["Task Name"]}` : "Next up:"} {!isCountdownToNextTask && nextTask?.["Task Name"]}
             {nextTask.project_id && (
               <span className="ml-1 text-xs bg-primary/10 px-1 py-0.5 rounded">
                 {getProjectName(nextTask, nextProjectData)}

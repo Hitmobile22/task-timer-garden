@@ -1,5 +1,5 @@
-
 import { useState, useEffect } from 'react';
+import { shouldShowCountdownForTask } from '@/utils/timerUtils';
 
 export const useTimerVisibility = (
   currentTask: any, 
@@ -17,12 +17,9 @@ export const useTimerVisibility = (
 
     // Otherwise, check if we need to show a countdown for an upcoming task
     const nextTask = getNextTask();
-    if (nextTask) {
-      const now = new Date();
-      const startTime = new Date(nextTask.date_started);
-      const timeDiff = startTime.getTime() - now.getTime();
-      // Show the timer if the next task starts within the next 10 minutes
-      return timeDiff <= 10 * 60 * 1000 && timeDiff > 0;
+    if (nextTask && nextTask.date_started) {
+      // Only show the timer if the next task starts within exactly 10 minutes
+      return shouldShowCountdownForTask(nextTask.date_started);
     }
 
     return false;

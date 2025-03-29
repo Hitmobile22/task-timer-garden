@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
-import { isTaskInFuture, isTaskTimeBlock, isTaskInBacklog } from '@/utils/taskUtils';
-import { calculateTimeUntilTaskStart } from '@/utils/timerUtils';
+import { isTaskInFuture, isTaskInBacklog, isTaskTimeBlock } from '@/utils/taskUtils';
+import { calculateTimeUntilTaskStart, shouldShowCountdownForTask } from '@/utils/timerUtils';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -313,7 +313,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       if (isCountdownToNextTask) {
         const nextTask = getNextTask();
         if (nextTask) {
-          const timeToNext = calculateTimeToNextTask(nextTask);
+          const timeToNext = calculateTimeUntilTaskStart(nextTask.date_started);
           if (timeToNext !== null) {
             setTimeLeft(timeToNext);
           } else {
@@ -329,11 +329,16 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     } else {
       const nextTask = getNextTask();
       if (nextTask) {
-        const timeToNext = calculateTimeToNextTask(nextTask);
-        if (timeToNext !== null && timeToNext <= 10 * 60) {
-          setIsCountdownToNextTask(true);
-          setIsBreak(true);
-          setTimeLeft(timeToNext);
+        const shouldShowCountdown = shouldShowCountdownForTask(nextTask.date_started);
+        if (shouldShowCountdown) {
+          const timeToNext = calculateTimeUntilTaskStart(nextTask.date_started);
+          if (timeToNext !== null) {
+            setIsCountdownToNextTask(true);
+            setIsBreak(true);
+            setTimeLeft(timeToNext);
+          } else {
+            setIsCountdownToNextTask(false);
+          }
         } else {
           setIsCountdownToNextTask(false);
         }
@@ -354,8 +359,8 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       } else {
         const nextTask = getNextTask();
         if (nextTask) {
-          const timeToNext = calculateTimeToNextTask(nextTask);
-          if (timeToNext !== null && timeToNext <= 10 * 60) {
+          const shouldShowCountdown = shouldShowCountdownForTask(nextTask.date_started);
+          if (shouldShowCountdown) {
             setIsRunning(true);
           }
         }
@@ -395,10 +400,10 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
               } else {
                 const nextTask = getNextTask();
                 if (nextTask) {
-                  const timeToNext = calculateTimeToNextTask(nextTask);
+                  const timeToNext = calculateTimeUntilTaskStart(nextTask.date_started);
                   if (timeToNext === null || timeToNext <= 0) {
                     return calculateTimeLeft(nextTask);
-                  } else if (timeToNext <= 10 * 60) {
+                  } else if (shouldShowCountdownForTask(nextTask.date_started)) {
                     setIsCountdownToNextTask(true);
                     return timeToNext;
                   } else {
@@ -416,7 +421,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
                 
                 const nextTask = getNextTask();
                 if (nextTask) {
-                  const timeToNext = calculateTimeToNextTask(nextTask);
+                  const timeToNext = calculateTimeUntilTaskStart(nextTask.date_started);
                   if (timeToNext !== null && timeToNext <= 10 * 60) {
                     setIsCountdownToNextTask(true);
                     setIsBreak(true);
@@ -460,8 +465,8 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
             } else {
               const nextTask = getNextTask();
               if (nextTask) {
-                const timeToNext = calculateTimeToNextTask(nextTask);
-                if (timeToNext !== null && timeToNext <= 10 * 60) {
+                const timeToNext = calculateTimeUntilTaskStart(nextTask.date_started);
+                if (shouldShowCountdownForTask(nextTask.date_started)) {
                   setIsCountdownToNextTask(true);
                   setIsBreak(true);
                   return timeToNext;

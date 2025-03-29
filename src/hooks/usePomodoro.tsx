@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { isTaskInFuture, isTaskTimeBlock, isTaskInBacklog } from '@/utils/taskUtils';
+import { calculateTimeUntilTaskStart } from '@/utils/timerUtils';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -150,30 +151,26 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
   });
 
-  // Enhanced getNextTask to get upcoming tasks within 10 min
   const getNextTask = () => {
     if (!activeTasks || activeTasks.length === 0) return null;
 
     const now = new Date();
-    return activeTasks.find(task => {
-      if (task.Progress === 'Backlog' || isTaskInFuture(task)) return false;
-      
-      const startTime = new Date(task.date_started);
-      const timeDiff = startTime.getTime() - now.getTime();
-      return timeDiff > 0 && timeDiff <= 10 * 60 * 1000;
-    });
+    
+    const sortedFutureTasks = [...activeTasks]
+      .filter(task => {
+        if (task.Progress === 'Backlog' || task.Progress === 'Completed') return false;
+        if (!task.date_started) return false;
+        const startTime = new Date(task.date_started);
+        return startTime.getTime() > now.getTime();
+      })
+      .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
+    
+    return sortedFutureTasks.length > 0 ? sortedFutureTasks[0] : null;
   };
 
-  // Calculate time left for countdown to next task
   const calculateTimeToNextTask = (nextTask: any) => {
     if (!nextTask || !nextTask.date_started) return null;
-    
-    const now = new Date();
-    const startTime = new Date(nextTask.date_started);
-    const diffInSeconds = Math.floor((startTime.getTime() - now.getTime()) / 1000);
-    
-    if (diffInSeconds <= 0) return null;
-    return diffInSeconds;
+    return calculateTimeUntilTaskStart(nextTask.date_started);
   };
 
   const calculateTimeLeft = (task: any) => {
@@ -297,7 +294,6 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
   };
 
-  // Subtask rotation
   useEffect(() => {
     if (subtasks && subtasks.length > 0) {
       const interval = setInterval(() => {
@@ -308,19 +304,33 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
   }, [subtasks]);
 
-  // Updated to check for next task and set countdown timer
   useEffect(() => {
     if (currentTask && !isBreak) {
       setIsCountdownToNextTask(false);
       const remaining = calculateTimeLeft(currentTask);
       setTimeLeft(remaining);
     } else if (isBreak) {
-      setTimeLeft(5 * 60);
-    } else if (!currentTask) {
+      if (isCountdownToNextTask) {
+        const nextTask = getNextTask();
+        if (nextTask) {
+          const timeToNext = calculateTimeToNextTask(nextTask);
+          if (timeToNext !== null) {
+            setTimeLeft(timeToNext);
+          } else {
+            setTimeLeft(5 * 60);
+          }
+        } else {
+          setTimeLeft(5 * 60);
+          setIsCountdownToNextTask(false);
+        }
+      } else {
+        setTimeLeft(5 * 60);
+      }
+    } else {
       const nextTask = getNextTask();
       if (nextTask) {
         const timeToNext = calculateTimeToNextTask(nextTask);
-        if (timeToNext && timeToNext <= 10 * 60) {
+        if (timeToNext !== null && timeToNext <= 10 * 60) {
           setIsCountdownToNextTask(true);
           setIsBreak(true);
           setTimeLeft(timeToNext);
@@ -333,10 +343,8 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
   }, [currentTask, isBreak, activeTasks]);
 
-  // Auto start timer if needed
   useEffect(() => {
     if ((autoStart || activeTaskId) && activeTasks && activeTasks.length > 0 && !isRunning) {
-      // Check for current task first
       const validTaskExists = activeTasks.some(t => 
         t.Progress !== 'Backlog' && !isTaskInFuture(t)
       );
@@ -344,16 +352,17 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       if (validTaskExists) {
         setIsRunning(true);
       } else {
-        // If no current task, check for upcoming task within 10 minutes
         const nextTask = getNextTask();
-        if (nextTask && calculateTimeToNextTask(nextTask) && calculateTimeToNextTask(nextTask)! <= 10 * 60) {
-          setIsRunning(true);
+        if (nextTask) {
+          const timeToNext = calculateTimeToNextTask(nextTask);
+          if (timeToNext !== null && timeToNext <= 10 * 60) {
+            setIsRunning(true);
+          }
         }
       }
     }
   }, [autoStart, activeTaskId, activeTasks?.length]);
 
-  // Main timer interval
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
@@ -368,7 +377,6 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
             
             if (isBreak) {
               if (isCountdownToNextTask) {
-                // When countdown to next task finishes, refresh tasks
                 queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
                 setIsBreak(false);
                 setIsCountdownToNextTask(false);
@@ -382,15 +390,21 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
                 isTransitioning.current = false;
               }, 500);
               
-              // Check if we have a current task after the break
               if (currentTask) {
                 return calculateTimeLeft(currentTask);
               } else {
-                // Check for next task again after break
                 const nextTask = getNextTask();
                 if (nextTask) {
-                  setIsCountdownToNextTask(true);
-                  return calculateTimeToNextTask(nextTask);
+                  const timeToNext = calculateTimeToNextTask(nextTask);
+                  if (timeToNext === null || timeToNext <= 0) {
+                    return calculateTimeLeft(nextTask);
+                  } else if (timeToNext <= 10 * 60) {
+                    setIsCountdownToNextTask(true);
+                    return timeToNext;
+                  } else {
+                    setIsRunning(false);
+                    return 0;
+                  }
                 } else {
                   setIsRunning(false);
                   return 0;
@@ -399,14 +413,40 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
             } else if (currentTask) {
               if (currentTask.Progress !== 'Backlog' && !isTaskInFuture(currentTask)) {
                 updateTaskProgress.mutate(currentTask.id);
-                setIsBreak(true);
-                toast.success("Work session complete! Time for a break.");
                 
-                transitionTimeoutRef.current = setTimeout(() => {
-                  isTransitioning.current = false;
-                }, 500);
-                
-                return 5 * 60;
+                const nextTask = getNextTask();
+                if (nextTask) {
+                  const timeToNext = calculateTimeToNextTask(nextTask);
+                  if (timeToNext !== null && timeToNext <= 10 * 60) {
+                    setIsCountdownToNextTask(true);
+                    setIsBreak(true);
+                    toast.success(`Work session complete! Countdown to next task starting in ${Math.ceil(timeToNext / 60)} minutes.`);
+                    
+                    transitionTimeoutRef.current = setTimeout(() => {
+                      isTransitioning.current = false;
+                    }, 500);
+                    
+                    return timeToNext;
+                  } else {
+                    setIsBreak(true);
+                    toast.success("Work session complete! Time for a break.");
+                    
+                    transitionTimeoutRef.current = setTimeout(() => {
+                      isTransitioning.current = false;
+                    }, 500);
+                    
+                    return 5 * 60;
+                  }
+                } else {
+                  setIsBreak(true);
+                  toast.success("Work session complete! Time for a break.");
+                  
+                  transitionTimeoutRef.current = setTimeout(() => {
+                    isTransitioning.current = false;
+                  }, 500);
+                  
+                  return 5 * 60;
+                }
               } else {
                 toast.error("Cannot complete this task - it's in backlog or scheduled for the future");
                 setIsRunning(false);
@@ -418,14 +458,17 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
                 return prev;
               }
             } else {
-              // If no current task but timer ended, check for next task
               const nextTask = getNextTask();
               if (nextTask) {
                 const timeToNext = calculateTimeToNextTask(nextTask);
-                if (timeToNext && timeToNext <= 10 * 60) {
+                if (timeToNext !== null && timeToNext <= 10 * 60) {
                   setIsCountdownToNextTask(true);
                   setIsBreak(true);
                   return timeToNext;
+                } else if (timeToNext === null || timeToNext <= 0) {
+                  setIsCountdownToNextTask(false);
+                  setIsBreak(false);
+                  return calculateTimeLeft(nextTask);
                 }
               }
               

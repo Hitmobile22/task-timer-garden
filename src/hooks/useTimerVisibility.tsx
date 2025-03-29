@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 
 export const useTimerVisibility = (
@@ -20,6 +21,7 @@ export const useTimerVisibility = (
       const now = new Date();
       const startTime = new Date(nextTask.date_started);
       const timeDiff = startTime.getTime() - now.getTime();
+      // Show the timer if the next task starts within the next 10 minutes
       return timeDiff <= 10 * 60 * 1000 && timeDiff > 0;
     }
 

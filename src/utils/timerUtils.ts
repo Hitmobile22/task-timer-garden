@@ -49,3 +49,15 @@ export const restoreFullscreen = async (
     }, 800); // Increased delay for better chance of success
   }
 };
+
+// New utility function to calculate time until next task starts
+export const calculateTimeUntilTaskStart = (taskStartTime: string | Date): number | null => {
+  if (!taskStartTime) return null;
+  
+  const now = new Date();
+  const startTime = new Date(taskStartTime);
+  const diffInSeconds = Math.floor((startTime.getTime() - now.getTime()) / 1000);
+  
+  if (diffInSeconds <= 0) return null;
+  return diffInSeconds;
+};

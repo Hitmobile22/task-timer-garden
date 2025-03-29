@@ -1,3 +1,4 @@
+
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -52,12 +53,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
       Image.configure({
         HTMLAttributes: {
           class: 'max-w-full h-auto rounded-lg my-4',
+          loading: 'lazy',
         },
+        allowBase64: true,
       }),
       Link.configure({
         HTMLAttributes: {
           class: 'text-blue-500 hover:text-blue-700 underline',
         },
+        openOnClick: false,
       }),
     ],
     content,
@@ -119,6 +123,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
       editor.chain().focus().setLink({ href: url }).run();
     }
   };
+
+  // Helper function to update the editor content when it changes externally
+  // This ensures that when the task is reopened, the content loads properly
+  if (editor && content && JSON.stringify(editor.getJSON()) !== JSON.stringify(content)) {
+    editor.commands.setContent(content);
+  }
 
   return (
     <div className="border rounded-md">
@@ -244,6 +254,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChang
           .ProseMirror li p {
             margin: 0;
             display: inline;
+          }
+          .ProseMirror img {
+            max-width: 100%;
+            height: auto;
+            display: block;
           }
         `}
       </style>

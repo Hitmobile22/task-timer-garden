@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCurrentDayName } from '@/lib/utils';
+import { toast } from 'sonner';
 
 // Global check state to prevent multiple instances from running checks simultaneously
 let isGlobalCheckInProgress = false;
@@ -13,12 +14,33 @@ const lastFullCheck = {
   inProgress: false
 };
 
+// Track the last day we reset daily goals
+let lastDailyGoalResetDay = new Date(0);
+
 export const useRecurringProjectsCheck = () => {
   const [isLocalChecking, setIsLocalChecking] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const queryClient = useQueryClient();
   const processingRef = useRef<Set<number>>(new Set());
   const mountedRef = useRef<boolean>(false);
+  
+  // Query for daily goals to determine if we need to reset them
+  const { data: dailyGoals } = useQuery({
+    queryKey: ['daily-project-goals'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_goals')
+        .select('*')
+        .eq('goal_type', 'daily')
+        .eq('is_enabled', true);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    refetchInterval: 60 * 60 * 1000, // Refetch hourly
+    refetchOnWindowFocus: false,
+    staleTime: 30 * 60 * 1000, // Stale after 30 minutes
+  });
 
   // Query for active recurring projects
   const { data: projects } = useQuery({
@@ -67,6 +89,56 @@ export const useRecurringProjectsCheck = () => {
     }
   }, []);
 
+  // Function to check if daily goals need to be reset
+  const checkAndResetDailyGoals = useCallback(async () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Only reset once per day
+    if (lastDailyGoalResetDay.toDateString() === today.toDateString()) {
+      console.log('Daily goals already reset today, skipping');
+      return false;
+    }
+    
+    try {
+      console.log('Checking if daily goals need to be reset');
+      
+      // Call the edge function to reset daily goals
+      const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
+        body: {
+          resetDailyGoals: true,
+          forceCheck: false,
+          projects: [] // Empty array as we're just resetting goals
+        }
+      });
+      
+      if (error) {
+        console.error('Error resetting daily goals:', error);
+        return false;
+      }
+      
+      if (data && data.success) {
+        console.log(`Reset ${data.goalsReset || 0} daily goals`);
+        lastDailyGoalResetDay = today;
+        
+        // Invalidate relevant queries
+        queryClient.invalidateQueries({ queryKey: ['daily-project-goals'] });
+        queryClient.invalidateQueries({ queryKey: ['project-goals'] });
+        
+        if (data.goalsReset > 0) {
+          toast.info(`Reset ${data.goalsReset} daily goals for a new day`);
+        }
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error in checkAndResetDailyGoals:', error);
+      return false;
+    }
+  }, [queryClient]);
+
   // Check recurring projects
   const checkRecurringProjects = useCallback(async (forceCheck = false) => {
     // Prevent concurrent checks globally across instances
@@ -86,6 +158,9 @@ export const useRecurringProjectsCheck = () => {
     }
     
     try {
+      // First check if daily goals need to be reset (new day)
+      await checkAndResetDailyGoals();
+      
       // Set global check flags
       isGlobalCheckInProgress = true;
       lastFullCheck.inProgress = true;
@@ -206,7 +281,7 @@ export const useRecurringProjectsCheck = () => {
       isGlobalCheckInProgress = false;
       lastFullCheck.inProgress = false;
     }
-  }, [projects, queryClient, checkGenerationLog]);
+  }, [projects, queryClient, checkGenerationLog, checkAndResetDailyGoals]);
 
   // Run initial check when component mounts
   useEffect(() => {
@@ -218,6 +293,19 @@ export const useRecurringProjectsCheck = () => {
       }, 5000);
     }
   }, [projects, checkRecurringProjects, isLocalChecking]);
+  
+  // Check for day change to reset daily goals
+  useEffect(() => {
+    if (dailyGoals && dailyGoals.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Check if we need to reset daily goals (new day)
+      if (lastDailyGoalResetDay.toDateString() !== today.toDateString()) {
+        checkAndResetDailyGoals();
+      }
+    }
+  }, [dailyGoals, checkAndResetDailyGoals]);
 
   // Set up interval check
   useEffect(() => {
@@ -238,6 +326,7 @@ export const useRecurringProjectsCheck = () => {
 
   return {
     checkRecurringProjects,
+    resetDailyGoals: checkAndResetDailyGoals,
     isChecking: isLocalChecking,
     lastChecked
   };

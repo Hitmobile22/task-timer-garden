@@ -36,8 +36,55 @@ Deno.serve(async (req) => {
     const forceCheck = !!body.forceCheck;
     const projects = body.projects || [];
     const specificDayOfWeek = body.dayOfWeek || currentDayOfWeek;
+    const resetDailyGoals = body.resetDailyGoals || false;
 
     console.log(`Processing ${projects.length} recurring projects on ${specificDayOfWeek}`);
+
+    // If resetDailyGoals is set to true, reset all daily goal counts
+    if (resetDailyGoals) {
+      console.log("Resetting all daily goals to 0");
+      
+      // Get all active project goals that are daily type
+      const { data: dailyGoals, error: dailyGoalsError } = await supabaseClient
+        .from('project_goals')
+        .select('*')
+        .eq('goal_type', 'daily')
+        .eq('is_enabled', true);
+        
+      if (dailyGoalsError) {
+        console.error('Error fetching daily goals:', dailyGoalsError);
+      } else if (dailyGoals && dailyGoals.length > 0) {
+        console.log(`Found ${dailyGoals.length} daily goals to reset`);
+        
+        // Reset each daily goal's current_count to 0
+        for (const goal of dailyGoals) {
+          const { error: updateError } = await supabaseClient
+            .from('project_goals')
+            .update({ current_count: 0 })
+            .eq('id', goal.id);
+            
+          if (updateError) {
+            console.error(`Error resetting goal ${goal.id}:`, updateError);
+          }
+        }
+        
+        console.log(`Reset ${dailyGoals.length} daily goals to 0`);
+      } else {
+        console.log("No daily goals found to reset");
+      }
+      
+      // Return early if this was just a reset operation
+      if (!projects || projects.length === 0) {
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: 'Daily goals reset successfully',
+          goalsReset: dailyGoals?.length || 0
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+    }
 
     const results = [];
     

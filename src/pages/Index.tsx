@@ -1,3 +1,4 @@
+
 import { TaskScheduler } from '@/components/TaskScheduler';
 import { useRecurringTasksCheck } from '@/hooks/useRecurringTasksCheck';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
@@ -6,13 +7,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
 import { GoalNotificationsPanel } from '@/components/goals/GoalNotificationsPanel';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
+import { useEffect } from 'react';
 
 const Index = () => {
-  useRecurringTasksCheck();
-  useRecurringProjectsCheck();
+  const { checkRecurringTasks } = useRecurringTasksCheck();
+  const { checkRecurringProjects, resetDailyGoals } = useRecurringProjectsCheck();
   
   const queryClient = useQueryClient();
   const { data: goalNotifications = [], isLoading: isLoadingNotifications } = useGoalNotifications();
+  
+  // Check for day change to reset daily goals on page load
+  useEffect(() => {
+    // Reset daily goals if needed
+    resetDailyGoals();
+  }, [resetDailyGoals]);
   
   const handleShuffleTasks = async () => {
     try {

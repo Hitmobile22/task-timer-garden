@@ -194,6 +194,29 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   });
 
+  // Add reset goal mutation
+  const resetGoalMutation = useMutation({
+    mutationFn: async (goalId: number) => {
+      const { data, error } = await supabase
+        .from('project_goals')
+        .update({ current_count: 0 })
+        .eq('id', goalId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-goals', initialData?.id] });
+      toast.success('Goal progress reset successfully');
+    },
+    onError: (error) => {
+      console.error('Error resetting goal:', error);
+      toast.error('Failed to reset goal progress');
+    }
+  });
+
   // Handle saving goal
   const handleSaveGoal = (goalData: Partial<ProjectGoal>) => {
     if (editingGoal?.id) {
@@ -213,6 +236,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const handleDeleteGoal = (goalId: number) => {
     if (window.confirm('Are you sure you want to delete this goal?')) {
       deleteGoalMutation.mutate(goalId);
+    }
+  };
+
+  // Add handler for resetting a goal
+  const handleResetGoal = (goalId: number) => {
+    if (window.confirm('Are you sure you want to reset this goal\'s progress to zero?')) {
+      resetGoalMutation.mutate(goalId);
     }
   };
 
@@ -539,6 +569,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           goals={projectGoals}
                           onEdit={handleEditGoal}
                           onDelete={handleDeleteGoal}
+                          onReset={handleResetGoal}
                         />
                       </>
                     )}

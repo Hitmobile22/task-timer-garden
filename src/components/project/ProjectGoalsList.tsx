@@ -2,7 +2,7 @@
 import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit2, Trash2, Trophy, Calendar, Clock } from 'lucide-react';
+import { Edit2, Trash2, Trophy, Calendar, Clock, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ProjectGoal } from '@/types/task.types';
 
@@ -10,12 +10,14 @@ interface ProjectGoalsListProps {
   goals: ProjectGoal[];
   onEdit: (goal: ProjectGoal) => void;
   onDelete: (goalId: number) => void;
+  onReset?: (goalId: number) => void;
 }
 
 export const ProjectGoalsList: React.FC<ProjectGoalsListProps> = ({
   goals,
   onEdit,
-  onDelete
+  onDelete,
+  onReset
 }) => {
   const getGoalTypeBadge = (goalType: string) => {
     switch (goalType) {
@@ -89,14 +91,27 @@ export const ProjectGoalsList: React.FC<ProjectGoalsListProps> = ({
                 size="sm" 
                 className="h-8 w-8 p-0" 
                 onClick={() => onEdit(goal)}
+                title="Edit goal"
               >
                 <Edit2 className="h-4 w-4" />
               </Button>
+              {onReset && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700" 
+                  onClick={() => onReset(goal.id)}
+                  title="Reset goal progress"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              )}
               <Button 
                 variant="ghost" 
                 size="sm" 
                 className="h-8 w-8 p-0 text-destructive hover:text-destructive" 
                 onClick={() => onDelete(goal.id)}
+                title="Delete goal"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

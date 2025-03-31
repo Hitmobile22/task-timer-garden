@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -68,9 +67,26 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
           console.log("Parsed details:", details);
             
           // Validate content before setting it
-          if (details && details.description && isValidContent(details.description)) {
+          if (details?.description && isValidContent(details.description)) {
             console.log("Setting valid description content:", details.description);
             setDescriptionContent(details.description);
+          } else if (details?.isTimeBlock !== undefined) {
+            // If we have task details but no valid description, create an empty one
+            console.log("Task has details but invalid description, setting default");
+            setDescriptionContent({
+              type: "doc",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [
+                    {
+                      type: "text",
+                      text: " " // Non-empty space to prevent errors
+                    }
+                  ]
+                }
+              ]
+            });
           } else {
             console.log("Invalid description content, setting default");
             // If content is invalid, set a valid default
@@ -138,20 +154,34 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
       if (content.type !== 'doc') return false;
       if (!Array.isArray(content.content)) return false;
       
+      // An empty content array is valid in this case
+      if (content.content.length === 0) return true;
+      
       // Check each paragraph
       return content.content.every((paragraph: any) => {
         if (!paragraph || typeof paragraph !== 'object') return false;
-        if (paragraph.type !== 'paragraph') return false;
+        
+        // Allow different node types (paragraph, heading, etc.)
+        if (!paragraph.type) return false;
+        
+        // Some nodes like images might not have content
+        if (!paragraph.content) return true;
+        
+        // If it has content, it should be an array
         if (!Array.isArray(paragraph.content)) return false;
         
         // Check text nodes
         return paragraph.content.every((textNode: any) => {
           if (!textNode || typeof textNode !== 'object') return false;
-          if (textNode.type !== 'text') return false;
-          if (typeof textNode.text !== 'string') return false;
-          // Empty text is not allowed, so ensure there's at least one character
-          // or the node doesn't exist
-          return textNode.text.length > 0;
+          if (!textNode.type) return false;
+          
+          // For text nodes, verify they have text content
+          if (textNode.type === 'text') {
+            return typeof textNode.text === 'string';
+          }
+          
+          // Other node types may not have text
+          return true;
         });
       });
     } catch (error) {
@@ -190,6 +220,8 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
           description: descriptionContent || null
         }
       };
+
+      console.log("Saving task with description:", updatedTask.details.description);
       
       // Update task in database
       const { error } = await supabase
@@ -280,6 +312,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
 
   const handleDescriptionChange = (content: any) => {
     try {
+      console.log("New description content:", content);
       // Validate content before setting
       if (content && isValidContent(content)) {
         setDescriptionContent(content);

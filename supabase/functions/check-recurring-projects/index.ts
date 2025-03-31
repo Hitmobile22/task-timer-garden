@@ -10,6 +10,14 @@ function getCurrentDayOfWeek() {
   return new Date().toLocaleDateString('en-US', { weekday: 'long' });
 }
 
+function formatDateForLogging(date) {
+  try {
+    return new Date(date).toISOString();
+  } catch (e) {
+    return String(date);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -107,6 +115,8 @@ Deno.serve(async (req) => {
       if (settingsError) {
         console.error('Error fetching task list settings:', settingsError);
       } else if (taskListSettings && taskListSettings.length > 0) {
+        console.log(`Retrieved ${taskListSettings.length} task list settings`);
+        
         for (const setting of taskListSettings) {
           if (!setting.task_list_id) continue;
           
@@ -126,12 +136,6 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      if (!project.date_started || !project.date_due) {
-        console.log(`Project ${project.id} missing start/due dates, skipping`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'missing_dates' });
-        continue;
-      }
-      
       let shouldRunToday = true;
       if (!forceCheck && project.task_list_id) {
         const listSetting = taskListSettingsMap.get(project.task_list_id);
@@ -153,28 +157,60 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const startDate = new Date(project.date_started);
-      const dueDate = new Date(project.date_due);
-      startDate.setHours(0, 0, 0, 0);
-      dueDate.setHours(23, 59, 59, 999);
+      console.log(`Checking project: ${project.id} - ${project['Project Name']}`);
+      console.log(`  - Start date: ${formatDateForLogging(project.date_started)}`);
+      console.log(`  - Due date: ${formatDateForLogging(project.date_due)}`);
+      
+      let startDate, dueDate;
+      try {
+        startDate = project.date_started ? new Date(project.date_started) : null;
+        dueDate = project.date_due ? new Date(project.date_due) : null;
+        
+        if (startDate) startDate.setHours(0, 0, 0, 0);
+        if (dueDate) dueDate.setHours(23, 59, 59, 999);
+      } catch (error) {
+        console.error(`Error parsing dates for project ${project.id}:`, error);
+        results.push({ project_id: project.id, status: 'error', error: 'date_parsing_failed' });
+        continue;
+      }
 
-      if (today < startDate || today > dueDate) {
-        if (today > dueDate && !project['Project Name'].includes('(overdue)')) {
-          const { error: updateError } = await supabaseClient
-            .from('Projects')
-            .update({ 'Project Name': `${project['Project Name']} (overdue)` })
-            .eq('id', project.id);
-          
-          if (updateError) {
-            console.error(`Error updating overdue project ${project.id}:`, updateError);
-          } else {
-            console.log(`Marked project ${project.id} as overdue`);
+      // If project has no valid dates, skip it
+      if (!startDate && !dueDate) {
+        console.log(`Project ${project.id} missing both dates, skipping`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'missing_dates' });
+        continue;
+      }
+      
+      // If start date is in the future, skip it
+      if (startDate && today < startDate) {
+        console.log(`Project ${project.id} starts in the future (${startDate.toISOString()}), skipping`);
+        results.push({ project_id: project.id, status: 'skipped', reason: 'start_date_in_future' });
+        continue;
+      }
+      
+      // If due date is in the past, mark as overdue but continue processing
+      if (dueDate && today > dueDate) {
+        console.log(`Project ${project.id} due date (${dueDate.toISOString()}) is in the past`);
+        
+        if (!project['Project Name'].includes('(overdue)')) {
+          try {
+            const { error: updateError } = await supabaseClient
+              .from('Projects')
+              .update({ 'Project Name': `${project['Project Name']} (overdue)` })
+              .eq('id', project.id);
+            
+            if (updateError) {
+              console.error(`Error updating overdue project ${project.id}:`, updateError);
+            } else {
+              console.log(`Marked project ${project.id} as overdue`);
+            }
+          } catch (err) {
+            console.error(`Error updating overdue project:`, err);
           }
         }
         
-        console.log(`Project ${project.id} not active today, skipping`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'outside_date_range' });
-        continue;
+        // Since it's overdue but recurring, we'll continue processing it
+        console.log(`Processing overdue recurring project ${project.id}`);
       }
 
       const { data: generationLogs, error: logsError } = await supabaseClient
@@ -211,6 +247,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      console.log(`Found ${todayTasks?.length || 0} existing tasks today for project ${project.id}`);
       existingTaskNamesByProject.set(project.id, todayTasks?.map(task => task["Task Name"]) || []);
 
       const taskCount = project.recurringTaskCount || 1;
@@ -219,6 +256,7 @@ Deno.serve(async (req) => {
       console.log(`Project ${project.id} has ${todayTaskCount} tasks today, daily goal is ${taskCount}`);
       
       if (todayTaskCount > 0 && !forceCheck) {
+        // Create a generation log for the existing tasks
         const { error: logInsertError } = await supabaseClient
           .from('recurring_task_generation_logs')
           .insert({
@@ -330,3 +368,4 @@ Deno.serve(async (req) => {
     });
   }
 });
+

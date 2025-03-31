@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCurrentDayName, getTodayISOString, getTomorrowISOString } from '@/lib/utils';
+import { toast } from 'sonner';
 
 // Global check state to prevent multiple instances from running checks simultaneously
 let isGlobalCheckInProgress = false;
@@ -12,6 +13,9 @@ const lastFullCheck = {
   timestamp: new Date(0),
   inProgress: false
 };
+
+// Track the last day we reset daily goals
+let lastDailyGoalResetDay = new Date(0);
 
 export const useUnifiedRecurringTasksCheck = () => {
   const [isLocalChecking, setIsLocalChecking] = useState(false);
@@ -49,6 +53,8 @@ export const useUnifiedRecurringTasksCheck = () => {
           console.log('No recurring task settings for today:', dayOfWeek);
           return [];
         }
+        
+        console.log(`Found ${uniqueTaskLists.length} task lists with recurring settings for today`);
         
         // Get unique task list IDs (taking only the most recent for each list)
         const taskListsMap = new Map();
@@ -117,20 +123,82 @@ export const useUnifiedRecurringTasksCheck = () => {
   const { data: projects } = useQuery({
     queryKey: ['recurring-projects'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('Projects')
-        .select('*')
-        .eq('isRecurring', true)
-        .neq('progress', 'Completed');
-      
-      if (error) throw error;
-      
-      return data || [];
+      try {
+        const { data, error } = await supabase
+          .from('Projects')
+          .select('*')
+          .eq('isRecurring', true)
+          .neq('progress', 'Completed');
+          
+        if (error) throw error;
+        
+        console.log(`Found ${data?.length || 0} active recurring projects`);
+        if (data && data.length > 0) {
+          data.forEach(project => {
+            console.log(`Recurring Project: ${project.id} (${project['Project Name']}) due: ${project.date_due}`);
+          });
+        }
+        
+        return data || [];
+      } catch (error) {
+        console.error('Error fetching recurring projects:', error);
+        return [];
+      }
     },
     refetchInterval: 30 * 60 * 1000, // Refetch every 30 minutes
     refetchOnWindowFocus: false,
     staleTime: 15 * 60 * 1000, // Data is fresh for 15 minutes
   });
+
+  // Function to check if daily goals need to be reset
+  const checkAndResetDailyGoals = useCallback(async () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Only reset once per day
+    if (lastDailyGoalResetDay.toDateString() === today.toDateString()) {
+      console.log('Daily goals already reset today, skipping');
+      return false;
+    }
+    
+    try {
+      console.log('Checking if daily goals need to be reset');
+      
+      // Call the edge function to reset daily goals
+      const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
+        body: {
+          resetDailyGoals: true,
+          forceCheck: false,
+          projects: [] // Empty array as we're just resetting goals
+        }
+      });
+      
+      if (error) {
+        console.error('Error resetting daily goals:', error);
+        return false;
+      }
+      
+      if (data && data.success) {
+        console.log(`Reset ${data.goalsReset || 0} daily goals`);
+        lastDailyGoalResetDay = today;
+        
+        // Invalidate relevant queries
+        queryClient.invalidateQueries({ queryKey: ['daily-project-goals'] });
+        queryClient.invalidateQueries({ queryKey: ['project-goals'] });
+        
+        if (data.goalsReset > 0) {
+          toast.info(`Reset ${data.goalsReset} daily goals for a new day`);
+        }
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error in checkAndResetDailyGoals:', error);
+      return false;
+    }
+  }, [queryClient]);
 
   // Check if a generation log exists for today
   const checkGenerationLog = useCallback(async (taskListId: number | null = null, projectId: number | null = null, settingId: number | null = null) => {
@@ -165,6 +233,20 @@ export const useUnifiedRecurringTasksCheck = () => {
         return null;
       }
       
+      if (data) {
+        if (projectId) {
+          console.log(`Found generation log for project ${projectId}: ${data.tasks_generated} tasks on ${data.generation_date}`);
+        } else if (taskListId) {
+          console.log(`Found generation log for task list ${taskListId}: ${data.tasks_generated} tasks on ${data.generation_date}`);
+        }
+      } else {
+        if (projectId) {
+          console.log(`No generation log found for project ${projectId} today`);
+        } else if (taskListId) {
+          console.log(`No generation log found for task list ${taskListId} today`);
+        }
+      }
+      
       return data;
     } catch (error) {
       console.error('Error in checkGenerationLog:', error);
@@ -191,6 +273,9 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
     
     try {
+      // First check if daily goals need to be reset (new day)
+      await checkAndResetDailyGoals();
+    
       // Set the global and local check flags
       isGlobalCheckInProgress = true;
       lastFullCheck.inProgress = true;
@@ -249,7 +334,7 @@ export const useUnifiedRecurringTasksCheck = () => {
       isGlobalCheckInProgress = false;
       lastFullCheck.inProgress = false;
     }
-  }, [listSettings, projects, checkGenerationLog]);
+  }, [listSettings, projects, checkGenerationLog, checkAndResetDailyGoals]);
 
   // Check recurring projects
   const checkRecurringProjects = useCallback(async (projects, currentDayName, forceCheck) => {
@@ -274,7 +359,37 @@ export const useUnifiedRecurringTasksCheck = () => {
           continue;
         }
         
-        // Check if we already have a generation log for today
+        // Verify project due date is valid
+        const dueDate = project.date_due ? new Date(project.date_due) : null;
+        const startDate = project.date_started ? new Date(project.date_started) : null;
+        
+        if (dueDate) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (dueDate < today) {
+            console.log(`Project ${project.id} (${project['Project Name']}) due date ${dueDate.toISOString()} is in the past, updating name if needed`);
+            
+            // Only mark as overdue if not already marked
+            if (!project['Project Name'].includes('(overdue)')) {
+              try {
+                const { error } = await supabase
+                  .from('Projects')
+                  .update({ 'Project Name': `${project['Project Name']} (overdue)` })
+                  .eq('id', project.id);
+                
+                if (error) {
+                  console.error(`Error updating overdue project ${project.id}:`, error);
+                } else {
+                  console.log(`Marked project ${project.id} as overdue`);
+                }
+              } catch (err) {
+                console.error(`Error updating overdue project:`, err);
+              }
+            }
+          }
+        }
+        
+        // Check for existing generation log
         const generationLog = await checkGenerationLog(null, project.id);
         
         if (generationLog && !forceCheck) {
@@ -282,6 +397,7 @@ export const useUnifiedRecurringTasksCheck = () => {
           continue;
         }
         
+        console.log(`Adding project ${project.id} (${project['Project Name']}) to filtered list for task generation`);
         filteredProjects.push(project);
         processingRef.current.add(project.id);
         lastGlobalCheck.set(project.id, now);
@@ -291,6 +407,8 @@ export const useUnifiedRecurringTasksCheck = () => {
         console.log('No projects need processing, skipping check');
         return;
       }
+      
+      console.log(`Sending ${filteredProjects.length} projects to edge function for task generation`);
       
       // Send the projects to the check-recurring-projects function
       const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
@@ -325,11 +443,17 @@ export const useUnifiedRecurringTasksCheck = () => {
       // Invalidate tasks query to refresh the task list if new tasks were created
       const tasksCreated = data?.results?.some(result => result.status === 'created');
       if (tasksCreated) {
+        console.log('Tasks were created, invalidating task queries');
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
         queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+        
+        toast.success('Created new recurring tasks from projects');
+      } else {
+        console.log('No tasks were created by the recurring projects check');
       }
     } catch (error) {
       console.error('Error checking recurring projects:', error);
+      toast.error('Error checking recurring projects');
       // Clear processing flags in case of error
       if (projects) {
         projects.forEach(p => {
@@ -392,6 +516,7 @@ export const useUnifiedRecurringTasksCheck = () => {
           continue;
         }
         
+        console.log(`Adding task list ${setting.task_list_id} to filtered list for task generation`);
         filteredSettings.push(setting);
         processingRef.current.add(setting.task_list_id);
         lastGlobalCheck.set(setting.task_list_id, now);
@@ -401,6 +526,8 @@ export const useUnifiedRecurringTasksCheck = () => {
         console.log('No task lists need processing, skipping check');
         return;
       }
+      
+      console.log(`Sending ${filteredSettings.length} task lists to edge function for task generation`);
       
       // Send only the critical information to the edge function
       const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
@@ -434,11 +561,17 @@ export const useUnifiedRecurringTasksCheck = () => {
       // Invalidate tasks query to refresh the task list if new tasks were created
       const tasksCreated = data?.results?.some(result => result.status === 'created');
       if (tasksCreated) {
+        console.log('Tasks were created, invalidating task queries');
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
         queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+        
+        toast.success('Created new recurring tasks from task lists');
+      } else {
+        console.log('No tasks were created by the recurring task lists check');
       }
     } catch (error) {
       console.error('Error checking recurring task lists:', error);
+      toast.error('Error checking recurring task lists');
       // Clear processing flags in case of error
       if (settings) {
         settings.forEach(s => {
@@ -453,8 +586,9 @@ export const useUnifiedRecurringTasksCheck = () => {
   useEffect(() => {
     // Run an initial check when settings/projects are first loaded, but only once per component instance
     if ((listSettings?.length > 0 || projects?.length > 0) && !isLocalChecking && !isGlobalCheckInProgress && !mountedRef.current) {
+      console.log('Initial unified recurring tasks check starting');
       mountedRef.current = true;
-      checkRecurringTasks();
+      checkRecurringTasks(true); // Force check on initial load
     }
   }, [listSettings, projects, checkRecurringTasks, isLocalChecking]);
 
@@ -465,18 +599,20 @@ export const useUnifiedRecurringTasksCheck = () => {
         const currentHour = new Date().getHours();
         // Only check during daytime hours (7am-10pm) and if no check is already in progress
         if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !isGlobalCheckInProgress) {
+          console.log('Running scheduled unified recurring tasks check');
           checkRecurringTasks();
         }
       } catch (error) {
         console.error('Error in interval check:', error);
       }
-    }, 60 * 60 * 1000); // Check every hour
+    }, 30 * 60 * 1000); // Check every 30 minutes (reduced from 60 minutes)
 
     return () => clearInterval(interval);
   }, [checkRecurringTasks, isLocalChecking]);
 
   return {
     checkRecurringTasks,
-    isChecking: isLocalChecking
+    isChecking: isLocalChecking,
+    forceCheck: () => checkRecurringTasks(true)
   };
 };

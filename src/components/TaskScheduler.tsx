@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -15,6 +14,7 @@ import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
 import { syncGoogleCalendar } from './task/GoogleCalendarIntegration';
 import { NotificationBell } from './notifications/NotificationBell';
+import { useRecurringTasksCheck } from '@/hooks/useRecurringTasksCheck';
 
 interface SubTask {
   name: string;
@@ -37,7 +37,22 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   
-  useRecurringProjectsCheck();
+  // Get recurring task checking hooks
+  const recurringProjects = useRecurringProjectsCheck();
+  const recurringTasks = useRecurringTasksCheck();
+  
+  // Add button to manually trigger recurring task generation
+  const triggerRecurringTasksGeneration = () => {
+    toast.info('Checking for recurring tasks...');
+    
+    // First check recurring projects
+    recurringProjects.forceCheck();
+    
+    // Then check recurring task lists (after a short delay)
+    setTimeout(() => {
+      recurringTasks.forceCheck();
+    }, 3000);
+  };
   
   const {
     data: taskLists
@@ -467,7 +482,16 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   }}>
       <div className="container mx-auto flex justify-between items-center py-4">
         <MenuBar />
-        <NotificationBell />
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={triggerRecurringTasksGeneration}
+            className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm"
+            title="Check for recurring tasks"
+          >
+            Generate Recurring Tasks
+          </button>
+          <NotificationBell />
+        </div>
       </div>
       
       <main className="container mx-auto space-y-4 md:space-y-8">

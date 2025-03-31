@@ -49,6 +49,8 @@ export const useRecurringTasksCheck = () => {
           return [];
         }
         
+        console.log(`Found ${uniqueTaskLists.length} task lists with recurring settings for today`);
+        
         // Get unique task list IDs (taking only the most recent for each list)
         const taskListsMap = new Map();
         uniqueTaskLists.forEach(item => {
@@ -91,6 +93,7 @@ export const useRecurringTasksCheck = () => {
           
           if (data && data.length > 0) {
             console.log(`Active recurring setting for task list ${taskListId}:`, data[0]);
+            console.log(`Days configured: ${data[0].days_of_week.join(', ')}`);
             activeSettings.push(data[0]);
           }
         }
@@ -125,6 +128,12 @@ export const useRecurringTasksCheck = () => {
       if (error) {
         console.error(`Error checking generation log for list ${taskListId}:`, error);
         return null;
+      }
+      
+      if (data) {
+        console.log(`Found generation log for task list ${taskListId}: ${data.tasks_generated} tasks on ${data.generation_date}`);
+      } else {
+        console.log(`No generation log found for task list ${taskListId} today`);
       }
       
       return data;
@@ -214,6 +223,7 @@ export const useRecurringTasksCheck = () => {
               continue;
             }
             
+            console.log(`Adding task list ${setting.task_list_id} to filtered list for task generation`);
             filteredSettings.push(setting);
             processingRef.current.add(setting.task_list_id);
             lastGlobalCheck.set(setting.task_list_id, now);
@@ -223,6 +233,8 @@ export const useRecurringTasksCheck = () => {
             console.log('No task lists need processing, skipping check');
             return;
           }
+          
+          console.log(`Sending ${filteredSettings.length} task lists to edge function for task generation`);
           
           // Send only the critical information to the edge function
           const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
@@ -256,11 +268,17 @@ export const useRecurringTasksCheck = () => {
           // Invalidate tasks query to refresh the task list if new tasks were created
           const tasksCreated = data.results.some(result => result.status === 'created');
           if (tasksCreated) {
+            console.log('Tasks were created, invalidating task queries');
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
             queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+            
+            toast.success('Created new recurring tasks');
+          } else {
+            console.log('No tasks were created by the recurring tasks check');
           }
         } catch (error) {
           console.error('Error checking recurring tasks:', error);
+          toast.error('Error checking recurring tasks');
           // Clear processing flags in case of error
           settings.forEach(s => {
             if (s.task_list_id) {
@@ -283,8 +301,9 @@ export const useRecurringTasksCheck = () => {
   useEffect(() => {
     // Run an initial check when settings are first loaded, but only once per component instance
     if (settings && settings.length > 0 && !isLocalChecking && !isGlobalCheckInProgress && !mountedRef.current) {
+      console.log('Initial recurring tasks check starting');
       mountedRef.current = true;
-      checkRecurringTasks();
+      checkRecurringTasks(true); // Force check on initial load
     }
   }, [settings, checkRecurringTasks, isLocalChecking]);
 
@@ -295,18 +314,20 @@ export const useRecurringTasksCheck = () => {
         const currentHour = new Date().getHours();
         // Only check during daytime hours (7am-10pm) and if no check is already in progress
         if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !isGlobalCheckInProgress) {
+          console.log('Running scheduled recurring tasks check');
           checkRecurringTasks();
         }
       } catch (error) {
         console.error('Error in interval check:', error);
       }
-    }, 60 * 60 * 1000); // Check every hour
+    }, 30 * 60 * 1000); // Check every 30 minutes (reduced from 60 minutes)
 
     return () => clearInterval(interval);
   }, [checkRecurringTasks, isLocalChecking]);
 
   return {
     checkRecurringTasks,
-    isChecking: isLocalChecking
+    isChecking: isLocalChecking,
+    forceCheck: () => checkRecurringTasks(true)
   };
 };

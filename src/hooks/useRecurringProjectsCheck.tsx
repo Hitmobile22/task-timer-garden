@@ -54,6 +54,13 @@ export const useRecurringProjectsCheck = () => {
       
       if (error) throw error;
       
+      console.log(`Found ${data?.length || 0} active recurring projects`);
+      if (data && data.length > 0) {
+        data.forEach(project => {
+          console.log(`Recurring Project: ${project.id} (${project['Project Name']}) due: ${project.date_due}`);
+        });
+      }
+      
       return data || [];
     },
     refetchInterval: 30 * 60 * 1000, // Refetch every 30 minutes
@@ -80,6 +87,12 @@ export const useRecurringProjectsCheck = () => {
       if (error) {
         console.error(`Error checking generation log for project ${projectId}:`, error);
         return null;
+      }
+      
+      if (data) {
+        console.log(`Found generation log for project ${projectId}: ${data.tasks_generated} tasks on ${data.generation_date}`);
+      } else {
+        console.log(`No generation log found for project ${projectId} today`);
       }
       
       return data;
@@ -200,6 +213,34 @@ export const useRecurringProjectsCheck = () => {
           continue;
         }
         
+        // Verify project due date is in the future or today
+        const dueDate = project.date_due ? new Date(project.date_due) : null;
+        if (dueDate) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (dueDate < today) {
+            console.log(`Project ${project.id} (${project['Project Name']}) due date ${dueDate.toISOString()} is in the past, updating name if needed`);
+            
+            // Only mark as overdue if not already marked
+            if (!project['Project Name'].includes('(overdue)')) {
+              try {
+                const { error } = await supabase
+                  .from('Projects')
+                  .update({ 'Project Name': `${project['Project Name']} (overdue)` })
+                  .eq('id', project.id);
+                
+                if (error) {
+                  console.error(`Error updating overdue project ${project.id}:`, error);
+                } else {
+                  console.log(`Marked project ${project.id} as overdue`);
+                }
+              } catch (err) {
+                console.error(`Error updating overdue project:`, err);
+              }
+            }
+          }
+        }
+        
         // Check for existing generation log
         const generationLog = await checkGenerationLog(project.id);
         
@@ -208,6 +249,7 @@ export const useRecurringProjectsCheck = () => {
           continue;
         }
         
+        console.log(`Adding project ${project.id} (${project['Project Name']}) to filtered list for task generation`);
         filteredProjects.push(project);
         processingRef.current.add(project.id);
         lastGlobalCheck.set(project.id, now);
@@ -217,6 +259,8 @@ export const useRecurringProjectsCheck = () => {
         console.log('No projects need processing, skipping check');
         return;
       }
+      
+      console.log(`Sending ${filteredProjects.length} projects to edge function for task generation`);
       
       // Send projects to edge function
       const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
@@ -251,8 +295,11 @@ export const useRecurringProjectsCheck = () => {
       // Refresh task queries if tasks were created
       const tasksCreated = data?.results?.some(result => result.status === 'created');
       if (tasksCreated) {
+        console.log('Tasks were created, invalidating task queries');
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
         queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+        
+        toast.success('Created new recurring tasks');
         
         // Since projects created tasks, also check if any task lists need to adjust their generation
         setTimeout(() => {
@@ -268,6 +315,8 @@ export const useRecurringProjectsCheck = () => {
               Array.from(affectedTaskLists));
           }
         }, 5000);
+      } else {
+        console.log('No tasks were created by the recurring projects check');
       }
       
       // Update last checked time
@@ -275,6 +324,7 @@ export const useRecurringProjectsCheck = () => {
       
     } catch (error) {
       console.error('Error in checkRecurringProjects:', error);
+      toast.error('Error checking recurring projects');
     } finally {
       // Reset flags
       setIsLocalChecking(false);
@@ -286,10 +336,11 @@ export const useRecurringProjectsCheck = () => {
   // Run initial check when component mounts
   useEffect(() => {
     if (projects?.length > 0 && !isLocalChecking && !isGlobalCheckInProgress && !mountedRef.current) {
+      console.log('Initial recurring projects check starting');
       mountedRef.current = true;
       // Delay initial check to allow task list checks to go first
       setTimeout(() => {
-        checkRecurringProjects();
+        checkRecurringProjects(true); // Force check on initial load
       }, 5000);
     }
   }, [projects, checkRecurringProjects, isLocalChecking]);
@@ -314,12 +365,13 @@ export const useRecurringProjectsCheck = () => {
         const currentHour = new Date().getHours();
         // Only check during daytime hours (7am-10pm) and if no check is already in progress
         if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !isGlobalCheckInProgress) {
+          console.log('Running scheduled recurring projects check');
           checkRecurringProjects();
         }
       } catch (error) {
         console.error('Error in interval check:', error);
       }
-    }, 62 * 60 * 1000); // Check every 62 minutes (offset from task list checks to avoid overlap)
+    }, 30 * 60 * 1000); // Check every 30 minutes (reduced from 62 minutes)
 
     return () => clearInterval(interval);
   }, [checkRecurringProjects, isLocalChecking]);
@@ -328,6 +380,7 @@ export const useRecurringProjectsCheck = () => {
     checkRecurringProjects,
     resetDailyGoals: checkAndResetDailyGoals,
     isChecking: isLocalChecking,
-    lastChecked
+    lastChecked,
+    forceCheck: () => checkRecurringProjects(true)
   };
 };

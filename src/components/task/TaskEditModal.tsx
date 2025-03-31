@@ -36,12 +36,10 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
   const [descriptionContent, setDescriptionContent] = useState<any>(null);
   const queryClient = useQueryClient();
 
-  // Initialize form with task data
   useEffect(() => {
     if (task) {
       setEditedTask({ ...task });
       
-      // Handle dates
       if (task.date_started) {
         setStartDate(new Date(task.date_started));
       } else {
@@ -54,42 +52,21 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         setDueDate(undefined);
       }
       
-      // Initialize description content safely
       try {
         console.log("Task details:", task.details);
         
         if (task.details) {
-          // Convert string details to object if needed
           const details = typeof task.details === 'string' 
             ? JSON.parse(task.details) 
             : task.details;
           
           console.log("Parsed details:", details);
-            
-          // Validate content before setting it
+          
           if (details?.description && isValidContent(details.description)) {
             console.log("Setting valid description content:", details.description);
             setDescriptionContent(details.description);
-          } else if (details?.isTimeBlock !== undefined) {
-            // If we have task details but no valid description, create an empty one
-            console.log("Task has details but invalid description, setting default");
-            setDescriptionContent({
-              type: "doc",
-              content: [
-                {
-                  type: "paragraph",
-                  content: [
-                    {
-                      type: "text",
-                      text: " " // Non-empty space to prevent errors
-                    }
-                  ]
-                }
-              ]
-            });
           } else {
-            console.log("Invalid description content, setting default");
-            // If content is invalid, set a valid default
+            console.log("Invalid or missing description in details, checking if we need to create empty description");
             setDescriptionContent({
               type: "doc",
               content: [
@@ -107,7 +84,6 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
           }
         } else {
           console.log("No details found, setting empty content");
-          // Set empty valid content
           setDescriptionContent({
             type: "doc",
             content: [
@@ -125,7 +101,6 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         }
       } catch (error) {
         console.error("Error initializing description content:", error);
-        // Fallback to empty valid content
         setDescriptionContent({
           type: "doc",
           content: [
@@ -142,48 +117,19 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         });
       }
       
-      // Load subtasks
       fetchSubtasks(task.id);
     }
   }, [task]);
 
-  // Helper function to validate content structure
   const isValidContent = (content: any): boolean => {
     try {
       if (!content || typeof content !== 'object') return false;
       if (content.type !== 'doc') return false;
       if (!Array.isArray(content.content)) return false;
       
-      // An empty content array is valid in this case
       if (content.content.length === 0) return true;
       
-      // Check each paragraph
-      return content.content.every((paragraph: any) => {
-        if (!paragraph || typeof paragraph !== 'object') return false;
-        
-        // Allow different node types (paragraph, heading, etc.)
-        if (!paragraph.type) return false;
-        
-        // Some nodes like images might not have content
-        if (!paragraph.content) return true;
-        
-        // If it has content, it should be an array
-        if (!Array.isArray(paragraph.content)) return false;
-        
-        // Check text nodes
-        return paragraph.content.every((textNode: any) => {
-          if (!textNode || typeof textNode !== 'object') return false;
-          if (!textNode.type) return false;
-          
-          // For text nodes, verify they have text content
-          if (textNode.type === 'text') {
-            return typeof textNode.text === 'string';
-          }
-          
-          // Other node types may not have text
-          return true;
-        });
-      });
+      return true;
     } catch (error) {
       console.error("Error validating content:", error);
       return false;
@@ -210,7 +156,6 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
     try {
       if (!editedTask) return;
       
-      // Prepare task data
       const updatedTask = {
         ...editedTask,
         date_started: startDate ? startDate.toISOString() : null,
@@ -223,7 +168,6 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
 
       console.log("Saving task with description:", updatedTask.details.description);
       
-      // Update task in database
       const { error } = await supabase
         .from('Tasks')
         .update(updatedTask)
@@ -231,12 +175,10 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         
       if (error) throw error;
       
-      // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', updatedTask.id] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       
-      // Call onSave callback if provided
       if (onSave) {
         onSave(updatedTask);
       }
@@ -313,27 +255,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
   const handleDescriptionChange = (content: any) => {
     try {
       console.log("New description content:", content);
-      // Validate content before setting
-      if (content && isValidContent(content)) {
-        setDescriptionContent(content);
-      } else {
-        console.warn("Invalid editor content received, using fallback");
-        // Use fallback valid content
-        setDescriptionContent({
-          type: "doc",
-          content: [
-            {
-              type: "paragraph",
-              content: [
-                {
-                  type: "text",
-                  text: " " // Non-empty space to prevent errors
-                }
-              ]
-            }
-          ]
-        });
-      }
+      setDescriptionContent(content);
     } catch (error) {
       console.error("Error handling description change:", error);
     }

@@ -14,6 +14,7 @@ import {
   Link as LinkIcon,
   Undo,
   Redo,
+  Heading,
 } from 'lucide-react';
 
 interface RichTextEditorProps {
@@ -26,22 +27,18 @@ export const RichTextEditor = ({ initialContent, onChange, editable = true }: Ri
   // Create a safe default content structure
   const safeInitialContent = React.useMemo(() => {
     try {
+      console.log("Processing initial content for editor:", initialContent);
+      
       // Check if initialContent has a valid structure
       if (initialContent && 
           initialContent.type === 'doc' && 
           Array.isArray(initialContent.content)) {
-        // Ensure all text nodes have content
-        const isValid = initialContent.content.every((node: any) => {
-          if (node.type !== 'paragraph' || !Array.isArray(node.content)) return false;
-          return node.content.every((textNode: any) => {
-            return textNode.type === 'text' && typeof textNode.text === 'string' && textNode.text.length > 0;
-          });
-        });
-        
-        if (isValid) return initialContent;
+        console.log("Initial content has valid doc structure");
+        return initialContent;
       }
       
       // Fallback to a safe default structure
+      console.log("Creating fallback content structure");
       return {
         type: 'doc',
         content: [
@@ -78,8 +75,15 @@ export const RichTextEditor = ({ initialContent, onChange, editable = true }: Ri
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      Image,
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3]
+        }
+      }),
+      Image.configure({
+        inline: false,
+        allowBase64: true,
+      }),
       Link.configure({
         openOnClick: true,
         validate: href => /^https?:\/\//.test(href),
@@ -98,6 +102,9 @@ export const RichTextEditor = ({ initialContent, onChange, editable = true }: Ri
       }
     },
     editorProps: {
+      attributes: {
+        class: 'focus:outline-none min-h-[150px]',
+      },
       handleDOMEvents: {
         keydown: (_view, event) => {
           // Prevent the default behavior for specific keys if needed
@@ -111,20 +118,34 @@ export const RichTextEditor = ({ initialContent, onChange, editable = true }: Ri
     },
   });
 
+  // Debugging update issues
+  useEffect(() => {
+    if (editor) {
+      console.log("Editor initialized with content:", editor.getJSON());
+    }
+  }, [editor]);
+
   // Update editor content when initialContent changes
   useEffect(() => {
     if (editor && initialContent) {
       try {
+        console.log("Updating editor with new content:", initialContent);
         // Only update if the content is different to avoid infinite loops
         const currentContent = editor.getJSON();
-        if (JSON.stringify(currentContent) !== JSON.stringify(safeInitialContent)) {
+        const stringifiedCurrent = JSON.stringify(currentContent);
+        const stringifiedNew = JSON.stringify(safeInitialContent);
+        
+        if (stringifiedCurrent !== stringifiedNew) {
+          console.log("Content changed, updating editor");
           editor.commands.setContent(safeInitialContent);
+        } else {
+          console.log("Content unchanged, skipping update");
         }
       } catch (error) {
         console.error("Error updating editor content:", error);
       }
     }
-  }, [editor, safeInitialContent]);
+  }, [editor, safeInitialContent, initialContent]);
 
   if (!editor) {
     return <div className="p-4 text-muted">Loading editor...</div>;
@@ -156,6 +177,30 @@ export const RichTextEditor = ({ initialContent, onChange, editable = true }: Ri
               type="button"
             >
               <Italic className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+              className={editor.isActive('heading', { level: 1 }) ? 'bg-muted' : ''}
+              title="Heading 1"
+              type="button"
+            >
+              <Heading className="h-4 w-4" />
+              <span className="text-xs ml-1">1</span>
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+              className={editor.isActive('heading', { level: 2 }) ? 'bg-muted' : ''}
+              title="Heading 2"
+              type="button"
+            >
+              <Heading className="h-4 w-4" />
+              <span className="text-xs ml-1">2</span>
             </Button>
             
             <Button
@@ -237,7 +282,7 @@ export const RichTextEditor = ({ initialContent, onChange, editable = true }: Ri
           </div>
         )}
         
-        <div className={`p-4 min-h-[150px] ${!editable ? 'prose prose-sm max-w-none' : ''}`}>
+        <div className={`p-4 ${!editable ? 'prose prose-sm max-w-none' : ''}`}>
           <EditorContent editor={editor} />
         </div>
       </div>
@@ -248,6 +293,7 @@ export const RichTextEditor = ({ initialContent, onChange, editable = true }: Ri
     return (
       <div className="p-4 border rounded-md bg-red-50 text-red-500">
         <p>Error rendering editor. Please try refreshing the page.</p>
+        <pre className="text-xs mt-2 overflow-auto">{JSON.stringify(error, null, 2)}</pre>
       </div>
     );
   }

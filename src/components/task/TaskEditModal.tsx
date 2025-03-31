@@ -64,7 +64,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
             : task.details;
             
           // Validate content before setting it
-          if (details.description && isValidContent(details.description)) {
+          if (details && details.description && isValidContent(details.description)) {
             setDescriptionContent(details.description);
           } else {
             // If content is invalid, set a valid default
@@ -179,7 +179,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         date_started: startDate ? startDate.toISOString() : null,
         date_due: dueDate ? dueDate.toISOString() : null,
         details: {
-          ...(typeof editedTask.details === 'object' ? editedTask.details || {} : {}),
+          ...(typeof editedTask.details === 'object' && editedTask.details ? editedTask.details : {}),
           description: descriptionContent || null
         }
       };
@@ -341,13 +341,44 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
                       {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                      onSelect={setStartDate}
-                      initialFocus
-                    />
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <div className="p-4 space-y-4">
+                      <Calendar
+                        mode="single"
+                        selected={startDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            const newDate = new Date(date);
+                            if (startDate) {
+                              newDate.setHours(startDate.getHours());
+                              newDate.setMinutes(startDate.getMinutes());
+                            } else {
+                              newDate.setHours(new Date().getHours());
+                              newDate.setMinutes(new Date().getMinutes());
+                            }
+                            setStartDate(newDate);
+                          }
+                        }}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                      <div className="flex gap-2 items-center">
+                        <Input 
+                          type="time" 
+                          value={startDate ? format(startDate, "HH:mm") : ""} 
+                          onChange={e => {
+                            if (startDate && e.target.value) {
+                              const [hours, minutes] = e.target.value.split(':').map(Number);
+                              const newDate = new Date(startDate);
+                              newDate.setHours(hours);
+                              newDate.setMinutes(minutes);
+                              setStartDate(newDate);
+                            }
+                          }}
+                          className="pointer-events-auto"
+                        />
+                      </div>
+                    </div>
                   </PopoverContent>
                 </Popover>
               </div>
@@ -367,13 +398,44 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
                       {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dueDate}
-                      onSelect={setDueDate}
-                      initialFocus
-                    />
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <div className="p-4 space-y-4">
+                      <Calendar
+                        mode="single"
+                        selected={dueDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            const newDate = new Date(date);
+                            if (dueDate) {
+                              newDate.setHours(dueDate.getHours());
+                              newDate.setMinutes(dueDate.getMinutes());
+                            } else {
+                              newDate.setHours(new Date().getHours());
+                              newDate.setMinutes(new Date().getMinutes());
+                            }
+                            setDueDate(newDate);
+                          }
+                        }}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                      <div className="flex gap-2 items-center">
+                        <Input 
+                          type="time" 
+                          value={dueDate ? format(dueDate, "HH:mm") : ""} 
+                          onChange={e => {
+                            if (dueDate && e.target.value) {
+                              const [hours, minutes] = e.target.value.split(':').map(Number);
+                              const newDate = new Date(dueDate);
+                              newDate.setHours(hours);
+                              newDate.setMinutes(minutes);
+                              setDueDate(newDate);
+                            }
+                          }}
+                          className="pointer-events-auto"
+                        />
+                      </div>
+                    </div>
                   </PopoverContent>
                 </Popover>
               </div>
@@ -382,7 +444,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
             <div className="space-y-2">
               <Label>Progress</Label>
               <RadioGroup 
-                value={editedTask.Progress || 'Not started'} 
+                value={editedTask.Progress} 
                 onValueChange={(value: Task['Progress']) => setEditedTask({...editedTask, Progress: value})}
               >
                 <div className="flex items-center space-x-2">
@@ -450,7 +512,11 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
                   <SubtaskItem 
                     key={subtask.id}
                     subtask={subtask}
-                    onUpdateProgress={(progress) => handleUpdateSubtask(subtask.id, progress as Task['Progress'])}
+                    onUpdateProgress={(progress) => {
+                      if (typeof progress === 'string') {
+                        handleUpdateSubtask(subtask.id, progress as Task['Progress']);
+                      }
+                    }}
                     onDelete={() => handleDeleteSubtask(subtask.id)}
                   />
                 ))}

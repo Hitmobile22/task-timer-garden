@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ interface SubtaskItemProps {
   onEditCancel?: () => void;
   onEditSave?: (taskId: number, isSubtask?: boolean) => void;
   onEditNameChange?: (value: string) => void;
-  onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void | ((progress: Task['Progress']) => void);
+  onUpdateProgress: (progress: Task['Progress']) => void | ((taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void);
   onDeleteTask?: (taskId: number) => void;
   onDelete?: () => void;
 }
@@ -33,13 +34,7 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
 }) => {
   const handleProgressChange = (value: Task['Progress']) => {
     if (typeof onUpdateProgress === 'function') {
-      if (onUpdateProgress.length > 1) {
-        // If it has multiple parameters, assume it's the first signature
-        onUpdateProgress(subtask.id, value, true);
-      } else {
-        // Otherwise assume it's the second signature
-        (onUpdateProgress as (progress: Task['Progress']) => void)(value);
-      }
+      onUpdateProgress(value);
     }
   };
 

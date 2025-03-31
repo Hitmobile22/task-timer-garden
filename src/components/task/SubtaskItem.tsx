@@ -15,7 +15,9 @@ interface SubtaskItemProps {
   onEditCancel?: () => void;
   onEditSave?: (taskId: number, isSubtask?: boolean) => void;
   onEditNameChange?: (value: string) => void;
-  onUpdateProgress: (progress: Task['Progress']) => void | ((taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void);
+  onUpdateProgress:
+    | ((progress: Task['Progress']) => void)
+    | ((taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void);
   onDeleteTask?: (taskId: number) => void;
   onDelete?: () => void;
 }
@@ -34,7 +36,18 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
 }) => {
   const handleProgressChange = (value: Task['Progress']) => {
     if (typeof onUpdateProgress === 'function') {
-      onUpdateProgress(value);
+      // Check if the function expects multiple parameters
+      if (onUpdateProgress.length >= 2) {
+        // Call with taskId and progress
+        (onUpdateProgress as (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void)(
+          subtask.id,
+          value,
+          true
+        );
+      } else {
+        // Call with just progress
+        (onUpdateProgress as (progress: Task['Progress']) => void)(value);
+      }
     }
   };
 

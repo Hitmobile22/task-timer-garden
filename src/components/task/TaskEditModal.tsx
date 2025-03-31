@@ -23,10 +23,11 @@ interface TaskEditModalProps {
   task: Task | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  taskLists?: any[]; // Make this prop optional
   onSave?: (task: Task) => void;
 }
 
-export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModalProps) => {
+export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave }: TaskEditModalProps) => {
   const [editedTask, setEditedTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<any[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -56,11 +57,15 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
       
       // Initialize description content safely
       try {
-        if (task.details?.description) {
+        if (task.details) {
+          // Convert string details to object if needed
+          const details = typeof task.details === 'string' 
+            ? JSON.parse(task.details) 
+            : task.details;
+            
           // Validate content before setting it
-          const content = task.details.description;
-          if (isValidContent(content)) {
-            setDescriptionContent(content);
+          if (details.description && isValidContent(details.description)) {
+            setDescriptionContent(details.description);
           } else {
             // If content is invalid, set a valid default
             setDescriptionContent({
@@ -71,7 +76,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
                   content: [
                     {
                       type: "text",
-                      text: task.details.description?.content?.[0]?.content?.[0]?.text || ""
+                      text: " " // Non-empty space to prevent errors
                     }
                   ]
                 }
@@ -88,7 +93,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
                 content: [
                   {
                     type: "text",
-                    text: ""
+                    text: " " // Non-empty space to prevent errors
                   }
                 ]
               }
@@ -106,7 +111,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
               content: [
                 {
                   type: "text",
-                  text: ""
+                  text: " " // Non-empty space to prevent errors
                 }
               ]
             }
@@ -174,7 +179,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
         date_started: startDate ? startDate.toISOString() : null,
         date_due: dueDate ? dueDate.toISOString() : null,
         details: {
-          ...editedTask.details,
+          ...(typeof editedTask.details === 'object' ? editedTask.details || {} : {}),
           description: descriptionContent || null
         }
       };
@@ -232,7 +237,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
     }
   };
 
-  const handleUpdateSubtask = async (subtaskId: number, progress: string) => {
+  const handleUpdateSubtask = async (subtaskId: number, progress: Task['Progress']) => {
     try {
       const { error } = await supabase
         .from('subtasks')
@@ -378,7 +383,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
               <Label>Progress</Label>
               <RadioGroup 
                 value={editedTask.Progress || 'Not started'} 
-                onValueChange={(value) => setEditedTask({...editedTask, Progress: value})}
+                onValueChange={(value: Task['Progress']) => setEditedTask({...editedTask, Progress: value})}
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="Not started" id="not-started" />
@@ -403,7 +408,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
               <Label>Time Block</Label>
               <RadioGroup 
                 value={editedTask.IsTimeBlock || 'No'} 
-                onValueChange={(value) => setEditedTask({...editedTask, IsTimeBlock: value})}
+                onValueChange={(value: 'Yes' | 'No') => setEditedTask({...editedTask, IsTimeBlock: value})}
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="No" id="not-timeblock" />
@@ -445,7 +450,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, onSave }: TaskEditModa
                   <SubtaskItem 
                     key={subtask.id}
                     subtask={subtask}
-                    onUpdateProgress={(progress) => handleUpdateSubtask(subtask.id, progress)}
+                    onUpdateProgress={(progress) => handleUpdateSubtask(subtask.id, progress as Task['Progress'])}
                     onDelete={() => handleDeleteSubtask(subtask.id)}
                   />
                 ))}

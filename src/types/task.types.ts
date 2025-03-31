@@ -10,6 +10,7 @@ export type Task = {
   task_list_id: number | null;
   project_id?: number | null;
   details?: Json | Record<string, any> | string | null;
+  IsTimeBlock?: "Yes" | "No"; // Add this property
 };
 
 export type Subtask = {

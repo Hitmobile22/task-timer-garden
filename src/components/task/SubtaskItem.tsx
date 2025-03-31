@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -9,14 +8,15 @@ import { Task, Subtask } from '@/types/task.types';
 
 interface SubtaskItemProps {
   subtask: Subtask;
-  editingTaskId: number | null;
-  editingTaskName: string;
-  onEditStart: (task: Task | Subtask) => void;
-  onEditCancel: () => void;
-  onEditSave: (taskId: number, isSubtask?: boolean) => void;
-  onEditNameChange: (value: string) => void;
-  onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
-  onDeleteTask: (taskId: number) => void;
+  editingTaskId?: number | null;
+  editingTaskName?: string;
+  onEditStart?: (task: Task | Subtask) => void;
+  onEditCancel?: () => void;
+  onEditSave?: (taskId: number, isSubtask?: boolean) => void;
+  onEditNameChange?: (value: string) => void;
+  onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void | ((progress: Task['Progress']) => void);
+  onDeleteTask?: (taskId: number) => void;
+  onDelete?: () => void;
 }
 
 export const SubtaskItem: React.FC<SubtaskItemProps> = ({
@@ -29,7 +29,28 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
   onEditNameChange,
   onUpdateProgress,
   onDeleteTask,
+  onDelete,
 }) => {
+  const handleProgressChange = (value: Task['Progress']) => {
+    if (typeof onUpdateProgress === 'function') {
+      if (onUpdateProgress.length > 1) {
+        // If it has multiple parameters, assume it's the first signature
+        onUpdateProgress(subtask.id, value, true);
+      } else {
+        // Otherwise assume it's the second signature
+        (onUpdateProgress as (progress: Task['Progress']) => void)(value);
+      }
+    }
+  };
+
+  const handleDelete = () => {
+    if (onDelete) {
+      onDelete();
+    } else if (onDeleteTask) {
+      onDeleteTask(subtask.id);
+    }
+  };
+
   return (
     <TableRow className="bg-muted/50">
       <TableCell className="pl-10">
@@ -37,20 +58,20 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
           <div className="flex items-center gap-2">
             <Input
               value={editingTaskName}
-              onChange={(e) => onEditNameChange(e.target.value)}
+              onChange={(e) => onEditNameChange && onEditNameChange(e.target.value)}
               className="w-full"
             />
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => onEditSave(subtask.id, true)}
+              onClick={() => onEditSave && onEditSave(subtask.id, true)}
             >
               <Check className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              onClick={onEditCancel}
+              onClick={() => onEditCancel && onEditCancel()}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -59,27 +80,27 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
           <div className="flex items-center gap-2">
             <div 
               className="h-6 w-6 rounded-full bg-primary/10 text-primary hover:bg-primary/20 flex items-center justify-center cursor-pointer"
-              onClick={() => onUpdateProgress(subtask.id, 'Completed', true)}
+              onClick={() => handleProgressChange('Completed')}
             >
               <Check className="h-4 w-4" />
             </div>
             <span>└─ {subtask["Task Name"]}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEditStart(subtask)}
-            >
-              <PencilIcon className="h-4 w-4" />
-            </Button>
+            {onEditStart && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onEditStart(subtask)}
+              >
+                <PencilIcon className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         )}
       </TableCell>
       <TableCell>
         <Select
           value={subtask.Progress}
-          onValueChange={(value: Task['Progress']) => 
-            onUpdateProgress(subtask.id, value, true)
-          }
+          onValueChange={handleProgressChange}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select progress" />
@@ -97,7 +118,7 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => onDeleteTask(subtask.id)}
+          onClick={handleDelete}
         >
           <Trash2 className="h-4 w-4" />
         </Button>

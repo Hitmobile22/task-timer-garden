@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -122,13 +123,33 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
       {isModalOpen && (
         <TaskEditModal
           task={task}
+          open={isModalOpen}
+          onOpenChange={handleModalClose}
           taskLists={taskLists}
-          isOpen={isModalOpen}
-          onClose={handleModalClose}
-          onEditNameChange={handleEditSave}
-          onUpdateProgress={onUpdateProgress}
-          onMoveTask={onMoveTask}
-          onTimelineEdit={onTimelineEdit}
+          onSave={(updatedTask) => {
+            // This will be called when the task is saved in the modal
+            if (updatedTask["Task Name"] !== task["Task Name"]) {
+              handleEditSave(updatedTask["Task Name"]);
+            }
+            if (updatedTask.Progress !== task.Progress) {
+              onUpdateProgress(task.id, updatedTask.Progress);
+            }
+            if (
+              (updatedTask.date_started !== task.date_started || 
+               updatedTask.date_due !== task.date_due) && 
+              updatedTask.date_started && 
+              updatedTask.date_due
+            ) {
+              onTimelineEdit(
+                task.id, 
+                new Date(updatedTask.date_started), 
+                new Date(updatedTask.date_due)
+              );
+            }
+            if (updatedTask.task_list_id !== task.task_list_id && updatedTask.task_list_id) {
+              onMoveTask(task.id, updatedTask.task_list_id);
+            }
+          }}
         />
       )}
     </TableCell>

@@ -1,270 +1,254 @@
 
+import React, { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
-import { Button } from "@/components/ui/button";
-import { 
-  Bold, 
-  Italic, 
-  List, 
-  ListOrdered, 
+import { Button } from '@/components/ui/button';
+import {
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
   Image as ImageIcon,
-  Quote,
-  Heading1,
-  Heading2,
-  Heading3,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Undo,
+  Redo,
 } from 'lucide-react';
-import { uploadImage } from '@/lib/supabase-storage';
-import { toast } from "sonner";
 
 interface RichTextEditorProps {
-  content: any;
-  onChange: (content: any) => void;
+  initialContent: any;
+  onChange?: (content: any) => void;
+  editable?: boolean;
 }
 
-export const RichTextEditor: React.FC<RichTextEditorProps> = ({ content, onChange }) => {
+export const RichTextEditor = ({ initialContent, onChange, editable = true }: RichTextEditorProps) => {
+  // Create a safe default content structure
+  const safeInitialContent = React.useMemo(() => {
+    try {
+      // Check if initialContent has a valid structure
+      if (initialContent && 
+          initialContent.type === 'doc' && 
+          Array.isArray(initialContent.content)) {
+        // Ensure all text nodes have content
+        const isValid = initialContent.content.every((node: any) => {
+          if (node.type !== 'paragraph' || !Array.isArray(node.content)) return false;
+          return node.content.every((textNode: any) => {
+            return textNode.type === 'text' && typeof textNode.text === 'string' && textNode.text.length > 0;
+          });
+        });
+        
+        if (isValid) return initialContent;
+      }
+      
+      // Fallback to a safe default structure
+      return {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: ' ' // Non-empty text to prevent errors
+              }
+            ]
+          }
+        ]
+      };
+    } catch (error) {
+      console.error("Error processing initial content:", error);
+      // Return a safe default if any errors occur
+      return {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: ' ' // Non-empty text to prevent errors
+              }
+            ]
+          }
+        ]
+      };
+    }
+  }, [initialContent]);
+
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({
-        bulletList: {
-          HTMLAttributes: {
-            class: 'space-y-1 list-disc list-outside ml-4',
-          },
-        },
-        orderedList: {
-          HTMLAttributes: {
-            class: 'space-y-1 list-decimal list-outside ml-4',
-          },
-        },
-        heading: {
-          levels: [1, 2, 3],
-          HTMLAttributes: {
-            class: 'font-bold',
-          },
-        },
-        blockquote: {
-          HTMLAttributes: {
-            class: 'border-l-4 border-gray-300 pl-4 italic my-4',
-          },
-        },
-      }),
-      Image.configure({
-        HTMLAttributes: {
-          class: 'max-w-full h-auto rounded-lg my-4',
-          loading: 'lazy',
-        },
-        allowBase64: true,
-      }),
+      StarterKit,
+      Image,
       Link.configure({
-        HTMLAttributes: {
-          class: 'text-blue-500 hover:text-blue-700 underline',
-        },
-        openOnClick: false,
+        openOnClick: true,
+        validate: href => /^https?:\/\//.test(href),
       }),
     ],
-    content,
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl focus:outline-none min-h-[200px] max-w-none',
-      },
-    },
+    content: safeInitialContent,
+    editable: editable,
     onUpdate: ({ editor }) => {
-      onChange(editor.getJSON());
+      try {
+        if (onChange) {
+          const content = editor.getJSON();
+          onChange(content);
+        }
+      } catch (error) {
+        console.error("Error in editor update:", error);
+      }
+    },
+    editorProps: {
+      handleDOMEvents: {
+        keydown: (_view, event) => {
+          // Prevent the default behavior for specific keys if needed
+          if (event.key === 'Enter' && event.ctrlKey) {
+            // Custom behavior for Ctrl+Enter if needed
+            return true;
+          }
+          return false;
+        },
+      },
     },
   });
 
-  if (!editor) {
-    return null;
-  }
-
-  const handleImageUpload = async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    
-    input.onchange = async () => {
-      if (input.files?.length) {
-        const file = input.files[0];
-        
-        if (file.size > 5 * 1024 * 1024) {
-          toast.error('Image too large. Maximum size is 5MB');
-          return;
+  // Update editor content when initialContent changes
+  useEffect(() => {
+    if (editor && initialContent) {
+      try {
+        // Only update if the content is different to avoid infinite loops
+        const currentContent = editor.getJSON();
+        if (JSON.stringify(currentContent) !== JSON.stringify(safeInitialContent)) {
+          editor.commands.setContent(safeInitialContent);
         }
-        
-        const loadingToast = toast.loading('Uploading image...');
-        
-        try {
-          const url = await uploadImage(file);
-          
-          if (url) {
-            editor.chain().focus().setImage({ src: url }).run();
-            toast.dismiss(loadingToast);
-            toast.success('Image uploaded successfully');
-          } else {
-            toast.dismiss(loadingToast);
-            toast.error('Failed to upload image');
-          }
-        } catch (error) {
-          console.error('Error in image upload handler:', error);
-          toast.dismiss(loadingToast);
-          toast.error('Failed to upload image');
-        }
+      } catch (error) {
+        console.error("Error updating editor content:", error);
       }
-    };
-    
-    input.click();
-  };
-
-  const addLink = () => {
-    const url = window.prompt('Enter URL');
-    if (url) {
-      editor.chain().focus().setLink({ href: url }).run();
     }
-  };
+  }, [editor, safeInitialContent]);
 
-  // Helper function to update the editor content when it changes externally
-  // This ensures that when the task is reopened, the content loads properly
-  if (editor && content && JSON.stringify(editor.getJSON()) !== JSON.stringify(content)) {
-    editor.commands.setContent(content);
+  if (!editor) {
+    return <div className="p-4 text-muted">Loading editor...</div>;
   }
 
-  return (
-    <div className="border rounded-md">
-      <div className="border-b p-2 flex flex-wrap gap-1 bg-muted/20">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          className={editor.isActive('bold') ? 'bg-muted' : ''}
-          title="Bold"
-        >
-          <Bold className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          className={editor.isActive('italic') ? 'bg-muted' : ''}
-          title="Italic"
-        >
-          <Italic className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          className={editor.isActive('heading', { level: 1 }) ? 'bg-muted' : ''}
-          title="Heading 1"
-        >
-          <Heading1 className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={editor.isActive('heading', { level: 2 }) ? 'bg-muted' : ''}
-          title="Heading 2"
-        >
-          <Heading2 className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          className={editor.isActive('heading', { level: 3 }) ? 'bg-muted' : ''}
-          title="Heading 3"
-        >
-          <Heading3 className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={editor.isActive('bulletList') ? 'bg-muted' : ''}
-          title="Bullet List"
-        >
-          <List className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={editor.isActive('orderedList') ? 'bg-muted' : ''}
-          title="Numbered List"
-        >
-          <ListOrdered className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          className={editor.isActive('blockquote') ? 'bg-muted' : ''}
-          title="Quote"
-        >
-          <Quote className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleImageUpload}
-          title="Upload Image"
-        >
-          <ImageIcon className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={addLink}
-          className={editor.isActive('link') ? 'bg-muted' : ''}
-          title="Add Link"
-        >
-          <LinkIcon className="h-4 w-4" />
-        </Button>
+  // Handle errors that might occur during rendering
+  try {
+    return (
+      <div className="rich-text-editor">
+        {editable && (
+          <div className="flex flex-wrap gap-2 p-2 bg-muted/20 border-b">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              className={editor.isActive('bold') ? 'bg-muted' : ''}
+              title="Bold"
+              type="button"
+            >
+              <Bold className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              className={editor.isActive('italic') ? 'bg-muted' : ''}
+              title="Italic"
+              type="button"
+            >
+              <Italic className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              className={editor.isActive('bulletList') ? 'bg-muted' : ''}
+              title="Bullet List"
+              type="button"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              className={editor.isActive('orderedList') ? 'bg-muted' : ''}
+              title="Numbered List"
+              type="button"
+            >
+              <ListOrdered className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const url = window.prompt('Enter the URL:');
+                if (url) {
+                  editor.chain().focus().setLink({ href: url }).run();
+                }
+              }}
+              className={editor.isActive('link') ? 'bg-muted' : ''}
+              title="Link"
+              type="button"
+            >
+              <LinkIcon className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const url = window.prompt('Enter the image URL:');
+                if (url) {
+                  editor.chain().focus().setImage({ src: url }).run();
+                }
+              }}
+              title="Image"
+              type="button"
+            >
+              <ImageIcon className="h-4 w-4" />
+            </Button>
+            
+            <div className="ml-auto flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => editor.chain().focus().undo().run()}
+                disabled={!editor.can().undo()}
+                title="Undo"
+                type="button"
+              >
+                <Undo className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => editor.chain().focus().redo().run()}
+                disabled={!editor.can().redo()}
+                title="Redo"
+                type="button"
+              >
+                <Redo className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+        
+        <div className={`p-4 min-h-[150px] ${!editable ? 'prose prose-sm max-w-none' : ''}`}>
+          <EditorContent editor={editor} />
+        </div>
       </div>
-      <style>
-        {`
-          .ProseMirror h1 {
-            font-size: 2.5em;
-            margin-top: 0.67em;
-            margin-bottom: 0.67em;
-          }
-          .ProseMirror h2 {
-            font-size: 2em;
-            margin-top: 0.83em;
-            margin-bottom: 0.83em;
-          }
-          .ProseMirror h3 {
-            font-size: 1.5em;
-            margin-top: 1em;
-            margin-bottom: 1em;
-          }
-          .ProseMirror p {
-            margin: 1em 0;
-          }
-          .ProseMirror ul,
-          .ProseMirror ol {
-            margin: 1em 0;
-            padding-left: 1em;
-          }
-          .ProseMirror li {
-            margin: 0.5em 0;
-          }
-          .ProseMirror li p {
-            margin: 0;
-            display: inline;
-          }
-          .ProseMirror img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-          }
-        `}
-      </style>
-      <div className="p-4">
-        <EditorContent editor={editor} />
+    );
+  } catch (error) {
+    console.error("Error rendering editor:", error);
+    // Fallback rendering in case of errors
+    return (
+      <div className="p-4 border rounded-md bg-red-50 text-red-500">
+        <p>Error rendering editor. Please try refreshing the page.</p>
       </div>
-    </div>
-  );
+    );
+  }
 };

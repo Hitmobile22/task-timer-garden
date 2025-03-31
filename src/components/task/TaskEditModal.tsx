@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -53,7 +52,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   const [selectedEndDate, setSelectedEndDate] = React.useState<Date>(new Date());
   const [details, setDetails] = React.useState<EditorContent>({
     type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: ' ' }] }]
   });
   const [startDateOpen, setStartDateOpen] = React.useState(false);
   const [endDateOpen, setEndDateOpen] = React.useState(false);
@@ -66,6 +65,12 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   const [originalStartDate, setOriginalStartDate] = React.useState<Date | null>(null);
   const [originalEndDate, setOriginalEndDate] = React.useState<Date | null>(null);
   const [originalDetails, setOriginalDetails] = React.useState<any>(null);
+
+  // Create a safe default for the editor
+  const createSafeDefaultContent = () => ({
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text: ' ' }] }]
+  });
 
   const initializeTaskForm = React.useCallback(() => {
     if (task) {
@@ -90,72 +95,89 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
       setOriginalStartDate(startDateValue);
       setOriginalEndDate(endDateValue);
       
-      if (task.details) {
-        try {
-          let parsedDetails;
+      try {
+        // Handle details parsing with better error handling
+        let parsedDetails = createSafeDefaultContent();
+        
+        if (task.details) {
           if (typeof task.details === 'string') {
             try {
-              parsedDetails = JSON.parse(task.details);
-              if (parsedDetails && typeof parsedDetails === 'object' && 'type' in parsedDetails && 'content' in parsedDetails) {
-                setDetails(parsedDetails as EditorContent);
-                setOriginalDetails(JSON.stringify(parsedDetails));
-              } else {
-                const defaultDetails = {
-                  type: 'doc',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-                };
-                setDetails(defaultDetails);
-                setOriginalDetails(JSON.stringify(defaultDetails));
+              const detailsObj = JSON.parse(task.details);
+              if (detailsObj && typeof detailsObj === 'object' && 'type' in detailsObj && 'content' in detailsObj) {
+                // Validate content has valid text (not empty)
+                const validContent = validateEditorContent(detailsObj);
+                parsedDetails = validContent;
               }
-            } catch {
-              const textDetails = {
-                type: 'doc',
-                content: [{ type: 'paragraph', content: [{ type: 'text', text: task.details }] }]
-              };
-              setDetails(textDetails);
-              setOriginalDetails(JSON.stringify(textDetails));
+            } catch (e) {
+              console.log("Error parsing task details string:", e);
+              // If there's text content, use it
+              if (task.details.trim()) {
+                parsedDetails = {
+                  type: 'doc',
+                  content: [{ 
+                    type: 'paragraph', 
+                    content: [{ type: 'text', text: task.details }] 
+                  }]
+                };
+              }
             }
           } else if (typeof task.details === 'object' && task.details !== null) {
             if ('type' in task.details && 'content' in task.details) {
-              setDetails(task.details as unknown as EditorContent);
-              setOriginalDetails(JSON.stringify(task.details));
-            } else {
-              const defaultDetails = {
-                type: 'doc',
-                content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-              };
-              setDetails(defaultDetails);
-              setOriginalDetails(JSON.stringify(defaultDetails));
+              // Validate content has valid text (not empty)
+              const validContent = validateEditorContent(task.details);
+              parsedDetails = validContent;
             }
-          } else {
-            const defaultDetails = {
-              type: 'doc',
-              content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-            };
-            setDetails(defaultDetails);
-            setOriginalDetails(JSON.stringify(defaultDetails));
           }
-        } catch (e) {
-          console.error("Error parsing task details:", e);
-          const defaultDetails = {
-            type: 'doc',
-            content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-          };
-          setDetails(defaultDetails);
-          setOriginalDetails(JSON.stringify(defaultDetails));
         }
-      } else {
-        const defaultDetails = {
-          type: 'doc',
-          content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }]
-        };
-        setDetails(defaultDetails);
-        setOriginalDetails(JSON.stringify(defaultDetails));
+        
+        setDetails(parsedDetails);
+        setOriginalDetails(JSON.stringify(parsedDetails));
+      } catch (e) {
+        console.error("Error handling task details:", e);
+        setDetails(createSafeDefaultContent());
+        setOriginalDetails(JSON.stringify(createSafeDefaultContent()));
       }
       
       setTaskInitialized(true);
     }
   }, [task]);
+
+  // Helper function to validate editor content
+  const validateEditorContent = (content: any) => {
+    try {
+      const safeContent = { ...content };
+      
+      // Ensure we have valid content array
+      if (!Array.isArray(safeContent.content) || safeContent.content.length === 0) {
+        return createSafeDefaultContent();
+      }
+      
+      // Make sure each paragraph has valid text content
+      safeContent.content = safeContent.content.map((paragraph: any) => {
+        if (!paragraph.content || !Array.isArray(paragraph.content)) {
+          return {
+            type: 'paragraph',
+            content: [{ type: 'text', text: ' ' }]
+          };
+        }
+        
+        // Ensure each text node has non-empty text
+        paragraph.content = paragraph.content.map((textNode: any) => {
+          if (textNode.type === 'text' && (!textNode.text || textNode.text === '')) {
+            return { ...textNode, text: ' ' };
+          }
+          return textNode;
+        });
+        
+        return paragraph;
+      });
+      
+      return safeContent;
+    } catch (e) {
+      console.error("Error validating editor content:", e);
+      return createSafeDefaultContent();
+    }
+  };
 
   React.useEffect(() => {
     if (isOpen && task) {
@@ -216,33 +238,38 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
     const detailsChanged = currentDetailsString !== originalDetails;
     
     // Handle details update
-    const updatedDetails: Record<string, any> = {
-      ...(typeof details === 'object' ? details : {}),
-    };
-    
-    let isTimeBlock = false;
-    
-    if (task.details) {
-      if (typeof task.details === 'object' && task.details !== null) {
-        if ('isTimeBlock' in task.details && typeof task.details.isTimeBlock === 'boolean') {
-          isTimeBlock = task.details.isTimeBlock;
-        }
-      } else if (typeof task.details === 'string') {
-        try {
-          const parsedDetails = JSON.parse(task.details);
-          if (parsedDetails && typeof parsedDetails === 'object' && 'isTimeBlock' in parsedDetails) {
-            isTimeBlock = Boolean(parsedDetails.isTimeBlock);
+    if (detailsChanged) {
+      try {
+        // Ensure we have valid details
+        const validatedDetails = validateEditorContent(details);
+        
+        // Create a combined details object that preserves any existing metadata
+        const existingDetails = task.details && typeof task.details === 'object' ? task.details : {};
+        let isTimeBlock = false;
+        
+        if (task.details) {
+          if (typeof task.details === 'object' && task.details !== null) {
+            if ('isTimeBlock' in task.details && typeof task.details.isTimeBlock === 'boolean') {
+              isTimeBlock = task.details.isTimeBlock;
+            }
+          } else if (typeof task.details === 'string') {
+            try {
+              const parsedDetails = JSON.parse(task.details);
+              if (parsedDetails && typeof parsedDetails === 'object' && 'isTimeBlock' in parsedDetails) {
+                isTimeBlock = Boolean(parsedDetails.isTimeBlock);
+              }
+            } catch (e) {
+              // Keep isTimeBlock as false on parse error
+            }
           }
-        } catch (e) {
-          // Keep isTimeBlock as false on parse error
         }
-      }
-    }
-    
-    updatedDetails.isTimeBlock = isTimeBlock;
-    
-    try {
-      if (detailsChanged) {
+        
+        // Combine the editor content with metadata
+        const updatedDetails = {
+          ...validatedDetails,
+          isTimeBlock,
+        };
+        
         await supabase
           .from('Tasks')
           .update({ details: updatedDetails })
@@ -250,17 +277,17 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
         
         updatesApplied = true;
         toast.success("Task details updated");
+      } catch (error) {
+        console.error('Error updating task details:', error);
+        toast.error("Failed to update task details");
       }
-      
-      if (!updatesApplied) {
-        toast.info("No changes to save");
-      }
-      
-      onClose();
-    } catch (error) {
-      console.error('Error updating task details:', error);
-      toast.error("Failed to update task details");
     }
+    
+    if (!updatesApplied) {
+      toast.info("No changes to save");
+    }
+    
+    onClose();
   };
 
   const handlePushTask = () => {
@@ -291,6 +318,12 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
   
   const handlePointerDownOutside = (event: any) => {
     event.preventDefault();
+  };
+
+  const handleEditorChange = (newContent: any) => {
+    // Validate content before updating state
+    const validContent = validateEditorContent(newContent);
+    setDetails(validContent);
   };
 
   return (
@@ -458,7 +491,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({
             <div className="space-y-2">
               <label className="text-sm font-medium">Details</label>
               <div className="min-h-[150px] max-h-[250px] overflow-y-auto border rounded-md">
-                <RichTextEditor content={details} onChange={setDetails} />
+                <RichTextEditor content={details} onChange={handleEditorChange} />
               </div>
             </div>
           </div>

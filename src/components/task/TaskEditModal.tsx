@@ -57,16 +57,22 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
       
       // Initialize description content safely
       try {
+        console.log("Task details:", task.details);
+        
         if (task.details) {
           // Convert string details to object if needed
           const details = typeof task.details === 'string' 
             ? JSON.parse(task.details) 
             : task.details;
+          
+          console.log("Parsed details:", details);
             
           // Validate content before setting it
           if (details && details.description && isValidContent(details.description)) {
+            console.log("Setting valid description content:", details.description);
             setDescriptionContent(details.description);
           } else {
+            console.log("Invalid description content, setting default");
             // If content is invalid, set a valid default
             setDescriptionContent({
               type: "doc",
@@ -84,6 +90,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
             });
           }
         } else {
+          console.log("No details found, setting empty content");
           // Set empty valid content
           setDescriptionContent({
             type: "doc",

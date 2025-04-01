@@ -362,6 +362,7 @@ Deno.serve(async (req) => {
         }
         
         const recurringProjects = taskListProjects || [];
+        console.log(`Found ${recurringProjects.length} recurring projects in task list ${setting.task_list_id}`);
         
         // Count ALL tasks (regardless of status) for this list created today, 
         // including tasks created for recurring projects belonging to this list
@@ -382,6 +383,17 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Count tasks by project to track how many we've already created for each recurring project
+        const tasksByProject = new Map<number, number>();
+        if (todayTasks && todayTasks.length > 0) {
+          for (const task of todayTasks) {
+            if (task.project_id) {
+              const currentCount = tasksByProject.get(task.project_id) || 0;
+              tasksByProject.set(task.project_id, currentCount + 1);
+            }
+          }
+        }
+        
         // Get today's generation logs for projects belonging to this task list to determine how many tasks were created
         // by recurring projects themselves
         const projectIds = recurringProjects.map(p => p.id);
@@ -431,85 +443,124 @@ Deno.serve(async (req) => {
 
         const listName = taskList?.name || `List ${setting.task_list_id}`;
         const tasksToCreate = [];
-        // Take into account tasks already created by recurring projects
-        const neededTasks = forceCheck 
-          ? (dailyTaskGoal - (existingLogs?.[0]?.tasks_generated || 0)) 
-          : Math.max(0, dailyTaskGoal - todayTaskCount);
         
-        if (neededTasks <= 0) {
-          console.log(`No new tasks needed for list ${setting.task_list_id} (${listName})`);
-          results.push({ 
-            task_list_id: setting.task_list_id, 
-            status: 'skipped', 
-            reason: 'no_tasks_needed',
-            existing: todayTaskCount,
-            from_projects: projectGeneratedTaskCount
-          });
-          continue;
-        }
+        // First, fulfill recurring project tasks to meet their individual goals
+        let projectTasksNeeded = 0;
+        let projectTasksCreated = 0;
         
-        console.log(`Creating ${neededTasks} new tasks for list ${setting.task_list_id} (${listName})`);
-
-        // Check for existing task names to avoid duplicates
-        const existingTaskNames = todayTasks ? todayTasks.map(task => task["Task Name"]) : [];
-        
-        // Find project to assign tasks to (if any)
-        const { data: projects, error: nonRecurringProjectsError } = await supabaseClient
-          .from('Projects')
-          .select('id, "Project Name"')
-          .eq('task_list_id', setting.task_list_id)
-          .eq('isRecurring', false)  // Only assign to non-recurring projects
-          .neq('progress', 'Completed');
+        for (const project of recurringProjects) {
+          if (!project.id || !project.recurringTaskCount) continue;
           
-        if (nonRecurringProjectsError) {
-          console.error(`Error fetching non-recurring projects for task list ${setting.task_list_id}:`, nonRecurringProjectsError);
-        }
-        
-        const project = projects && projects.length > 0 ? projects[0] : null;
-        
-        for (let i = 0; i < neededTasks; i++) {
-          // Always start tasks exactly at 9am (consistent time)
-          const taskStartTime = new Date(today);
-          taskStartTime.setHours(9, 0 + (i * 30), 0, 0); // All start at 9:00 with 30-min increments
+          const currentProjectTasks = tasksByProject.get(project.id) || 0;
+          const projectTaskGoal = project.recurringTaskCount || 1;
+          console.log(`Project ${project.id} (${project["Project Name"]}) has ${currentProjectTasks} tasks out of goal ${projectTaskGoal}`);
           
-          const taskEndTime = new Date(taskStartTime);
-          taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
-          
-          let taskNumber = i + 1;
-          let taskName = '';
-          
-          if (project) {
-            // For project tasks, create a consistent naming pattern
-            taskName = `${project['Project Name']} - Task ${todayTaskCount + taskNumber}`;
-            
-            // Ensure we don't create duplicate task names
-            let uniqueNameCounter = 1;
-            while (existingTaskNames.includes(taskName)) {
-              taskName = `${project['Project Name']} - Task ${todayTaskCount + taskNumber} (${uniqueNameCounter})`;
-              uniqueNameCounter++;
-            }
-          } else {
-            taskName = `${listName} - Task ${todayTaskCount + taskNumber}`;
-            
-            // Ensure we don't create duplicate task names
-            let uniqueNameCounter = 1;
-            while (existingTaskNames.includes(taskName)) {
-              taskName = `${listName} - Task ${todayTaskCount + taskNumber} (${uniqueNameCounter})`;
-              uniqueNameCounter++;
-            }
+          // If the project already has enough tasks, skip it
+          if (currentProjectTasks >= projectTaskGoal && !forceCheck) {
+            console.log(`Project ${project.id} already has enough tasks (${currentProjectTasks}/${projectTaskGoal}), skipping`);
+            continue;
           }
           
-          // Add the task name to our tracking array to prevent duplicates in this batch
-          existingTaskNames.push(taskName);
+          const projectTasksToCreate = Math.max(0, projectTaskGoal - currentProjectTasks);
+          projectTasksNeeded += projectTasksToCreate;
+          
+          console.log(`Creating ${projectTasksToCreate} new tasks for project ${project.id} (${project["Project Name"]})`);
+          
+          // Get existing task names for this project
+          const existingProjectTaskNames = todayTasks
+            ? todayTasks
+                .filter(task => task.project_id === project.id)
+                .map(task => task["Task Name"])
+            : [];
             
-          tasksToCreate.push({
-            "Task Name": taskName,
-            Progress: "Not started",
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString(),
-            task_list_id: setting.task_list_id,
-            project_id: project?.id || null
-          });
+          for (let i = 0; i < projectTasksToCreate; i++) {
+            // Always start tasks exactly at 9am (consistent time)
+            const taskStartTime = new Date(today);
+            taskStartTime.setHours(9, 0 + (i * 30), 0, 0); // All start at 9:00 with 30-min increments
+            
+            const taskEndTime = new Date(taskStartTime);
+            taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
+            
+            let taskNumber = currentProjectTasks + i + 1;
+            let taskName = `${project["Project Name"]} - Task ${taskNumber}`;
+            
+            // Ensure we don't create duplicate task names
+            let uniqueNameCounter = 1;
+            while (existingProjectTaskNames.includes(taskName)) {
+              taskName = `${project["Project Name"]} - Task ${taskNumber} (${uniqueNameCounter})`;
+              uniqueNameCounter++;
+            }
+            
+            // Add the task name to our tracking array to prevent duplicates in this batch
+            existingProjectTaskNames.push(taskName);
+              
+            tasksToCreate.push({
+              "Task Name": taskName,
+              Progress: "Not started",
+              date_started: taskStartTime.toISOString(),
+              date_due: taskEndTime.toISOString(),
+              task_list_id: setting.task_list_id,
+              project_id: project.id
+            });
+            
+            projectTasksCreated++;
+          }
+        }
+        
+        // Calculate remaining number of tasks needed for this list (after fulfilling project requirements)
+        // Only create additional tasks for the task list directly if the task list's goal is greater than
+        // the sum of all recurring project goals
+        const totalRecurringTaskGoals = recurringProjects.reduce((sum, p) => sum + (p.recurringTaskCount || 1), 0);
+        const listDirectTasksNeeded = Math.max(0, dailyTaskGoal - totalRecurringTaskGoals);
+        
+        console.log(`List ${setting.task_list_id} has a daily task goal of ${dailyTaskGoal}, with recurring project goals totaling ${totalRecurringTaskGoals}`);
+        console.log(`Need to create ${listDirectTasksNeeded} additional tasks directly for the list (not assigned to projects)`);
+        
+        // Calculate how many additional tasks we need to create after accounting for existing tasks
+        const listDirectTasksAlreadyCreated = todayTaskCount - (todayTasks?.filter(t => t.project_id !== null).length || 0);
+        const additionalListTasksToCreate = Math.max(0, listDirectTasksNeeded - listDirectTasksAlreadyCreated);
+        
+        console.log(`List ${setting.task_list_id} already has ${listDirectTasksAlreadyCreated} direct tasks, need ${additionalListTasksToCreate} more`);
+        
+        // Create remaining tasks directly for the task list (not assigned to any project)
+        if (additionalListTasksToCreate > 0) {
+          // Check for existing task names to avoid duplicates
+          const existingTaskNames = todayTasks 
+            ? todayTasks
+                .filter(task => task.project_id === null) // Only non-project tasks
+                .map(task => task["Task Name"])
+            : [];
+          
+          for (let i = 0; i < additionalListTasksToCreate; i++) {
+            // Always start tasks exactly at 9am (consistent time)
+            const taskStartTime = new Date(today);
+            taskStartTime.setHours(9, 0 + ((projectTasksCreated + i) * 30), 0, 0); // All start at 9:00 with 30-min increments
+            
+            const taskEndTime = new Date(taskStartTime);
+            taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
+            
+            let taskNumber = listDirectTasksAlreadyCreated + i + 1;
+            let taskName = `${listName} - Task ${taskNumber}`;
+            
+            // Ensure we don't create duplicate task names
+            let uniqueNameCounter = 1;
+            while (existingTaskNames.includes(taskName)) {
+              taskName = `${listName} - Task ${taskNumber} (${uniqueNameCounter})`;
+              uniqueNameCounter++;
+            }
+            
+            // Add the task name to our tracking array to prevent duplicates in this batch
+            existingTaskNames.push(taskName);
+              
+            tasksToCreate.push({
+              "Task Name": taskName,
+              Progress: "Not started",
+              date_started: taskStartTime.toISOString(),
+              date_due: taskEndTime.toISOString(),
+              task_list_id: setting.task_list_id,
+              project_id: null // Not associated with any project
+            });
+          }
         }
 
         if (tasksToCreate.length > 0) {
@@ -528,7 +579,7 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          console.log(`Successfully created ${newTasks?.length || 0} tasks for list ${setting.task_list_id}`);
+          console.log(`Successfully created ${newTasks?.length || 0} tasks for list ${setting.task_list_id} (${projectTasksCreated} for projects, ${additionalListTasksToCreate} for the list itself)`);
           
           // Record the successful generation
           const totalTasksGenerated = (existingLogs?.[0]?.tasks_generated || 0) + (newTasks?.length || 0);
@@ -545,7 +596,9 @@ Deno.serve(async (req) => {
           results.push({ 
             task_list_id: setting.task_list_id, 
             status: 'created', 
-            tasks_created: newTasks?.length || 0 
+            tasks_created: newTasks?.length || 0,
+            for_projects: projectTasksCreated,
+            for_list: additionalListTasksToCreate 
           });
         } else {
           results.push({ 

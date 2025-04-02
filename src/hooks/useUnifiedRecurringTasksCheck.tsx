@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -92,7 +91,6 @@ export const useUnifiedRecurringTasksCheck = () => {
         throw error;
       }
       
-      // Group by task_list_id and take only the most recent setting for each list
       const settingsByList = new Map<number, RecurringTaskSettings>();
       data?.forEach((setting) => {
         if (!settingsByList.has(setting.task_list_id)) {
@@ -107,7 +105,6 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
   };
   
-  // Check for generation log for a specific task list and setting
   const getGenerationLog = async (taskListId: number, settingId: number) => {
     try {
       const today = new Date();
@@ -130,14 +127,13 @@ export const useUnifiedRecurringTasksCheck = () => {
         return null;
       }
       
-      return data;
+      return data as GenerationLog | null;
     } catch (error) {
       console.error('Error in getGenerationLog:', error);
       return null;
     }
   };
   
-  // Count active tasks for a specific task list
   const countActiveTasks = async (taskListId: number) => {
     try {
       const { data, error } = await supabase
@@ -158,18 +154,15 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
   };
   
-  // Main function to check recurring tasks
   const checkRecurringTasks = useCallback(async (forceCheck = false) => {
-    // Skip if already checking
     if (isGlobalChecking || isChecking) {
       console.log('Already checking recurring tasks, skipping');
       return;
     }
     
-    // Skip if checked recently (unless forced)
     const now = new Date();
     const timeSinceLastCheck = now.getTime() - lastGlobalCheck.getTime();
-    const minInterval = 5 * 60 * 1000; // 5 minutes
+    const minInterval = 5 * 60 * 1000;
     
     if (!forceCheck && timeSinceLastCheck < minInterval) {
       console.log(`Last recurring tasks check was ${Math.round(timeSinceLastCheck / 1000 / 60)} minutes ago, skipping`);
@@ -177,7 +170,6 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
     
     try {
-      // Set checking flags
       isGlobalChecking = true;
       setIsChecking(true);
       const currentCheckId = ++checkCountRef.current;
@@ -185,26 +177,21 @@ export const useUnifiedRecurringTasksCheck = () => {
       
       console.log(`Reset ${currentCheckId} daily goals`);
       
-      // Logging state for debugging
       const currentDay = getCurrentDayName();
       console.log(`Running unified recurring task check on ${currentDay}`);
       
-      // Get all recurring task settings
       const settings = await getRecurringTasksSettings();
       
-      // Early exit if no settings
       if (!settings || settings.length === 0) {
         console.log('No active recurring task settings found, skipping check');
         return;
       }
       
-      // Check if this check has been superseded by a newer check
       if (activeCheckIdRef.current !== currentCheckId) {
         console.log(`Check #${currentCheckId} was superseded by newer check #${activeCheckIdRef.current}, aborting`);
         return;
       }
       
-      // Filter for today's day of week and enabled settings
       const relevantSettings = settings.filter(s => 
         s.enabled && 
         s.days_of_week.includes(currentDay) && 
@@ -216,11 +203,9 @@ export const useUnifiedRecurringTasksCheck = () => {
         return;
       }
       
-      // Process each relevant setting
       let tasksCreated = false;
       
       for (const setting of relevantSettings) {
-        // Check if this check has been superseded by a newer check
         if (activeCheckIdRef.current !== currentCheckId) {
           console.log(`Check #${currentCheckId} was superseded by newer check #${activeCheckIdRef.current}, aborting settings loop`);
           break;
@@ -229,98 +214,74 @@ export const useUnifiedRecurringTasksCheck = () => {
         console.log(`Active recurring setting for task list ${setting.task_list_id}: ${JSON.stringify(setting, null, 2)}`);
         console.log(`Configured days: ${setting.days_of_week.join(', ')}, Today: ${currentDay}`);
         
-        // Skip if not forced and there's already a generation log for today
-        if (!forceCheck) {
-          const existingLog = await getGenerationLog(setting.task_list_id, setting.id);
-          if (existingLog) {
-            console.log(`Already generated ${existingLog.tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
-            continue;
-          }
+        const existingLog = await getGenerationLog(setting.task_list_id, setting.id);
+        
+        if (!forceCheck && existingLog) {
+          console.log(`Already generated ${existingLog.tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
+          continue;
         }
         
-        // Count current active tasks
         const activeTaskCount = await countActiveTasks(setting.task_list_id);
         console.log(`Task list ${setting.task_list_id} has ${activeTaskCount} active tasks of ${setting.daily_task_count} goal`);
         
-        // If we already have enough tasks, skip unless forced
-        if (!forceCheck && activeTaskCount >= setting.daily_task_count) {
-          console.log(`Task list ${setting.task_list_id} already has enough active tasks (${activeTaskCount}/${setting.daily_task_count}), skipping`);
-          continue;
-        }
+        const additionalListTasksToCreate = Math.max(0, setting.daily_task_count - activeTaskCount);
         
-        // Determine how many tasks to create
-        const tasksToCreate = Math.max(0, setting.daily_task_count - activeTaskCount);
-        
-        if (tasksToCreate <= 0 && !forceCheck) {
-          console.log(`No need to create tasks for list ${setting.task_list_id}`);
-          continue;
-        }
-        
-        // Call edge function to create tasks
-        console.log(`Invoking edge function to create ${tasksToCreate} tasks for list ${setting.task_list_id}`);
-        
-        try {
-          const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
-            body: {
-              specificListId: setting.task_list_id,
-              forceCheck: forceCheck,
-              targetTaskCount: setting.daily_task_count,
-              currentTaskCount: activeTaskCount,
-              currentDay: currentDay
-            }
-          });
+        if (additionalListTasksToCreate > 0) {
+          console.log(`Creating ${additionalListTasksToCreate} tasks for list ${setting.task_list_id} directly`);
           
-          if (error) {
-            console.error(`Error calling recurring tasks function for list ${setting.task_list_id}:`, error);
-            continue;
-          }
-          
-          console.log(`Edge function result for list ${setting.task_list_id}:`, data);
-          
-          // Update generation log or create a new one
-          const generationLog = await getGenerationLog(setting.task_list_id, setting.id);
-          
-          // Create or update generation log
-          if (generationLog) {
-            // Update existing log with the new task count
-            const newTaskCount = (generationLog.tasks_generated || 0) + (data?.tasksCreated || 0);
+          try {
+            const { data, error } = await supabase.functions.invoke('check-recurring-tasks', {
+              body: {
+                specificListId: setting.task_list_id,
+                forceCheck: forceCheck,
+                targetTaskCount: setting.daily_task_count,
+                currentTaskCount: activeTaskCount,
+                currentDay: currentDay
+              }
+            });
             
-            // Fix: Use supabase instead of supabaseClient, and correct naming
-            await supabase
-              .from('recurring_task_generation_logs')
-              .update({ 
-                tasks_generated: newTaskCount,
-                details: { ...generationLog.details, lastCheck: new Date().toISOString() }
-              })
-              .eq('id', generationLog.id);
+            if (error) {
+              console.error(`Error calling recurring tasks function for list ${setting.task_list_id}:`, error);
+              continue;
+            }
+            
+            console.log(`Edge function result for list ${setting.task_list_id}:`, data);
+            
+            const generationLog = await getGenerationLog(setting.task_list_id, setting.id);
+            
+            if (generationLog) {
+              const newTaskCount = (generationLog.tasks_generated || 0) + (data?.tasksCreated || 0);
               
-            console.log(`Updated generation log for list ${setting.task_list_id} to ${newTaskCount} tasks`);
-          } else if (data?.tasksCreated > 0) {
-            // Create new log
-            await logGenerationActivity(
-              setting.task_list_id,
-              setting.id,
-              data.tasksCreated,
-              { createdAt: new Date().toISOString() }
-            );
-            console.log(`Created generation log for list ${setting.task_list_id} with ${data.tasksCreated} tasks`);
+              await supabase
+                .from('recurring_task_generation_logs')
+                .update({ 
+                  tasks_generated: newTaskCount,
+                  details: { ...generationLog.details, lastCheck: new Date().toISOString() }
+                })
+                .eq('id', generationLog.id);
+              
+              console.log(`Updated generation log for list ${setting.task_list_id} to ${newTaskCount} tasks`);
+            } else if (data?.tasksCreated > 0) {
+              await logGenerationActivity(
+                setting.task_list_id,
+                setting.id,
+                data.tasksCreated,
+                { createdAt: new Date().toISOString() }
+              );
+              console.log(`Created generation log for list ${setting.task_list_id} with ${data.tasksCreated} tasks`);
+            }
+            
+            if (data?.tasksCreated > 0) {
+              tasksCreated = true;
+            }
+          } catch (fnError) {
+            console.error(`Error processing recurring tasks for list ${setting.task_list_id}:`, fnError);
           }
-          
-          if (data?.tasksCreated > 0) {
-            tasksCreated = true;
-          }
-        } catch (fnError) {
-          console.error(`Error processing recurring tasks for list ${setting.task_list_id}:`, fnError);
+        } else {
+          console.log(`No need to create tasks for list ${setting.task_list_id}`);
         }
       }
       
-      // Check if this check has been superseded by a newer check
-      if (activeCheckIdRef.current !== currentCheckId) {
-        console.log(`Check #${currentCheckId} cleanup skipped as it was superseded`);
-        return;
-      }
-      
-      // Set last check time and refresh queries if tasks were created
       if (tasksCreated) {
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
         queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
@@ -330,26 +291,21 @@ export const useUnifiedRecurringTasksCheck = () => {
         }
       }
       
-      // Update last check time
       lastGlobalCheck.setTime(now.getTime());
       setLastCheckedTime(now);
-      
     } catch (error) {
       console.error('Error checking recurring tasks:', error);
       toast.error('Error checking recurring tasks');
     } finally {
-      // Reset checking flags
       isGlobalChecking = false;
       setIsChecking(false);
       
-      // Check if this check has been superseded by a newer check
       if (activeCheckIdRef.current !== checkCountRef.current) {
         console.log(`Check #${activeCheckIdRef.current} cleanup completed`);
       }
     }
   }, [queryClient]);
   
-  // Run check on mount (delayed to avoid race conditions)
   useEffect(() => {
     const timer = setTimeout(() => {
       checkRecurringTasks(false);
@@ -358,20 +314,18 @@ export const useUnifiedRecurringTasksCheck = () => {
     return () => clearTimeout(timer);
   }, [checkRecurringTasks]);
   
-  // Set up interval check every hour during active hours
   useEffect(() => {
     const interval = setInterval(() => {
       try {
         const currentHour = new Date().getHours();
         
-        // Only run during active hours (8am to 10pm)
         if (currentHour >= 8 && currentHour < 22) {
           checkRecurringTasks(false);
         }
       } catch (error) {
         console.error('Error in recurring tasks interval check:', error);
       }
-    }, 60 * 60 * 1000); // Check every hour
+    }, 60 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, [checkRecurringTasks]);

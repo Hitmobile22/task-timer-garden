@@ -7,6 +7,7 @@ import { GoalNotificationsPanel } from '@/components/goals/GoalNotificationsPane
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
 import { useEffect } from 'react';
 import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
+import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 
 const Index = () => {
   const { resetDailyGoals } = useRecurringProjectsCheck();

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   Dialog,
@@ -249,7 +250,8 @@ export const RecurringTasksModal = ({
             console.log(`List already has ${activeTaskCount} active tasks out of goal ${settings.dailyTaskCount}`);
             
             // Only check if the current day is in the selected days and we don't have enough tasks already
-            if (settings.daysOfWeek.includes(currentDay) && (forceCheck || activeTaskCount < settings.dailyTaskCount)) {
+            // Fix: Remove the undefined forceCheck and set it to true to force check after saving settings
+            if (settings.daysOfWeek.includes(currentDay) && (true || activeTaskCount < settings.dailyTaskCount)) {
               console.log('Running check for recurring tasks after saving settings');
               
               // Check if there's already a generation log for today

@@ -298,7 +298,8 @@ export const RecurringTasksModal = ({
         <DialogHeader>
           <DialogTitle>Recurring Tasks for {listName}</DialogTitle>
           <DialogDescription>
-            Configure automatic task creation for this list. Tasks will be created at 9 AM daily.
+            Configure automatic task creation for this list. Tasks will be created at 9 AM on the selected days
+            if you don't already have enough active tasks.
           </DialogDescription>
         </DialogHeader>
         {isLoading ? (
@@ -339,7 +340,7 @@ export const RecurringTasksModal = ({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Tasks will be generated daily at 9 AM on selected days.
+                The system will maintain this number of active tasks (Not Started or In Progress) for the selected days.
               </p>
             </div>
             <div className="space-y-2">
@@ -354,6 +355,9 @@ export const RecurringTasksModal = ({
                   Please select at least one day
                 </p>
               )}
+              <p className="text-xs text-muted-foreground">
+                New tasks will only be created if you have fewer active tasks than your daily target.
+              </p>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isSaving || isCheckingTasks}>

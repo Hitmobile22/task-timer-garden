@@ -364,17 +364,16 @@ Deno.serve(async (req) => {
         const recurringProjects = taskListProjects || [];
         console.log(`Found ${recurringProjects.length} recurring projects in task list ${setting.task_list_id}`);
         
-        // Count ALL tasks (regardless of status) for this list created today, 
-        // including tasks created for recurring projects belonging to this list
-        const { data: todayTasks, error: todayTasksError } = await supabaseClient
+        // CRITICAL FIX: Count ALL active tasks (Not Started, In Progress) for this list,
+        // not just those created today. This is the key change to fix task overpopulation.
+        const { data: activeTasks, error: activeTasksError } = await supabaseClient
           .from('Tasks')
           .select('id, "Task Name", Progress, date_started, date_due, project_id, task_list_id')
           .eq('task_list_id', setting.task_list_id)
-          .gte('date_started', today.toISOString())
-          .lt('date_started', tomorrow.toISOString());
+          .in('Progress', ['Not started', 'In progress']);
 
-        if (todayTasksError) {
-          console.error(`Error counting today's tasks for list ${setting.task_list_id}:`, todayTasksError);
+        if (activeTasksError) {
+          console.error(`Error counting active tasks for list ${setting.task_list_id}:`, activeTasksError);
           results.push({ 
             task_list_id: setting.task_list_id, 
             status: 'error', 
@@ -383,10 +382,12 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Count tasks by project to track how many we've already created for each recurring project
+        console.log(`Found ${activeTasks?.length || 0} active tasks for list ${setting.task_list_id}`);
+
+        // Count tasks by project to track how many active tasks we already have for each project
         const tasksByProject = new Map<number, number>();
-        if (todayTasks && todayTasks.length > 0) {
-          for (const task of todayTasks) {
+        if (activeTasks && activeTasks.length > 0) {
+          for (const task of activeTasks) {
             if (task.project_id) {
               const currentCount = tasksByProject.get(task.project_id) || 0;
               tasksByProject.set(task.project_id, currentCount + 1);
@@ -394,8 +395,16 @@ Deno.serve(async (req) => {
           }
         }
         
-        // Get today's generation logs for projects belonging to this task list to determine how many tasks were created
-        // by recurring projects themselves
+        // Log the count of active tasks per project for debugging
+        if (tasksByProject.size > 0) {
+          console.log("Active tasks by project:");
+          for (const [projectId, count] of tasksByProject.entries()) {
+            const project = recurringProjects.find(p => p.id === projectId);
+            console.log(`Project ${projectId} (${project?.["Project Name"] || "Unknown"}): ${count} active tasks`);
+          }
+        }
+        
+        // Get today's generation logs for projects belonging to this task list
         const projectIds = recurringProjects.map(p => p.id);
         let projectGeneratedTaskCount = 0;
         
@@ -416,24 +425,24 @@ Deno.serve(async (req) => {
           }
         }
         
-        const todayTaskCount = todayTasks?.length || 0;
+        const activeTaskCount = activeTasks?.length || 0;
         const dailyTaskGoal = setting.daily_task_count || 1;
         
-        console.log(`List ${setting.task_list_id} has ${todayTaskCount} tasks today (${projectGeneratedTaskCount} from projects), goal is ${dailyTaskGoal}`);
+        console.log(`List ${setting.task_list_id} has ${activeTaskCount} active tasks (${projectGeneratedTaskCount} from projects), goal is ${dailyTaskGoal}`);
         
-        // If we already have enough tasks (either created directly or by recurring projects), skip
-        if ((todayTaskCount >= dailyTaskGoal) && !forceCheck) {
-          console.log(`Already have enough tasks for list ${setting.task_list_id}, skipping`);
+        // If we already have enough active tasks (either created for projects or the list itself), skip
+        if ((activeTaskCount >= dailyTaskGoal) && !forceCheck) {
+          console.log(`Already have enough active tasks for list ${setting.task_list_id}, skipping`);
           results.push({ 
             task_list_id: setting.task_list_id, 
             status: 'skipped', 
             reason: 'enough_tasks', 
-            existing: todayTaskCount,
+            existing: activeTaskCount,
             from_projects: projectGeneratedTaskCount
           });
           
-          // Update or create generation log entry
-          await updateGenerationLog(supabaseClient, setting.task_list_id, setting.id, todayTaskCount);
+          // Update generation log to reflect that we already have enough tasks
+          await updateGenerationLog(supabaseClient, setting.task_list_id, setting.id, activeTaskCount);
           
           // Add to cache
           generationCache.set(cacheKey, true);
@@ -444,7 +453,7 @@ Deno.serve(async (req) => {
         const listName = taskList?.name || `List ${setting.task_list_id}`;
         const tasksToCreate = [];
         
-        // First, fulfill recurring project tasks to meet their individual goals
+        // First, check existing active tasks for each recurring project to meet their individual goals
         let projectTasksNeeded = 0;
         let projectTasksCreated = 0;
         
@@ -453,11 +462,11 @@ Deno.serve(async (req) => {
           
           const currentProjectTasks = tasksByProject.get(project.id) || 0;
           const projectTaskGoal = project.recurringTaskCount || 1;
-          console.log(`Project ${project.id} (${project["Project Name"]}) has ${currentProjectTasks} tasks out of goal ${projectTaskGoal}`);
+          console.log(`Project ${project.id} (${project["Project Name"]}) has ${currentProjectTasks} active tasks out of goal ${projectTaskGoal}`);
           
-          // If the project already has enough tasks, skip it
+          // If the project already has enough active tasks, skip it
           if (currentProjectTasks >= projectTaskGoal && !forceCheck) {
-            console.log(`Project ${project.id} already has enough tasks (${currentProjectTasks}/${projectTaskGoal}), skipping`);
+            console.log(`Project ${project.id} already has enough active tasks (${currentProjectTasks}/${projectTaskGoal}), skipping`);
             continue;
           }
           
@@ -467,8 +476,8 @@ Deno.serve(async (req) => {
           console.log(`Creating ${projectTasksToCreate} new tasks for project ${project.id} (${project["Project Name"]})`);
           
           // Get existing task names for this project
-          const existingProjectTaskNames = todayTasks
-            ? todayTasks
+          const existingProjectTaskNames = activeTasks
+            ? activeTasks
                 .filter(task => task.project_id === project.id)
                 .map(task => task["Task Name"])
             : [];
@@ -509,7 +518,7 @@ Deno.serve(async (req) => {
         
         // Calculate remaining number of tasks needed for this list (after fulfilling project requirements)
         // Only create additional tasks for the task list directly if the task list's goal is greater than
-        // the sum of all recurring project goals
+        // the sum of all project tasks (both existing active and newly created)
         const totalRecurringTaskGoals = recurringProjects.reduce((sum, p) => sum + (p.recurringTaskCount || 1), 0);
         const listDirectTasksNeeded = Math.max(0, dailyTaskGoal - totalRecurringTaskGoals);
         
@@ -517,17 +526,23 @@ Deno.serve(async (req) => {
         console.log(`Need to create ${listDirectTasksNeeded} additional tasks directly for the list (not assigned to projects)`);
         
         // Calculate how many additional tasks we need to create after accounting for existing tasks
-        const listDirectTasksAlreadyCreated = todayTaskCount - (todayTasks?.filter(t => t.project_id !== null).length || 0);
+        // Important fix: Count ALL active tasks not assigned to recurring projects
+        const listDirectTasksAlreadyCreated = activeTasks ? activeTasks.filter(t => 
+          !t.project_id || !recurringProjects.some(p => p.id === t.project_id)
+        ).length : 0;
+        
+        console.log(`List ${setting.task_list_id} already has ${listDirectTasksAlreadyCreated} direct active tasks (not assigned to recurring projects)`);
+        
         const additionalListTasksToCreate = Math.max(0, listDirectTasksNeeded - listDirectTasksAlreadyCreated);
         
-        console.log(`List ${setting.task_list_id} already has ${listDirectTasksAlreadyCreated} direct tasks, need ${additionalListTasksToCreate} more`);
+        console.log(`List ${setting.task_list_id} needs ${additionalListTasksToCreate} more direct tasks`);
         
         // Create remaining tasks directly for the task list (not assigned to any project)
         if (additionalListTasksToCreate > 0) {
           // Check for existing task names to avoid duplicates
-          const existingTaskNames = todayTasks 
-            ? todayTasks
-                .filter(task => task.project_id === null) // Only non-project tasks
+          const existingTaskNames = activeTasks 
+            ? activeTasks
+                .filter(task => !task.project_id) // Only non-project tasks
                 .map(task => task["Task Name"])
             : [];
           

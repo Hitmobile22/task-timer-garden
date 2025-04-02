@@ -1,26 +1,28 @@
 
 import { TaskScheduler } from '@/components/TaskScheduler';
-import { useRecurringTasksCheck } from '@/hooks/useRecurringTasksCheck';
-import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
 import { GoalNotificationsPanel } from '@/components/goals/GoalNotificationsPanel';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
 import { useEffect } from 'react';
+import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
 
 const Index = () => {
-  const { checkRecurringTasks } = useRecurringTasksCheck();
-  const { checkRecurringProjects, resetDailyGoals } = useRecurringProjectsCheck();
+  const { resetDailyGoals } = useRecurringProjectsCheck();
   
   const queryClient = useQueryClient();
   const { data: goalNotifications = [], isLoading: isLoadingNotifications } = useGoalNotifications();
+  const recurringTasksChecker = useUnifiedRecurringTasksCheck();
   
   // Check for day change to reset daily goals on page load
   useEffect(() => {
     // Reset daily goals if needed
     resetDailyGoals();
-  }, [resetDailyGoals]);
+    
+    // Check for recurring tasks on page load (without forcing)
+    recurringTasksChecker.checkRecurringTasks(false);
+  }, [resetDailyGoals, recurringTasksChecker]);
   
   const handleShuffleTasks = async () => {
     try {

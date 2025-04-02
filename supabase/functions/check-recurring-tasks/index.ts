@@ -386,11 +386,23 @@ Deno.serve(async (req) => {
 
         // Count tasks by project to track how many active tasks we already have for each project
         const tasksByProject = new Map<number, number>();
+        const taskNamesByProject = new Map<number, Set<string>>();
+        
         if (activeTasks && activeTasks.length > 0) {
           for (const task of activeTasks) {
+            // Track by project ID
             if (task.project_id) {
+              // Count tasks per project
               const currentCount = tasksByProject.get(task.project_id) || 0;
               tasksByProject.set(task.project_id, currentCount + 1);
+              
+              // Track task names per project to avoid duplicates
+              if (!taskNamesByProject.has(task.project_id)) {
+                taskNamesByProject.set(task.project_id, new Set());
+              }
+              if (task["Task Name"]) {
+                taskNamesByProject.get(task.project_id)?.add(task["Task Name"]);
+              }
             }
           }
         }
@@ -401,6 +413,11 @@ Deno.serve(async (req) => {
           for (const [projectId, count] of tasksByProject.entries()) {
             const project = recurringProjects.find(p => p.id === projectId);
             console.log(`Project ${projectId} (${project?.["Project Name"] || "Unknown"}): ${count} active tasks`);
+            
+            // Also log the actual task names for better debugging
+            if (taskNamesByProject.has(projectId)) {
+              console.log(`Task names for Project ${projectId}:`, Array.from(taskNamesByProject.get(projectId) || []));
+            }
           }
         }
         
@@ -475,13 +492,9 @@ Deno.serve(async (req) => {
           
           console.log(`Creating ${projectTasksToCreate} new tasks for project ${project.id} (${project["Project Name"]})`);
           
-          // Get existing task names for this project
-          const existingProjectTaskNames = activeTasks
-            ? activeTasks
-                .filter(task => task.project_id === project.id)
-                .map(task => task["Task Name"])
-            : [];
-            
+          // Get existing task names for this project from the tasksNamesByProject map
+          const existingProjectTaskNames = Array.from(taskNamesByProject.get(project.id) || new Set());
+          
           for (let i = 0; i < projectTasksToCreate; i++) {
             // Always start tasks exactly at 9am (consistent time)
             const taskStartTime = new Date(today);

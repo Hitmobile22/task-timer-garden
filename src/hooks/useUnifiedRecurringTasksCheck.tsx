@@ -24,6 +24,7 @@ export const useUnifiedRecurringTasksCheck = () => {
   const processingRef = useRef<Set<number>>(new Set());
   const mountedRef = useRef<boolean>(false);
   const projectsCheckCompletedRef = useRef<boolean>(false);
+  const checkRequestId = useRef<number>(0);
 
   // Query for active recurring task settings - Task Lists
   const { data: listSettings } = useQuery({
@@ -262,6 +263,9 @@ export const useUnifiedRecurringTasksCheck = () => {
       return;
     }
     
+    // Create a unique ID for this check request
+    const thisCheckId = ++checkRequestId.current;
+    
     // Implement rate limiting for the global check
     const now = new Date();
     const timeSinceLastCheck = now.getTime() - lastFullCheck.timestamp.getTime();
@@ -303,10 +307,22 @@ export const useUnifiedRecurringTasksCheck = () => {
         projectsCheckCompletedRef.current = true;
       }
       
+      // If this check was superceded by a newer check, abort
+      if (thisCheckId !== checkRequestId.current) {
+        console.log(`Check #${thisCheckId} was superseded by newer check #${checkRequestId.current}, aborting`);
+        return;
+      }
+      
       // Then check recurring task lists, which should consider tasks already created by projects
       if (listSettings && listSettings.length > 0) {
         // Brief delay to ensure project task generation has completed
         setTimeout(async () => {
+          // Make sure this check request is still valid
+          if (thisCheckId !== checkRequestId.current) {
+            console.log(`Delayed check #${thisCheckId} was superseded by newer check #${checkRequestId.current}, aborting`);
+            return;
+          }
+          
           const settingsForToday = listSettings.filter(setting => 
             setting.days_of_week && 
             Array.isArray(setting.days_of_week) && 
@@ -330,9 +346,14 @@ export const useUnifiedRecurringTasksCheck = () => {
     } catch (error) {
       console.error('Error in unified recurring tasks check:', error);
     } finally {
-      setIsLocalChecking(false);
-      isGlobalCheckInProgress = false;
-      lastFullCheck.inProgress = false;
+      // Only reset the global flags if this is still the current check
+      if (thisCheckId === checkRequestId.current) {
+        setIsLocalChecking(false);
+        isGlobalCheckInProgress = false;
+        lastFullCheck.inProgress = false;
+      } else {
+        console.log(`Check #${thisCheckId} cleanup skipped as it was superseded`);
+      }
     }
   }, [listSettings, projects, checkGenerationLog, checkAndResetDailyGoals]);
 
@@ -394,6 +415,29 @@ export const useUnifiedRecurringTasksCheck = () => {
         
         if (generationLog && !forceCheck) {
           console.log(`Already generated ${generationLog.tasks_generated} tasks for project ${project.id} today, skipping`);
+          continue;
+        }
+        
+        // Check how many active tasks already exist for this project
+        const { data: existingActiveTasks, error: countError } = await supabase
+          .from('Tasks')
+          .select('id, "Task Name"')
+          .eq('project_id', project.id)
+          .in('Progress', ['Not started', 'In progress']);
+          
+        if (countError) {
+          console.error(`Error counting active tasks for project ${project.id}:`, countError);
+          continue;
+        }
+        
+        const existingCount = existingActiveTasks?.length || 0;
+        const taskGoal = project.recurringTaskCount || 1;
+        
+        console.log(`Project ${project.id} (${project['Project Name']}) has ${existingCount} active tasks of ${taskGoal} goal`);
+        
+        // If we already have enough active tasks, skip this project
+        if (existingCount >= taskGoal && !forceCheck) {
+          console.log(`Project ${project.id} already has enough active tasks (${existingCount}/${taskGoal}), skipping`);
           continue;
         }
         
@@ -516,6 +560,32 @@ export const useUnifiedRecurringTasksCheck = () => {
           continue;
         }
         
+        // Check how many active tasks already exist for this list
+        const { data: activeTasks, error: countError } = await supabase
+          .from('Tasks')
+          .select('id, "Task Name", project_id')
+          .eq('task_list_id', setting.task_list_id)
+          .in('Progress', ['Not started', 'In progress']);
+          
+        if (countError) {
+          console.error(`Error counting active tasks for list ${setting.task_list_id}:`, countError);
+          continue;
+        }
+        
+        const existingCount = activeTasks?.length || 0;
+        const dailyGoal = setting.daily_task_count || 1;
+        
+        console.log(`Task list ${setting.task_list_id} has ${existingCount} active tasks of ${dailyGoal} goal`);
+        
+        // If we already have enough active tasks, skip this list (unless forced)
+        if (existingCount >= dailyGoal && !forceCheck) {
+          console.log(`Task list ${setting.task_list_id} already has enough active tasks (${existingCount}/${dailyGoal}), skipping`);
+          
+          // Record that we already have enough tasks
+          await updateGenerationLog(supabaseClient, setting.task_list_id, setting.id, existingCount);
+          continue;
+        }
+        
         console.log(`Adding task list ${setting.task_list_id} to filtered list for task generation`);
         filteredSettings.push(setting);
         processingRef.current.add(setting.task_list_id);
@@ -588,7 +658,7 @@ export const useUnifiedRecurringTasksCheck = () => {
     if ((listSettings?.length > 0 || projects?.length > 0) && !isLocalChecking && !isGlobalCheckInProgress && !mountedRef.current) {
       console.log('Initial unified recurring tasks check starting');
       mountedRef.current = true;
-      checkRecurringTasks(true); // Force check on initial load
+      checkRecurringTasks(false); // Don't force check on initial load, rely on checks
     }
   }, [listSettings, projects, checkRecurringTasks, isLocalChecking]);
 
@@ -605,7 +675,7 @@ export const useUnifiedRecurringTasksCheck = () => {
       } catch (error) {
         console.error('Error in interval check:', error);
       }
-    }, 30 * 60 * 1000); // Check every 30 minutes (reduced from 60 minutes)
+    }, 30 * 60 * 1000); // Check every 30 minutes
 
     return () => clearInterval(interval);
   }, [checkRecurringTasks, isLocalChecking]);

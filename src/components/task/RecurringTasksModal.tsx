@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   Dialog,
@@ -51,7 +50,6 @@ const DAYS_OF_WEEK = [
 
 const DAILY_TASK_COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
 
-// Component to handle the days of week selection
 const DaysOfWeekSelector = ({
   selectedDays,
   onChange,
@@ -97,7 +95,6 @@ export const RecurringTasksModal = ({
   const [settingsChanged, setSettingsChanged] = useState(false);
   const [isCheckingTasks, setIsCheckingTasks] = useState(false);
 
-  // Check if a generation log exists for today
   const checkTodayLog = async (settingId: number) => {
     if (!settingId) return null;
     
@@ -238,34 +235,62 @@ export const RecurringTasksModal = ({
           const currentDay = getCurrentDayName();
           console.log(`Current day is ${currentDay}, selected days are ${settings.daysOfWeek.join(', ')}`);
           
-          // Only check if the current day is in the selected days
-          if (settings.daysOfWeek.includes(currentDay)) {
-            console.log('Running check for recurring tasks after saving settings');
+          // First check how many active tasks we already have
+          const { data: activeTasks, error: countError } = await supabase
+            .from('Tasks')
+            .select('id')
+            .eq('task_list_id', listId)
+            .in('Progress', ['Not started', 'In progress']);
             
-            // Check if there's already a generation log for today
-            const newSettingId = data?.[0]?.id || currentSettingId;
-            const existingLog = newSettingId ? await checkTodayLog(newSettingId) : null;
-            
-            // If there's already a log, and tasks generated >= daily count, no need to check
-            if (existingLog && existingLog.tasks_generated >= settings.dailyTaskCount) {
-              console.log(`Already generated ${existingLog.tasks_generated} tasks today (target: ${settings.dailyTaskCount}), skipping check`);
-            } else {
-              // Always force check for the specific list after saving settings
-              const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
-                body: { 
-                  forceCheck: true,
-                  specificListId: listId,
-                  currentDay: currentDay
-                }
-              });
-              
-              if (checkError) {
-                console.error('Error checking recurring tasks:', checkError);
-                throw checkError;
-              }
-            }
+          if (countError) {
+            console.error('Error counting active tasks:', countError);
           } else {
-            console.log(`Current day (${currentDay}) is not in selected days, skipping task check`);
+            const activeTaskCount = activeTasks?.length || 0;
+            console.log(`List already has ${activeTaskCount} active tasks out of goal ${settings.dailyTaskCount}`);
+            
+            // Only check if the current day is in the selected days and we don't have enough tasks already
+            if (settings.daysOfWeek.includes(currentDay) && (forceCheck || activeTaskCount < settings.dailyTaskCount)) {
+              console.log('Running check for recurring tasks after saving settings');
+              
+              // Check if there's already a generation log for today
+              const newSettingId = data?.[0]?.id || currentSettingId;
+              const today = getTodayISOString();
+              const tomorrow = getTomorrowISOString();
+              
+              const { data: existingLog, error: logError } = await supabase
+                .from('recurring_task_generation_logs')
+                .select('*')
+                .eq('task_list_id', listId)
+                .eq('setting_id', newSettingId)
+                .gte('generation_date', today)
+                .lt('generation_date', tomorrow)
+                .maybeSingle();
+                
+              if (logError) {
+                console.error('Error checking for existing generation log:', logError);
+              }
+                
+              // If there's already a log, and tasks generated >= daily count, no need to check
+              if (existingLog && existingLog.tasks_generated >= settings.dailyTaskCount) {
+                console.log(`Already generated ${existingLog.tasks_generated} tasks today (target: ${settings.dailyTaskCount}), skipping check`);
+              } else {
+                // Always force check for the specific list after saving settings
+                const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
+                  body: { 
+                    forceCheck: true,
+                    specificListId: listId,
+                    currentDay: currentDay
+                  }
+                });
+                
+                if (checkError) {
+                  console.error('Error checking recurring tasks:', checkError);
+                  throw checkError;
+                }
+              }
+            } else {
+              console.log(`Current day (${currentDay}) is not in selected days, skipping task check`);
+            }
           }
         } catch (checkError) {
           console.error('Error checking recurring tasks:', checkError);

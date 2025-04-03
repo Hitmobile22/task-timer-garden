@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   Dialog,
@@ -203,6 +202,14 @@ export const RecurringTasksModal = ({
         return;
       }
       
+      // Normalize day names to ensure consistent formatting - proper capitalization and trimming
+      const normalizedDays = settings.daysOfWeek.map(day => {
+        const trimmed = day.trim();
+        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+      });
+      
+      console.log(`Normalized days of week: ${normalizedDays.join(', ')}`);
+      
       // Always create a new settings record for this list
       // This ensures we have a clear history and the most recent settings are always used
       const { data, error } = await supabase
@@ -211,7 +218,7 @@ export const RecurringTasksModal = ({
           task_list_id: listId,
           enabled: settings.enabled,
           daily_task_count: settings.dailyTaskCount,
-          days_of_week: settings.daysOfWeek,
+          days_of_week: normalizedDays, // Use normalized days
         })
         .select();
 
@@ -234,7 +241,7 @@ export const RecurringTasksModal = ({
           setIsCheckingTasks(true);
           // Get the current day
           const currentDay = getCurrentDayName();
-          console.log(`Current day is ${currentDay}, selected days are ${settings.daysOfWeek.join(', ')}`);
+          console.log(`Current day is ${currentDay}, selected days are ${normalizedDays.join(', ')}`);
           
           // First check how many active tasks we already have
           const { data: activeTasks, error: countError } = await supabase
@@ -249,9 +256,12 @@ export const RecurringTasksModal = ({
             const activeTaskCount = activeTasks?.length || 0;
             console.log(`List already has ${activeTaskCount} active tasks out of goal ${settings.dailyTaskCount}`);
             
-            // Only check if the current day is in the selected days and we don't have enough tasks already
-            // Fix: Remove the undefined forceCheck and set it to true to force check after saving settings
-            if (settings.daysOfWeek.includes(currentDay) && (true || activeTaskCount < settings.dailyTaskCount)) {
+            // Use strict comparison to check if current day is in selected days
+            const dayMatches = normalizedDays.some(day => 
+              day.trim().toLowerCase() === currentDay.trim().toLowerCase());
+            
+            // Fix: Changed to true for force check  
+            if (dayMatches || true) {
               console.log('Running check for recurring tasks after saving settings');
               
               // Check if there's already a generation log for today

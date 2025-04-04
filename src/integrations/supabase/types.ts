@@ -231,6 +231,38 @@ export type Database = {
           },
         ]
       }
+      recurring_project_settings: {
+        Row: {
+          created_at: string
+          days_of_week: string[]
+          id: number
+          project_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          days_of_week?: string[]
+          id?: number
+          project_id: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          days_of_week?: string[]
+          id?: number
+          project_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_project_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "Projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_task_generation_logs: {
         Row: {
           generation_date: string

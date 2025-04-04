@@ -5,6 +5,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCurrentDayName } from '@/lib/utils';
 import { toast } from 'sonner';
 
+// Define proper types for the recurring settings
+interface RecurringProjectSettings {
+  id: number;
+  project_id: number;
+  days_of_week: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 // Global check state to prevent multiple instances from running checks simultaneously
 let isGlobalCheckInProgress = false;
 const lastGlobalCheck = new Map<number, Date>();
@@ -46,13 +55,16 @@ export const useRecurringProjectsCheck = () => {
     staleTime: 30 * 60 * 1000, // Stale after 30 minutes
   });
 
-  // Query for active recurring projects
+  // Query for active recurring projects with their settings
   const { data: projects } = useQuery({
     queryKey: ['recurring-projects'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('Projects')
-        .select('*, recurring_settings:recurring_project_settings(*)')
+        .select(`
+          *,
+          recurring_settings:recurring_project_settings(*)
+        `)
         .eq('isRecurring', true)
         .neq('progress', 'Completed');
       
@@ -65,9 +77,9 @@ export const useRecurringProjectsCheck = () => {
           
           // Log project recurring settings if available
           if (project.recurring_settings && project.recurring_settings.length > 0) {
-            console.log(`Project ${project.id} recurring settings:`, project.recurring_settings);
-            const daysOfWeek = project.recurring_settings[0]?.days_of_week || [];
-            console.log(`Project ${project.id} days of week:`, daysOfWeek);
+            const settings = project.recurring_settings[0] as RecurringProjectSettings;
+            console.log(`Project ${project.id} recurring settings:`, settings);
+            console.log(`Project ${project.id} days of week:`, settings.days_of_week || []);
           } else {
             console.log(`Project ${project.id} has no recurring settings configured`);
           }
@@ -228,14 +240,14 @@ export const useRecurringProjectsCheck = () => {
         }
         
         // Check if this project should run today based on recurring settings
-        const projectSettings = project.recurring_settings?.[0];
-        if (projectSettings && projectSettings.days_of_week && projectSettings.days_of_week.length > 0) {
+        if (project.recurring_settings && project.recurring_settings.length > 0) {
           // Extract and normalize the days of week from the project settings
-          const projectDays = projectSettings.days_of_week.map(normalizeDay);
+          const settings = project.recurring_settings[0] as RecurringProjectSettings;
+          const projectDays = settings.days_of_week?.map(normalizeDay) || [];
           const shouldRunToday = projectDays.includes(normalizedCurrentDay);
           
           console.log(`Project ${project.id} (${project['Project Name']}) days of week:`, 
-            projectSettings.days_of_week.join(', '),
+            settings.days_of_week?.join(', ') || 'all days',
             `- Should run today (${currentDayOfWeek}): ${shouldRunToday}`);
           
           if (!shouldRunToday && !forceCheck) {
@@ -307,9 +319,11 @@ export const useRecurringProjectsCheck = () => {
             date_due: p.date_due,
             progress: p.progress,
             // Include recurring settings if available
-            recurring_settings: p.recurring_settings?.[0] ? {
-              days_of_week: p.recurring_settings[0].days_of_week
-            } : null
+            recurring_settings: p.recurring_settings?.length > 0 
+              ? { 
+                  days_of_week: (p.recurring_settings[0] as RecurringProjectSettings).days_of_week || [] 
+                }
+              : null
           })),
           dayOfWeek: currentDayOfWeek
         }

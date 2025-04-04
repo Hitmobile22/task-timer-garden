@@ -1,3 +1,4 @@
+
 import { getCurrentDayName } from "@/lib/utils";
 
 // Create a module state object to keep track of state
@@ -15,7 +16,10 @@ const globalState = {
   },
 
   // Track the last day we reset daily goals
-  lastDailyGoalResetDay: new Date(0)
+  lastDailyGoalResetDay: new Date(0),
+  
+  // Track whether we've already shown the daily reset toast notification
+  hasShownDailyResetToast: false
 };
 
 // Getters and setters for the global state
@@ -25,6 +29,8 @@ export const setIsGlobalCheckInProgress = (value: boolean) => { globalState.isGl
 export const getLastFullCheck = () => globalState.lastFullCheck;
 export const getLastDailyGoalResetDay = () => globalState.lastDailyGoalResetDay;
 export const setLastDailyGoalResetDay = (date: Date) => { globalState.lastDailyGoalResetDay = date; };
+export const getHasShownDailyResetToast = () => globalState.hasShownDailyResetToast;
+export const setHasShownDailyResetToast = (value: boolean) => { globalState.hasShownDailyResetToast = value; };
 
 // Helper function to normalize day names for consistent comparison
 export const normalizeDay = (day: string): string => 

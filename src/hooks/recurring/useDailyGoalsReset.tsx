@@ -3,7 +3,12 @@ import { useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { getLastDailyGoalResetDay, setLastDailyGoalResetDay } from '@/utils/recurringUtils';
+import { 
+  getLastDailyGoalResetDay, 
+  setLastDailyGoalResetDay,
+  getHasShownDailyResetToast,
+  setHasShownDailyResetToast
+} from '@/utils/recurringUtils';
 
 export const useDailyGoalsReset = () => {
   const queryClient = useQueryClient();
@@ -44,8 +49,10 @@ export const useDailyGoalsReset = () => {
         queryClient.invalidateQueries({ queryKey: ['daily-project-goals'] });
         queryClient.invalidateQueries({ queryKey: ['project-goals'] });
         
-        if (data.goalsReset > 0) {
+        // Only show toast notification once per session per day
+        if (data.goalsReset > 0 && !getHasShownDailyResetToast()) {
           toast.info(`Reset ${data.goalsReset} daily goals for a new day`);
+          setHasShownDailyResetToast(true);
         }
         
         return true;

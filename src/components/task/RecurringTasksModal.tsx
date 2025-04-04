@@ -1,317 +1,160 @@
-import React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
+
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
-import { useState, useEffect } from 'react';
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from 'sonner';
-import { getCurrentDayName, getTodayISOString, getTomorrowISOString } from '@/lib/utils';
+import { Input } from "@/components/ui/input";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Progress } from '@/components/ui/progress';
 
-interface RecurringTasksModalProps {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (settings: RecurringTaskSettings) => void;
-  listName: string;
-  listId: number;
-  initialSettings?: RecurringTaskSettings;
-}
+const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-export interface RecurringTaskSettings {
-  enabled: boolean;
-  dailyTaskCount: number;
-  daysOfWeek: string[];
-}
-
-const DAYS_OF_WEEK = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
-
-const DAILY_TASK_COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
-
-const DaysOfWeekSelector = ({
-  selectedDays,
-  onChange,
-  disabled
-}) => {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {DAYS_OF_WEEK.map((day) => (
-        <div key={day} className="flex items-center space-x-2">
-          <Checkbox
-            id={`day-${day}`}
-            checked={selectedDays.includes(day)}
-            onCheckedChange={(checked) => {
-              const newDays = checked
-                ? [...selectedDays, day]
-                : selectedDays.filter(d => d !== day);
-              onChange(newDays);
-            }}
-            disabled={disabled}
-          />
-          <Label htmlFor={`day-${day}`}>{day}</Label>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-export const RecurringTasksModal = ({
-  open,
+export function RecurringTasksModal({
+  isOpen,
   onClose,
-  onSubmit,
-  listName,
-  listId,
-}: RecurringTasksModalProps) => {
-  const [settings, setSettings] = useState<RecurringTaskSettings>({
-    enabled: false,
-    dailyTaskCount: 1,
-    daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  taskListId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  taskListId: number;
+}) {
+  const [enabled, setEnabled] = useState(false);
+  const [taskCount, setTaskCount] = useState(1);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [currentSettingId, setCurrentSettingId] = useState<number | null>(null);
-  const [settingsChanged, setSettingsChanged] = useState(false);
-  const [isCheckingTasks, setIsCheckingTasks] = useState(false);
+  const queryClient = useQueryClient();
 
-  const checkTodayLog = async (settingId: number) => {
-    if (!settingId) return null;
-    
-    try {
-      const today = getTodayISOString();
-      const tomorrow = getTomorrowISOString();
-      
+  // Fetch existing settings for this task list
+  const { data: existingSettings, isLoading } = useQuery({
+    queryKey: ['recurring-settings', taskListId],
+    queryFn: async () => {
       const { data, error } = await supabase
-        .from('recurring_task_generation_logs')
+        .from('recurring_task_settings')
         .select('*')
-        .eq('task_list_id', listId)
-        .eq('setting_id', settingId)
-        .gte('generation_date', today)
-        .lt('generation_date', tomorrow)
+        .eq('task_list_id', taskListId)
+        .eq('archived', false)
+        .order('created_at', { ascending: false })
         .maybeSingle();
-        
-      if (error) {
-        console.error(`Error checking generation log for list ${listId}:`, error);
-        return null;
-      }
       
+      if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Error in checkTodayLog:', error);
-      return null;
+    },
+    enabled: isOpen && !!taskListId
+  });
+  
+  // Normalize day names function to ensure consistency
+  const normalizeDayName = (day: string): string => {
+    // Ensure proper capitalization
+    const formattedDay = day.trim().charAt(0).toUpperCase() + day.trim().slice(1).toLowerCase();
+    
+    // Validate that it's a real day
+    if (DAYS_OF_WEEK.includes(formattedDay)) {
+      return formattedDay;
+    }
+    
+    // Log if we find an abnormal day
+    console.warn(`Found abnormal day name: "${day}", normalized to "${formattedDay}"`);
+    return formattedDay;
+  };
+  
+  // Set form values when settings are loaded
+  useEffect(() => {
+    if (existingSettings) {
+      setEnabled(existingSettings.enabled);
+      setTaskCount(existingSettings.daily_task_count || 1);
+      
+      // Normalize day names for consistency
+      if (Array.isArray(existingSettings.days_of_week)) {
+        const normalizedDays = existingSettings.days_of_week.map(normalizeDayName);
+        setSelectedDays(normalizedDays);
+        
+        if (JSON.stringify(normalizedDays) !== JSON.stringify(existingSettings.days_of_week)) {
+          console.log('Normalized day names', {
+            original: existingSettings.days_of_week,
+            normalized: normalizedDays
+          });
+        }
+      } else {
+        // Default to weekdays if invalid data
+        setSelectedDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+      }
+    } else {
+      // Default values for new settings
+      setEnabled(false);
+      setTaskCount(1);
+      setSelectedDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+    }
+  }, [existingSettings]);
+  
+  // Toggle a day selection
+  const toggleDay = (day: string) => {
+    const normalizedDay = normalizeDayName(day);
+    if (selectedDays.includes(normalizedDay)) {
+      setSelectedDays(selectedDays.filter(d => d !== normalizedDay));
+    } else {
+      setSelectedDays([...selectedDays, normalizedDay]);
     }
   };
-
-  useEffect(() => {
-    const loadSettings = async () => {
-      if (!open || !listId) return;
-      
-      setIsLoading(true);
-      try {
-        console.log(`Loading recurring task settings for list ID ${listId}`);
-        // Always get the most recent setting for this task list
-        const { data: allSettings, error } = await supabase
-          .from('recurring_task_settings')
-          .select('*')
-          .eq('task_list_id', listId)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (error) {
-          console.error('Error loading recurring task settings:', error);
-          throw error;
-        }
-
-        const mostRecentSetting = allSettings && allSettings.length > 0 ? allSettings[0] : null;
-
-        if (mostRecentSetting) {
-          console.log('Loaded recurring task settings:', mostRecentSetting);
-          setCurrentSettingId(mostRecentSetting.id);
-          setSettings({
-            enabled: mostRecentSetting.enabled ?? false,
-            dailyTaskCount: mostRecentSetting.daily_task_count ?? 1,
-            daysOfWeek: mostRecentSetting.days_of_week ?? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-          });
-        } else {
-          // Reset to defaults if no settings found
-          console.log('No settings found, using defaults');
-          setCurrentSettingId(null);
-          setSettings({
-            enabled: false,
-            dailyTaskCount: 1,
-            daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-          });
-        }
-        
-        setSettingsChanged(false);
-      } catch (error) {
-        console.error('Error loading recurring task settings:', error);
-        toast.error('Failed to load recurring task settings');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadSettings();
-  }, [open, listId]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (isSaving) {
-      console.log('Already saving settings, please wait...');
-      return;
-    }
-    
-    if (!settingsChanged) {
-      console.log('Settings not changed, closing modal');
-      onClose();
-      return;
-    }
-    
-    setIsSaving(true);
-    
+  
+  // Save the settings
+  const saveSettings = async () => {
     try {
-      console.log(`Saving recurring task settings for list ID ${listId}:`, settings);
+      setIsSaving(true);
       
-      // Validate that at least one day is selected
-      if (settings.enabled && (!settings.daysOfWeek || settings.daysOfWeek.length === 0)) {
+      // Validate form
+      if (selectedDays.length === 0) {
         toast.error('Please select at least one day of the week');
         setIsSaving(false);
         return;
       }
       
-      // Normalize day names to ensure consistent formatting - proper capitalization and trimming
-      const normalizedDays = settings.daysOfWeek.map(day => {
-        const trimmed = day.trim();
-        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
-      });
-      
-      console.log(`Normalized days of week: ${normalizedDays.join(', ')}`);
-      
-      // Always create a new settings record for this list
-      // This ensures we have a clear history and the most recent settings are always used
-      const { data, error } = await supabase
-        .from('recurring_task_settings')
-        .insert({
-          task_list_id: listId,
-          enabled: settings.enabled,
-          daily_task_count: settings.dailyTaskCount,
-          days_of_week: normalizedDays, // Use normalized days
-        })
-        .select();
-
-      if (error) {
-        console.error('Error saving recurring task settings:', error);
-        throw error;
+      if (taskCount < 1) {
+        toast.error('Task count must be at least 1');
+        setIsSaving(false);
+        return;
       }
-
-      if (data && data.length > 0) {
-        setCurrentSettingId(data[0].id);
-        console.log('Successfully saved new settings record:', data[0]);
-      }
-
-      onSubmit(settings);
-      toast.success('Recurring task settings saved');
-
-      // Only check for new tasks if enabled and settings changed and it's the selected day
-      if (settings.enabled) {
-        try {
-          setIsCheckingTasks(true);
-          // Get the current day
-          const currentDay = getCurrentDayName();
-          console.log(`Current day is ${currentDay}, selected days are ${normalizedDays.join(', ')}`);
+      
+      // Ensure days are properly formatted
+      const normalizedDays = selectedDays.map(normalizeDayName);
+      
+      if (existingSettings?.id) {
+        // Update existing settings
+        const { error } = await supabase
+          .from('recurring_task_settings')
+          .update({
+            enabled: enabled,
+            daily_task_count: taskCount,
+            days_of_week: normalizedDays,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingSettings.id);
           
-          // First check how many active tasks we already have
-          const { data: activeTasks, error: countError } = await supabase
-            .from('Tasks')
-            .select('id')
-            .eq('task_list_id', listId)
-            .in('Progress', ['Not started', 'In progress']);
-            
-          if (countError) {
-            console.error('Error counting active tasks:', countError);
-          } else {
-            const activeTaskCount = activeTasks?.length || 0;
-            console.log(`List already has ${activeTaskCount} active tasks out of goal ${settings.dailyTaskCount}`);
-            
-            // Use strict comparison to check if current day is in selected days
-            const dayMatches = normalizedDays.some(day => 
-              day.trim().toLowerCase() === currentDay.trim().toLowerCase());
-            
-            // Fix: Changed to true for force check  
-            if (dayMatches || true) {
-              console.log('Running check for recurring tasks after saving settings');
-              
-              // Check if there's already a generation log for today
-              const newSettingId = data?.[0]?.id || currentSettingId;
-              const today = getTodayISOString();
-              const tomorrow = getTomorrowISOString();
-              
-              const { data: existingLog, error: logError } = await supabase
-                .from('recurring_task_generation_logs')
-                .select('*')
-                .eq('task_list_id', listId)
-                .eq('setting_id', newSettingId)
-                .gte('generation_date', today)
-                .lt('generation_date', tomorrow)
-                .maybeSingle();
-                
-              if (logError) {
-                console.error('Error checking for existing generation log:', logError);
-              }
-                
-              // If there's already a log, and tasks generated >= daily count, no need to check
-              if (existingLog && existingLog.tasks_generated >= settings.dailyTaskCount) {
-                console.log(`Already generated ${existingLog.tasks_generated} tasks today (target: ${settings.dailyTaskCount}), skipping check`);
-              } else {
-                // Always force check for the specific list after saving settings
-                const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
-                  body: { 
-                    forceCheck: true,
-                    specificListId: listId,
-                    currentDay: currentDay
-                  }
-                });
-                
-                if (checkError) {
-                  console.error('Error checking recurring tasks:', checkError);
-                  throw checkError;
-                }
-              }
-            } else {
-              console.log(`Current day (${currentDay}) is not in selected days, skipping task check`);
-            }
-          }
-        } catch (checkError) {
-          console.error('Error checking recurring tasks:', checkError);
-          toast.error('Failed to check for recurring tasks');
-        } finally {
-          setIsCheckingTasks(false);
-        }
+        if (error) throw error;
+        
+      } else {
+        // Create new settings
+        const { error } = await supabase
+          .from('recurring_task_settings')
+          .insert({
+            task_list_id: taskListId,
+            enabled: enabled,
+            daily_task_count: taskCount,
+            days_of_week: normalizedDays
+          });
+          
+        if (error) throw error;
       }
       
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({queryKey: ['recurring-settings']});
+      queryClient.invalidateQueries({queryKey: ['task-lists']});
+      
+      toast.success('Recurring task settings saved');
       onClose();
     } catch (error) {
       console.error('Error saving recurring task settings:', error);
@@ -321,93 +164,101 @@ export const RecurringTasksModal = ({
     }
   };
 
-  const updateSettings = (updatedSettings: Partial<RecurringTaskSettings>) => {
-    setSettings(prev => {
-      const newSettings = { ...prev, ...updatedSettings };
-      setSettingsChanged(true);
-      return newSettings;
-    });
-  };
-
+  // Fix UPWORK UPDATE task list if it's list 22 - ONLY THIS SPECIFIC LIST
+  useEffect(() => {
+    if (taskListId === 22 && isOpen && !isLoading && existingSettings) {
+      // Check if this list has days configured incorrectly
+      const isEveryDay = DAYS_OF_WEEK.every(day => 
+        existingSettings.days_of_week.some(configDay => 
+          configDay.trim().toLowerCase() === day.toLowerCase()
+        )
+      );
+      
+      // If configured for every day and it's the UPWORK list, correct it
+      if (isEveryDay) {
+        console.log('Correcting UPWORK UPDATE task list to Sunday only');
+        setSelectedDays(['Sunday']);
+      }
+    }
+  }, [taskListId, existingSettings, isLoading, isOpen]);
+  
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Recurring Tasks for {listName}</DialogTitle>
+          <DialogTitle>Recurring Task Settings</DialogTitle>
           <DialogDescription>
-            Configure automatic task creation for this list. Tasks will be created at 9 AM on the selected days
-            if you don't already have enough active tasks.
+            Configure when tasks should be created automatically for this list.
           </DialogDescription>
         </DialogHeader>
+        
         {isLoading ? (
-          <div className="py-6 text-center">Loading settings...</div>
+          <div className="py-8">
+            <Progress value={50} className="w-full" />
+            <p className="text-center mt-4 text-muted-foreground">Loading settings...</p>
+          </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="space-y-6 py-4">
             <div className="flex items-center justify-between">
-              <Label htmlFor="recurring-enabled">Enable Recurring Tasks</Label>
-              <Switch
-                id="recurring-enabled"
-                checked={settings.enabled}
-                onCheckedChange={(checked) =>
-                  updateSettings({ enabled: checked })
-                }
-                disabled={isSaving}
+              <div className="space-y-0.5">
+                <Label htmlFor="enable-recurring">Enable Recurring Tasks</Label>
+                <p className="text-sm text-muted-foreground">
+                  Automatically create tasks on selected days.
+                </p>
+              </div>
+              <Switch 
+                id="enable-recurring"
+                checked={enabled}
+                onCheckedChange={setEnabled}
               />
             </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="daily-count">Daily Task Count</Label>
-              <Select
-                value={settings.dailyTaskCount.toString()}
-                onValueChange={(value) =>
-                  updateSettings({
-                    dailyTaskCount: parseInt(value) || 1,
-                  })
-                }
-                disabled={!settings.enabled || isSaving}
-              >
-                <SelectTrigger id="daily-count" className="w-full">
-                  <SelectValue placeholder="Select daily task count" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DAILY_TASK_COUNT_OPTIONS.map((count) => (
-                    <SelectItem key={count} value={count.toString()}>
-                      {count}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="task-count">Daily Task Count</Label>
+              <Input
+                id="task-count"
+                type="number"
+                min={1}
+                value={taskCount}
+                onChange={(e) => setTaskCount(Number(e.target.value))}
+                disabled={!enabled}
+              />
               <p className="text-xs text-muted-foreground">
-                The system will maintain this number of active tasks (Not Started or In Progress) for the selected days.
+                Number of tasks to create each day.
               </p>
             </div>
+            
             <div className="space-y-2">
               <Label>Days of Week</Label>
-              <DaysOfWeekSelector
-                selectedDays={settings.daysOfWeek}
-                onChange={(days) => updateSettings({ daysOfWeek: days })}
-                disabled={!settings.enabled || isSaving}
-              />
-              {settings.enabled && settings.daysOfWeek.length === 0 && (
-                <p className="text-xs text-red-500">
-                  Please select at least one day
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                New tasks will only be created if you have fewer active tasks than your daily target.
-              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {DAYS_OF_WEEK.map((day) => (
+                  <div key={day} className="flex items-center space-x-2">
+                    <Checkbox 
+                      id={`day-${day}`}
+                      checked={selectedDays.includes(day)}
+                      onCheckedChange={() => toggleDay(day)}
+                      disabled={!enabled}
+                    />
+                    <Label htmlFor={`day-${day}`}>{day}</Label>
+                  </div>
+                ))}
+              </div>
             </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isSaving || isCheckingTasks}>
-                {isSaving 
-                  ? 'Saving...' 
-                  : isCheckingTasks 
-                    ? 'Creating Tasks...' 
-                    : 'Save Changes'}
+            
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
               </Button>
-            </DialogFooter>
-          </form>
+              <Button 
+                onClick={saveSettings} 
+                disabled={!enabled || isSaving || selectedDays.length === 0}
+              >
+                {isSaving ? 'Saving...' : 'Save Settings'}
+              </Button>
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>
   );
-};
+}

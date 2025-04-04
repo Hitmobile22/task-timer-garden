@@ -26,7 +26,7 @@ interface GenerationLog {
   setting_id: number;
   generation_date: string;
   tasks_generated: number;
-  details?: any; // Added the optional details property to fix the TypeScript error
+  details?: any; // Added the optional details property to fix TypeScript error
 }
 
 export const useUnifiedRecurringTasksCheck = () => {
@@ -193,16 +193,16 @@ export const useUnifiedRecurringTasksCheck = () => {
         return;
       }
       
-      // More strict filtering - ensure proper string comparison by trimming whitespace
+      // Improved day-of-week matching logic with case-insensitive comparison and trimming
       const relevantSettings = settings.filter(s => {
         if (!s.enabled || s.daily_task_count <= 0) return false;
         
-        // More explicit day of week checking with improved logging
+        // More robust day of week checking with improved logging and normalization
         const hasMatchingDay = Array.isArray(s.days_of_week) && 
                               s.days_of_week.some(day => 
                                 day.trim().toLowerCase() === currentDay.trim().toLowerCase());
         
-        console.log(`Task list ${s.task_list_id} configured days: [${s.days_of_week?.join(', ')}], includes ${currentDay}? ${hasMatchingDay}`);
+        console.log(`Task list ${s.task_list_id} configured days: [${s.days_of_week?.join(', ')}], current day: ${currentDay}, includes today? ${hasMatchingDay}`);
         
         return hasMatchingDay || forceCheck;
       });
@@ -223,7 +223,7 @@ export const useUnifiedRecurringTasksCheck = () => {
         console.log(`Active recurring setting for task list ${setting.task_list_id}: ${JSON.stringify(setting, null, 2)}`);
         console.log(`Configured days: ${setting.days_of_week.join(', ')}, Today: ${currentDay}`);
         
-        // Double check the day matching using the exact same logic
+        // Double check the day matching using the more robust logic
         const dayMatches = Array.isArray(setting.days_of_week) && 
                           setting.days_of_week.some(day => 
                             day.trim().toLowerCase() === currentDay.trim().toLowerCase());

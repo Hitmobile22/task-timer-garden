@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { lastDailyGoalResetDay } from '@/utils/recurringUtils';
+import { getLastDailyGoalResetDay, setLastDailyGoalResetDay } from '@/utils/recurringUtils';
 
 export const useDailyGoalsReset = () => {
   const queryClient = useQueryClient();
@@ -14,7 +14,7 @@ export const useDailyGoalsReset = () => {
     today.setHours(0, 0, 0, 0);
     
     // Only reset once per day
-    if (lastDailyGoalResetDay.toDateString() === today.toDateString()) {
+    if (getLastDailyGoalResetDay().toDateString() === today.toDateString()) {
       console.log('Daily goals already reset today, skipping');
       return false;
     }
@@ -38,7 +38,7 @@ export const useDailyGoalsReset = () => {
       
       if (data && data.success) {
         console.log(`Reset ${data.goalsReset || 0} daily goals`);
-        lastDailyGoalResetDay = today;
+        setLastDailyGoalResetDay(today);
         
         // Invalidate relevant queries
         queryClient.invalidateQueries({ queryKey: ['daily-project-goals'] });

@@ -7,9 +7,10 @@ import { useProjectsQuery, useDailyGoalsQuery } from './useProjectsQuery';
 import { useGenerationLogCheck } from './useGenerationLogCheck';
 import { useDailyGoalsReset } from './useDailyGoalsReset';
 import { 
-  isGlobalCheckInProgress, 
-  lastGlobalCheck, 
-  lastFullCheck,
+  getIsGlobalCheckInProgress, 
+  setIsGlobalCheckInProgress,
+  getLastGlobalCheck, 
+  getLastFullCheck,
   normalizeDay,
   getCurrentNormalizedDay,
   isTooEarlyForTaskGeneration,
@@ -33,14 +34,14 @@ export const useRecurringProjectsCheck = () => {
   // Check recurring projects
   const checkRecurringProjects = useCallback(async (forceCheck = false) => {
     // Prevent concurrent checks globally across instances
-    if (isGlobalCheckInProgress || lastFullCheck.inProgress) {
+    if (getIsGlobalCheckInProgress() || getLastFullCheck().inProgress) {
       console.log('Global project check already in progress, skipping');
       return;
     }
     
     // Implement rate limiting for the global check
     const now = new Date();
-    const timeSinceLastCheck = now.getTime() - lastFullCheck.timestamp.getTime();
+    const timeSinceLastCheck = now.getTime() - getLastFullCheck().timestamp.getTime();
     const rateLimitMs = 15 * 60 * 1000; // 15 minutes
     
     if (!forceCheck && timeSinceLastCheck < rateLimitMs) {
@@ -53,9 +54,9 @@ export const useRecurringProjectsCheck = () => {
       await checkAndResetDailyGoals();
       
       // Set global check flags
-      isGlobalCheckInProgress = true;
-      lastFullCheck.inProgress = true;
-      lastFullCheck.timestamp = now;
+      setIsGlobalCheckInProgress(true);
+      getLastFullCheck().inProgress = true;
+      getLastFullCheck().timestamp = now;
       setIsLocalChecking(true);
       
       // Early morning check (before 7am don't generate tasks)
@@ -76,6 +77,7 @@ export const useRecurringProjectsCheck = () => {
       
       // Filter projects and check for generation logs
       const filteredProjects: RecurringProject[] = [];
+      const lastGlobalCheck = getLastGlobalCheck();
       
       for (const project of projects) {
         // Skip if already processing this project
@@ -232,14 +234,14 @@ export const useRecurringProjectsCheck = () => {
     } finally {
       // Reset flags
       setIsLocalChecking(false);
-      isGlobalCheckInProgress = false;
-      lastFullCheck.inProgress = false;
+      setIsGlobalCheckInProgress(false);
+      getLastFullCheck().inProgress = false;
     }
   }, [projects, queryClient, checkGenerationLog, checkAndResetDailyGoals]);
 
   // Run initial check when component mounts
   useEffect(() => {
-    if (projects?.length > 0 && !isLocalChecking && !isGlobalCheckInProgress && !mountedRef.current) {
+    if (projects?.length > 0 && !isLocalChecking && !getIsGlobalCheckInProgress() && !mountedRef.current) {
       console.log('Initial recurring projects check starting');
       mountedRef.current = true;
       // Delay initial check to allow task list checks to go first
@@ -266,7 +268,7 @@ export const useRecurringProjectsCheck = () => {
       try {
         const currentHour = new Date().getHours();
         // Only check during daytime hours (7am-10pm) and if no check is already in progress
-        if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !isGlobalCheckInProgress) {
+        if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !getIsGlobalCheckInProgress()) {
           console.log('Running scheduled recurring projects check');
           checkRecurringProjects();
         }

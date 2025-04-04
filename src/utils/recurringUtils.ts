@@ -1,20 +1,30 @@
-
 import { getCurrentDayName } from "@/lib/utils";
 
-// Map to track the last check time for any project to prevent multiple checks
-export const lastGlobalCheck = new Map<number, Date>();
+// Create a module state object to keep track of state
+const globalState = {
+  // Map to track the last check time for any project to prevent multiple checks
+  lastGlobalCheck: new Map<number, Date>(),
 
-// Global check state to prevent multiple instances from running checks simultaneously
-export let isGlobalCheckInProgress = false;
+  // Global check state to prevent multiple instances from running checks simultaneously
+  isGlobalCheckInProgress: false,
 
-// Global map to track the last check time for task lists to prevent multiple checks
-export const lastFullCheck = {
-  timestamp: new Date(0),
-  inProgress: false
+  // Global map to track the last check time for task lists to prevent multiple checks
+  lastFullCheck: {
+    timestamp: new Date(0),
+    inProgress: false
+  },
+
+  // Track the last day we reset daily goals
+  lastDailyGoalResetDay: new Date(0)
 };
 
-// Track the last day we reset daily goals
-export let lastDailyGoalResetDay = new Date(0);
+// Getters and setters for the global state
+export const getLastGlobalCheck = () => globalState.lastGlobalCheck;
+export const getIsGlobalCheckInProgress = () => globalState.isGlobalCheckInProgress;
+export const setIsGlobalCheckInProgress = (value: boolean) => { globalState.isGlobalCheckInProgress = value; };
+export const getLastFullCheck = () => globalState.lastFullCheck;
+export const getLastDailyGoalResetDay = () => globalState.lastDailyGoalResetDay;
+export const setLastDailyGoalResetDay = (date: Date) => { globalState.lastDailyGoalResetDay = date; };
 
 // Helper function to normalize day names for consistent comparison
 export const normalizeDay = (day: string): string => 

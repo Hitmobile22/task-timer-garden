@@ -1,4 +1,7 @@
 
+// Update the edge function to handle day-of-week restrictions for projects.
+// This involves adding logic to check if a project should be processed based on the current day.
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
@@ -6,366 +9,329 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-function getCurrentDayOfWeek() {
-  return new Date().toLocaleDateString('en-US', { weekday: 'long' });
-}
-
-function formatDateForLogging(date) {
-  try {
-    return new Date(date).toISOString();
-  } catch (e) {
-    return String(date);
-  }
-}
+// Helper function to normalize day names for consistent comparison
+const normalizeDay = (day: string): string => 
+  day?.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase()) || '';
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-
+  
   try {
+    // Create a Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-    );
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const currentDayOfWeek = getCurrentDayOfWeek();
-    console.log(`Current day of week: ${currentDayOfWeek}`);
-
+    )
+    
+    // Parse request body
     const body = await req.json();
     console.log("Received request body:", JSON.stringify(body));
     
-    const forceCheck = !!body.forceCheck;
-    const projects = body.projects || [];
-    const specificDayOfWeek = body.dayOfWeek || currentDayOfWeek;
-    const resetDailyGoals = body.resetDailyGoals || false;
-
-    console.log(`Processing ${projects.length} recurring projects on ${specificDayOfWeek}`);
-
-    // If resetDailyGoals is set to true, reset all daily goal counts
-    if (resetDailyGoals) {
-      console.log("Resetting all daily goals to 0");
-      
-      // Get all active project goals that are daily type
-      const { data: dailyGoals, error: dailyGoalsError } = await supabaseClient
-        .from('project_goals')
-        .select('*')
-        .eq('goal_type', 'daily')
-        .eq('is_enabled', true);
+    // Process reset daily goals request if provided
+    if (body.resetDailyGoals) {
+      try {
+        console.log("Resetting daily project goals");
         
-      if (dailyGoalsError) {
-        console.error('Error fetching daily goals:', dailyGoalsError);
-      } else if (dailyGoals && dailyGoals.length > 0) {
-        console.log(`Found ${dailyGoals.length} daily goals to reset`);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         
-        // Reset each daily goal's current_count to 0
-        for (const goal of dailyGoals) {
-          const { error: updateError } = await supabaseClient
-            .from('project_goals')
-            .update({ current_count: 0 })
-            .eq('id', goal.id);
+        // Get goals that need to be reset
+        const { data: dailyGoals, error } = await supabaseClient
+          .from('project_goals')
+          .select('*')
+          .eq('goal_type', 'daily')
+          .eq('is_enabled', true);
+        
+        if (error) throw error;
+        
+        let goalsReset = 0;
+        
+        // Reset each goal
+        for (const goal of (dailyGoals || [])) {
+          try {
+            // Reset current count
+            const { error: resetError } = await supabaseClient
+              .from('project_goals')
+              .update({ current_count: 0 })
+              .eq('id', goal.id);
             
-          if (updateError) {
-            console.error(`Error resetting goal ${goal.id}:`, updateError);
+            if (!resetError) goalsReset++;
+          } catch (err) {
+            console.error(`Error resetting goal ${goal.id}:`, err);
           }
         }
         
-        console.log(`Reset ${dailyGoals.length} daily goals to 0`);
-      } else {
-        console.log("No daily goals found to reset");
-      }
-      
-      // Return early if this was just a reset operation
-      if (!projects || projects.length === 0) {
-        return new Response(JSON.stringify({ 
-          success: true, 
-          message: 'Daily goals reset successfully',
-          goalsReset: dailyGoals?.length || 0
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        });
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            goalsReset: goalsReset,
+            message: `Reset ${goalsReset} daily project goals`
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200
+          }
+        );
+      } catch (error) {
+        console.error('Error resetting daily goals:', error);
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500
+          }
+        );
       }
     }
-
+    
+    // Handle recurring project task generation
+    const projects = body.projects || [];
+    const forceCheck = body.forceCheck || false;
     const results = [];
     
-    const existingTaskNamesByProject = new Map();
+    // Get the current day of week (use the one from the client if available)
+    const currentDay = body.dayOfWeek || new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const normalizedCurrentDay = normalizeDay(currentDay);
     
-    const projectTaskListIds = projects
-      .map(p => p.task_list_id)
-      .filter(id => id !== null && id !== undefined);
+    console.log(`Processing ${projects.length} recurring projects on ${currentDay} (normalized: ${normalizedCurrentDay})`);
     
-    const taskListSettingsMap = new Map();
-    
-    if (projectTaskListIds.length > 0) {
-      const { data: taskListSettings, error: settingsError } = await supabaseClient
-        .from('recurring_task_settings')
-        .select('*')
-        .in('task_list_id', projectTaskListIds)
-        .eq('enabled', true)
-        .order('created_at', { ascending: false });
-        
-      if (settingsError) {
-        console.error('Error fetching task list settings:', settingsError);
-      } else if (taskListSettings && taskListSettings.length > 0) {
-        console.log(`Retrieved ${taskListSettings.length} task list settings`);
-        
-        for (const setting of taskListSettings) {
-          if (!setting.task_list_id) continue;
-          
-          if (!taskListSettingsMap.has(setting.task_list_id)) {
-            taskListSettingsMap.set(setting.task_list_id, setting);
-          }
-        }
-        
-        console.log(`Retrieved settings for ${taskListSettingsMap.size} task lists`);
-      }
-    }
-    
+    // Process each project
     for (const project of projects) {
-      if (!project || !project.id) {
-        console.log(`Invalid project data, skipping`);
-        results.push({ project_id: project?.id, status: 'skipped', reason: 'invalid_project' });
-        continue;
-      }
-
-      let shouldRunToday = true;
-      if (!forceCheck && project.task_list_id) {
-        const listSetting = taskListSettingsMap.get(project.task_list_id);
-        if (listSetting && Array.isArray(listSetting.days_of_week)) {
-          shouldRunToday = listSetting.days_of_week.includes(specificDayOfWeek);
-          console.log(`Project ${project.id} task list ${project.task_list_id} configured days: ${listSetting.days_of_week.join(', ')}`);
-          console.log(`Should run today (${specificDayOfWeek})? ${shouldRunToday}`);
-        }
-      }
-      
-      if (!shouldRunToday && !forceCheck) {
-        console.log(`Project ${project.id} not scheduled to run on ${specificDayOfWeek}, skipping`);
-        results.push({ 
-          project_id: project.id, 
-          status: 'skipped', 
-          reason: 'not_scheduled_for_today',
-          day: specificDayOfWeek
-        });
-        continue;
-      }
-
-      console.log(`Checking project: ${project.id} - ${project['Project Name']}`);
-      console.log(`  - Start date: ${formatDateForLogging(project.date_started)}`);
-      console.log(`  - Due date: ${formatDateForLogging(project.date_due)}`);
-      
-      let startDate, dueDate;
       try {
-        startDate = project.date_started ? new Date(project.date_started) : null;
-        dueDate = project.date_due ? new Date(project.date_due) : null;
-        
-        if (startDate) startDate.setHours(0, 0, 0, 0);
-        if (dueDate) dueDate.setHours(23, 59, 59, 999);
-      } catch (error) {
-        console.error(`Error parsing dates for project ${project.id}:`, error);
-        results.push({ project_id: project.id, status: 'error', error: 'date_parsing_failed' });
-        continue;
-      }
-
-      // If project has no valid dates, skip it
-      if (!startDate && !dueDate) {
-        console.log(`Project ${project.id} missing both dates, skipping`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'missing_dates' });
-        continue;
-      }
-      
-      // If start date is in the future, skip it
-      if (startDate && today < startDate) {
-        console.log(`Project ${project.id} starts in the future (${startDate.toISOString()}), skipping`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'start_date_in_future' });
-        continue;
-      }
-      
-      // If due date is in the past, mark as overdue but continue processing
-      if (dueDate && today > dueDate) {
-        console.log(`Project ${project.id} due date (${dueDate.toISOString()}) is in the past`);
-        
-        if (!project['Project Name'].includes('(overdue)')) {
-          try {
-            const { error: updateError } = await supabaseClient
-              .from('Projects')
-              .update({ 'Project Name': `${project['Project Name']} (overdue)` })
-              .eq('id', project.id);
-            
-            if (updateError) {
-              console.error(`Error updating overdue project ${project.id}:`, updateError);
-            } else {
-              console.log(`Marked project ${project.id} as overdue`);
-            }
-          } catch (err) {
-            console.error(`Error updating overdue project:`, err);
-          }
-        }
-        
-        // Since it's overdue but recurring, we'll continue processing it
-        console.log(`Processing overdue recurring project ${project.id}`);
-      }
-
-      const { data: generationLogs, error: logsError } = await supabaseClient
-        .from('recurring_task_generation_logs')
-        .select('*')
-        .eq('project_id', project.id)
-        .gte('generation_date', today.toISOString())
-        .lt('generation_date', tomorrow.toISOString())
-        .maybeSingle();
-        
-      if (logsError) {
-        console.error(`Error checking generation logs for project ${project.id}:`, logsError);
-      } else if (generationLogs && !forceCheck) {
-        console.log(`Already generated ${generationLogs.tasks_generated} tasks for project ${project.id} today, skipping`);
-        results.push({ 
-          project_id: project.id, 
-          status: 'skipped', 
-          reason: 'already_generated',
-          existing: generationLogs.tasks_generated
-        });
-        continue;
-      }
-
-      const { data: todayTasks, error: todayTasksError } = await supabaseClient
-        .from('Tasks')
-        .select('id, "Task Name", Progress')
-        .eq('project_id', project.id)
-        .gte('date_started', today.toISOString())
-        .lt('date_started', tomorrow.toISOString());
-
-      if (todayTasksError) {
-        console.error(`Error checking today's tasks for project ${project.id}:`, todayTasksError);
-        results.push({ project_id: project.id, status: 'error', error: 'today_tasks_check_failed' });
-        continue;
-      }
-
-      console.log(`Found ${todayTasks?.length || 0} existing tasks today for project ${project.id}`);
-      existingTaskNamesByProject.set(project.id, todayTasks?.map(task => task["Task Name"]) || []);
-
-      const taskCount = project.recurringTaskCount || 1;
-      const todayTaskCount = todayTasks?.length || 0;
-      
-      console.log(`Project ${project.id} has ${todayTaskCount} tasks today, daily goal is ${taskCount}`);
-      
-      if (todayTaskCount > 0 && !forceCheck) {
-        // Create a generation log for the existing tasks
-        const { error: logInsertError } = await supabaseClient
-          .from('recurring_task_generation_logs')
-          .insert({
+        if (!project.id || !project.isRecurring) {
+          console.log('Skipping invalid project', project);
+          results.push({
             project_id: project.id,
-            tasks_generated: todayTaskCount,
-            generation_date: new Date().toISOString()
+            status: 'skipped',
+            reason: 'invalid_project'
           });
-          
-        if (logInsertError) {
-          console.error(`Error creating generation log for project ${project.id}:`, logInsertError);
-        }
-        
-        console.log(`Found existing tasks for project ${project.id}, created generation log`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'has_existing_tasks', existing: todayTaskCount });
-        continue;
-      }
-      
-      if (todayTaskCount >= taskCount && !forceCheck) {
-        console.log(`No new tasks needed for project ${project.id} (${project['Project Name']}) - has ${todayTaskCount} tasks today`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks_today', existing: todayTaskCount });
-        continue;
-      }
-      
-      const neededTasks = Math.max(0, taskCount - todayTaskCount);
-      
-      if (neededTasks <= 0) {
-        console.log(`No new tasks needed for project ${project.id} (${project['Project Name']})`);
-        results.push({ project_id: project.id, status: 'skipped', reason: 'has_enough_tasks', existing: todayTaskCount });
-        continue;
-      }
-
-      const tasksToCreate = [];
-      const existingNames = existingTaskNamesByProject.get(project.id) || [];
-      
-      for (let i = 0; i < neededTasks; i++) {
-        const taskStartTime = new Date(today);
-        taskStartTime.setHours(9, 0, 0, 0); 
-        
-        if (i > 0) {
-          taskStartTime.setMinutes(taskStartTime.getMinutes() + (i * 30));
-        }
-        
-        const taskEndTime = new Date(taskStartTime);
-        taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
-        
-        let taskName = `${project['Project Name']} - Task ${todayTaskCount + i + 1}`;
-        let uniqueNameCounter = 1;
-        
-        while (existingNames.includes(taskName)) {
-          taskName = `${project['Project Name']} - Task ${todayTaskCount + i + 1} (${uniqueNameCounter})`;
-          uniqueNameCounter++;
-        }
-        
-        existingNames.push(taskName);
-        
-        tasksToCreate.push({
-          "Task Name": taskName,
-          Progress: "Not started",
-          date_started: taskStartTime.toISOString(),
-          date_due: taskEndTime.toISOString(),
-          task_list_id: project.task_list_id || 1,
-          project_id: project.id
-        });
-      }
-
-      console.log(`Creating ${tasksToCreate.length} new tasks for project ${project.id}`);
-
-      if (tasksToCreate.length > 0) {
-        const { data: newTasks, error: createError } = await supabaseClient
-          .from('Tasks')
-          .insert(tasksToCreate)
-          .select();
-
-        if (createError) {
-          console.error(`Error creating tasks for project ${project.id}:`, createError);
-          results.push({ project_id: project.id, status: 'error', error: 'task_creation_failed' });
           continue;
         }
-
-        console.log(`Created ${newTasks.length} tasks for project ${project.id}`);
         
-        const { error: logInsertError } = await supabaseClient
-          .from('recurring_task_generation_logs')
-          .insert({
-            project_id: project.id,
-            tasks_generated: newTasks.length,
-            generation_date: new Date().toISOString()
-          });
+        // Check if this project should run today based on recurring settings
+        if (project.recurring_settings && project.recurring_settings.days_of_week && project.recurring_settings.days_of_week.length > 0) {
+          // Extract and normalize the days of week from the project settings
+          const projectDays = project.recurring_settings.days_of_week.map(normalizeDay);
+          const shouldRunToday = projectDays.includes(normalizedCurrentDay);
           
-        if (logInsertError) {
-          console.error(`Error creating generation log for project ${project.id}:`, logInsertError);
+          console.log(`Project ${project.id} (${project['Project Name']}) days of week:`, 
+            project.recurring_settings.days_of_week.join(', '),
+            `- Should run today (${currentDay}): ${shouldRunToday}`);
+          
+          if (!shouldRunToday && !forceCheck) {
+            console.log(`Project ${project.id} not scheduled for ${currentDay}, skipping`);
+            results.push({
+              project_id: project.id,
+              status: 'skipped',
+              reason: 'wrong_day',
+              configured_days: project.recurring_settings.days_of_week,
+              current_day: currentDay
+            });
+            continue;
+          }
         }
         
-        results.push({ project_id: project.id, status: 'created', tasks_created: newTasks.length });
+        // Check for existing generation log for today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const { data: existingLog, error: logError } = await supabaseClient
+          .from('recurring_task_generation_logs')
+          .select('*')
+          .eq('project_id', project.id)
+          .gte('generation_date', today.toISOString())
+          .lt('generation_date', tomorrow.toISOString())
+          .maybeSingle();
+          
+        if (logError) {
+          console.error(`Error checking generation log for project ${project.id}:`, logError);
+          results.push({
+            project_id: project.id,
+            status: 'error',
+            error: 'log_check_failed'
+          });
+          continue;
+        }
+        
+        if (existingLog && !forceCheck) {
+          console.log(`Already generated ${existingLog.tasks_generated} tasks for project ${project.id} today, skipping`);
+          results.push({
+            project_id: project.id,
+            status: 'skipped',
+            reason: 'already_generated',
+            existing: existingLog.tasks_generated
+          });
+          continue;
+        }
+        
+        // Check active tasks for this project
+        const { data: activeTasks, error: tasksError } = await supabaseClient
+          .from('Tasks')
+          .select('id')
+          .eq('project_id', project.id)
+          .in('Progress', ['Not started', 'In progress']);
+          
+        if (tasksError) {
+          console.error(`Error checking active tasks for project ${project.id}:`, tasksError);
+          results.push({
+            project_id: project.id,
+            status: 'error',
+            error: 'task_check_failed'
+          });
+          continue;
+        }
+        
+        const activeTaskCount = activeTasks?.length || 0;
+        const taskGoal = project.recurringTaskCount || 1;
+        
+        console.log(`Project ${project.id} has ${activeTaskCount} active tasks of ${taskGoal} goal`);
+        
+        if (activeTaskCount >= taskGoal && !forceCheck) {
+          console.log(`Project ${project.id} already has enough active tasks, skipping`);
+          results.push({
+            project_id: project.id,
+            status: 'skipped',
+            reason: 'enough_tasks',
+            existing: activeTaskCount
+          });
+          continue;
+        }
+        
+        // Create tasks
+        const tasksToCreate = Math.max(0, taskGoal - activeTaskCount);
+        
+        if (tasksToCreate <= 0) {
+          console.log(`No tasks to create for project ${project.id}, skipping`);
+          results.push({
+            project_id: project.id,
+            status: 'skipped',
+            reason: 'no_tasks_needed'
+          });
+          continue;
+        }
+        
+        console.log(`Creating ${tasksToCreate} tasks for project ${project.id}`);
+        
+        // Get existing task names to avoid duplicates
+        const { data: existingTasks, error: namesError } = await supabaseClient
+          .from('Tasks')
+          .select('"Task Name"')
+          .eq('project_id', project.id);
+          
+        if (namesError) {
+          console.error(`Error fetching existing task names for project ${project.id}:`, namesError);
+        }
+        
+        const existingNames = new Set((existingTasks || []).map(t => t["Task Name"]));
+        const newTasks = [];
+        
+        for (let i = 0; i < tasksToCreate; i++) {
+          const taskStartTime = new Date(today);
+          taskStartTime.setHours(9, 0 + (i * 30), 0, 0);
+          
+          const taskEndTime = new Date(taskStartTime);
+          taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
+          
+          let taskNumber = activeTaskCount + i + 1;
+          let taskName = `${project["Project Name"]} - Task ${taskNumber}`;
+          
+          // Ensure unique name
+          let uniqueCounter = 1;
+          while (existingNames.has(taskName)) {
+            taskName = `${project["Project Name"]} - Task ${taskNumber} (${uniqueCounter++})`;
+          }
+          
+          existingNames.add(taskName);
+          
+          newTasks.push({
+            "Task Name": taskName,
+            "Progress": "Not started",
+            date_started: taskStartTime.toISOString(),
+            date_due: taskEndTime.toISOString(),
+            project_id: project.id,
+            task_list_id: project.task_list_id
+          });
+        }
+        
+        // Insert the tasks
+        const { data: createdTasks, error: createError } = await supabaseClient
+          .from('Tasks')
+          .insert(newTasks)
+          .select('id');
+          
+        if (createError) {
+          console.error(`Error creating tasks for project ${project.id}:`, createError);
+          results.push({
+            project_id: project.id,
+            status: 'error',
+            error: 'task_creation_failed'
+          });
+          continue;
+        }
+        
+        console.log(`Created ${createdTasks?.length || 0} tasks for project ${project.id}`);
+        
+        // Log the generation
+        const tasksCreated = createdTasks?.length || 0;
+        
+        if (existingLog) {
+          // Update existing log
+          await supabaseClient
+            .from('recurring_task_generation_logs')
+            .update({
+              tasks_generated: existingLog.tasks_generated + tasksCreated
+            })
+            .eq('id', existingLog.id);
+        } else {
+          // Create new log
+          await supabaseClient
+            .from('recurring_task_generation_logs')
+            .insert({
+              project_id: project.id,
+              tasks_generated: tasksCreated,
+              generation_date: new Date().toISOString()
+            });
+        }
+        
+        results.push({
+          project_id: project.id,
+          status: 'created',
+          tasks_created: tasksCreated
+        });
+        
+      } catch (error) {
+        console.error(`Error processing project ${project?.id}:`, error);
+        results.push({
+          project_id: project?.id,
+          status: 'error',
+          error: error.message
+        });
       }
     }
-
-    return new Response(JSON.stringify({ success: true, results }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    
+    return new Response(
+      JSON.stringify({ success: true, results }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      }
+    );
     
   } catch (error) {
-    console.error('Error checking recurring projects:', error);
-    
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    });
+    console.error('Error processing recurring projects:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      }
+    );
   }
 });
-

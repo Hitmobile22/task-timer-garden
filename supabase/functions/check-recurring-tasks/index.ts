@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
@@ -70,12 +69,17 @@ const processingLists = new Set();
 // Cache to prevent duplicate task generation
 const generationCache = new Map();
 
+// Helper function to normalize day names for consistent comparison
+const normalizeDay = (day: string): string => 
+  day?.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase()) || '';
+
 interface RecurringTaskSetting {
   id: number;
   task_list_id: number;
   enabled: boolean;
   daily_task_count: number;
   days_of_week: string[];
+  created_at?: string;
 }
 
 Deno.serve(async (req) => {
@@ -110,7 +114,10 @@ Deno.serve(async (req) => {
     if (!dayOfWeek) {
       dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
     }
-    console.log(`Current day of week: ${dayOfWeek}`);
+    
+    // Normalize the day name for consistent case-insensitive comparison
+    const normalizedCurrentDay = normalizeDay(dayOfWeek);
+    console.log(`Current day of week: ${dayOfWeek} (normalized: ${normalizedCurrentDay})`);
 
     // Handle different request scenarios
     let settings: RecurringTaskSetting[] = [];
@@ -148,7 +155,6 @@ Deno.serve(async (req) => {
           .select('*')
           .eq('enabled', true)
           .eq('task_list_id', specificListId)
-          .contains('days_of_week', [dayOfWeek])
           .order('created_at', { ascending: false })
           .limit(1);
         
@@ -158,14 +164,26 @@ Deno.serve(async (req) => {
         }
         
         if (specificSettings && specificSettings.length > 0) {
-          // Double-check the days of week match (defensive)
-          if (specificSettings[0].days_of_week.includes(dayOfWeek) || forceCheck) {
+          console.log(`Found settings for list ${specificListId}:`, specificSettings[0]);
+          
+          // Check and log days of week
+          const settingDays = specificSettings[0].days_of_week || [];
+          console.log(`List ${specificListId} configured days:`, settingDays);
+          
+          // Normalize all days in the setting for consistent comparison
+          const normalizedSettingDays = settingDays.map(normalizeDay);
+          console.log(`Normalized days for list ${specificListId}:`, normalizedSettingDays);
+          
+          // Check if today's day is in the normalized days array
+          const dayMatches = normalizedSettingDays.includes(normalizedCurrentDay);
+          console.log(`Day match check for list ${specificListId}: ${dayMatches} (${normalizedCurrentDay} in [${normalizedSettingDays.join(', ')}])`);
+          
+          // Double-check the days of week match (defensive) or force check
+          if (dayMatches || forceCheck) {
+            console.log(`Confirmed setting for list ${specificListId} includes today (${dayOfWeek}) or force check is enabled`);
             settings = specificSettings;
-            console.log(`Confirmed setting for list ${specificListId} includes today (${dayOfWeek})`, 
-              specificSettings[0].days_of_week);
           } else {
-            console.log(`Setting for list ${specificListId} does not include today (${dayOfWeek})`, 
-              specificSettings[0].days_of_week);
+            console.log(`Setting for list ${specificListId} does not include today (${dayOfWeek})`);
           }
         }
       } finally {
@@ -182,18 +200,27 @@ Deno.serve(async (req) => {
       for (const setting of settings) {
         console.log(`Checking setting for list ${setting.task_list_id}:`);
         console.log(`  - days_of_week: ${JSON.stringify(setting.days_of_week)}`);
-        console.log(`  - includes current day (${dayOfWeek}): ${setting.days_of_week.includes(dayOfWeek)}`);
+        
+        // Normalize all days for this setting
+        const normalizedSettingDays = (setting.days_of_week || []).map(normalizeDay);
+        const settingIncludesToday = normalizedSettingDays.includes(normalizedCurrentDay);
+        
+        console.log(`  - normalized days: [${normalizedSettingDays.join(', ')}]`);
+        console.log(`  - includes current day (${normalizedCurrentDay}): ${settingIncludesToday}`);
       }
       
       // Filter out settings that don't match today's day of week unless forcing
       if (!forceCheck) {
         const originalCount = settings.length;
-        settings = settings.filter(s => 
-          s.days_of_week && 
-          Array.isArray(s.days_of_week) && 
-          s.days_of_week.includes(dayOfWeek)
-        );
-        console.log(`Filtered settings from ${originalCount} to ${settings.length} based on day of week (${dayOfWeek})`);
+        settings = settings.filter(s => {
+          if (!s.days_of_week || !Array.isArray(s.days_of_week)) return false;
+          
+          // Use normalized comparison for consistency
+          const normalizedSettingDays = s.days_of_week.map(normalizeDay);
+          return normalizedSettingDays.includes(normalizedCurrentDay);
+        });
+        
+        console.log(`Filtered settings from ${originalCount} to ${settings.length} based on day of week (${normalizedCurrentDay})`);
       }
       
       // Mark all lists as being processed
@@ -219,8 +246,7 @@ Deno.serve(async (req) => {
       const { data: allSettings, error: allSettingsError } = await supabaseClient
         .from('recurring_task_settings')
         .select('*')
-        .eq('enabled', true)
-        .contains('days_of_week', [dayOfWeek]);
+        .eq('enabled', true);
       
       if (allSettingsError) {
         console.error('Error fetching all recurring task settings:', allSettingsError);
@@ -235,7 +261,16 @@ Deno.serve(async (req) => {
           if (!setting.task_list_id) continue;
           
           // Double-check days of week - stricter validation
-          if (!setting.days_of_week || !Array.isArray(setting.days_of_week) || !setting.days_of_week.includes(dayOfWeek)) {
+          if (!setting.days_of_week || !Array.isArray(setting.days_of_week)) {
+            console.log(`Skipping setting for list ${setting.task_list_id} - missing days of week`);
+            continue;
+          }
+          
+          // Normalize days for consistent comparison
+          const normalizedSettingDays = setting.days_of_week.map(normalizeDay);
+          const settingIncludesToday = normalizedSettingDays.includes(normalizedCurrentDay);
+          
+          if (!settingIncludesToday && !forceCheck) {
             console.log(`Skipping setting for list ${setting.task_list_id} - not configured for ${dayOfWeek}`);
             continue;
           }
@@ -243,6 +278,8 @@ Deno.serve(async (req) => {
           const existingSetting = latestSettingsByList.get(setting.task_list_id);
           
           if (!existingSetting || 
+              !existingSetting.created_at ||
+              !setting.created_at ||
               new Date(setting.created_at) > new Date(existingSetting.created_at)) {
             latestSettingsByList.set(setting.task_list_id, setting);
           }
@@ -285,16 +322,39 @@ Deno.serve(async (req) => {
         }
         
         // Final check to verify the setting is for today's day of week
-        if (!forceCheck && (!setting.days_of_week || !Array.isArray(setting.days_of_week) || !setting.days_of_week.includes(dayOfWeek))) {
-          console.log(`Skipping setting for list ${setting.task_list_id} - not configured for ${dayOfWeek}`);
+        if (!forceCheck && (!setting.days_of_week || !Array.isArray(setting.days_of_week))) {
+          console.log(`Skipping setting for list ${setting.task_list_id} - missing day configuration`);
           results.push({
             task_list_id: setting.task_list_id,
             status: 'skipped',
-            reason: 'wrong_day',
-            configured_days: setting.days_of_week,
-            current_day: dayOfWeek
+            reason: 'missing_days_config'
           });
           continue;
+        }
+        
+        if (!forceCheck) {
+          // Normalize days of week for consistent comparison
+          const normalizedSettingDays = setting.days_of_week.map(normalizeDay);
+          const dayMatches = normalizedSettingDays.includes(normalizedCurrentDay);
+          
+          console.log(`Day match check for list ${setting.task_list_id}: ${dayMatches}`);
+          console.log(`  - Setting days: [${setting.days_of_week.join(', ')}]`);
+          console.log(`  - Normalized: [${normalizedSettingDays.join(', ')}]`);
+          console.log(`  - Current day: ${dayOfWeek} (normalized: ${normalizedCurrentDay})`);
+          
+          if (!dayMatches) {
+            console.log(`Skipping setting for list ${setting.task_list_id} - not configured for ${dayOfWeek}`);
+            results.push({
+              task_list_id: setting.task_list_id,
+              status: 'skipped',
+              reason: 'wrong_day',
+              configured_days: setting.days_of_week,
+              normalized_days: normalizedSettingDays,
+              current_day: dayOfWeek,
+              normalized_current_day: normalizedCurrentDay
+            });
+            continue;
+          }
         }
 
         // Check if we already generated tasks for this list and setting today

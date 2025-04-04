@@ -47,11 +47,21 @@ interface ProjectModalProps {
     selectedTasks?: number[];
     isRecurring?: boolean;
     recurringTaskCount?: number;
+    daysOfWeek?: string[];
   };
 }
 
-// Array of daily task count options (1-10)
 const DAILY_TASK_COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
+
+const DAYS_OF_WEEK = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday"
+];
 
 export const ProjectModal: React.FC<ProjectModalProps> = ({
   open,
@@ -69,6 +79,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [taskListId, setTaskListId] = React.useState(initialData?.taskListId?.toString() || "");
   const [isRecurring, setIsRecurring] = React.useState(initialData?.isRecurring || false);
   const [recurringTaskCount, setRecurringTaskCount] = React.useState(initialData?.recurringTaskCount || 1);
+  const [daysOfWeek, setDaysOfWeek] = React.useState<string[]>(initialData?.daysOfWeek || DAYS_OF_WEEK);
   const [startDateOpen, setStartDateOpen] = React.useState(false);
   const [dueDateOpen, setDueDateOpen] = React.useState(false);
   const [activeTab, setActiveTab] = useState("details");
@@ -78,7 +89,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   
   const queryClient = useQueryClient();
   
-  // Fetch project goals if we have a project ID
   const { data: projectGoals = [], isLoading: isLoadingGoals } = useQuery({
     queryKey: ['project-goals', initialData?.id],
     queryFn: async () => {
@@ -96,22 +106,18 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     enabled: !!initialData?.id && open,
   });
 
-  // Update goals enabled state based on whether there are any goals
   useEffect(() => {
     if (projectGoals && projectGoals.length > 0) {
       setIsGoalsEnabled(true);
     }
   }, [projectGoals]);
 
-  // Create goal mutation
   const createGoalMutation = useMutation({
     mutationFn: async (goalData: Partial<ProjectGoal>) => {
-      // Ensure required fields are present
       if (!goalData.goal_type || !goalData.project_id || !goalData.start_date) {
         throw new Error("Missing required goal data");
       }
       
-      // Create a properly typed object
       const typedGoalData = {
         project_id: goalData.project_id,
         goal_type: goalData.goal_type,
@@ -143,15 +149,12 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   });
 
-  // Update goal mutation
   const updateGoalMutation = useMutation({
     mutationFn: async (goalData: Partial<ProjectGoal>) => {
       if (!goalData.id) {
         throw new Error("Missing goal ID for update");
       }
       
-      // We don't need to ensure all required fields are present for an update
-      // since we're only updating the fields that have changed
       const { data, error } = await supabase
         .from('project_goals')
         .update(goalData)
@@ -174,7 +177,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   });
 
-  // Delete goal mutation
   const deleteGoalMutation = useMutation({
     mutationFn: async (goalId: number) => {
       const { error } = await supabase
@@ -194,7 +196,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   });
 
-  // Add reset goal mutation
   const resetGoalMutation = useMutation({
     mutationFn: async (goalId: number) => {
       const { data, error } = await supabase
@@ -217,7 +218,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   });
 
-  // Handle saving goal
   const handleSaveGoal = (goalData: Partial<ProjectGoal>) => {
     if (editingGoal?.id) {
       updateGoalMutation.mutate({...goalData, id: editingGoal.id});
@@ -226,27 +226,23 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   };
 
-  // Handle editing a goal
   const handleEditGoal = (goal: ProjectGoal) => {
     setEditingGoal(goal);
     setIsAddingGoal(true);
   };
 
-  // Handle deleting a goal
   const handleDeleteGoal = (goalId: number) => {
     if (window.confirm('Are you sure you want to delete this goal?')) {
       deleteGoalMutation.mutate(goalId);
     }
   };
 
-  // Add handler for resetting a goal
   const handleResetGoal = (goalId: number) => {
     if (window.confirm('Are you sure you want to reset this goal\'s progress to zero?')) {
       resetGoalMutation.mutate(goalId);
     }
   };
 
-  // Update form state when initialData changes
   useEffect(() => {
     if (initialData) {
       console.log("ProjectModal: Updating form with initialData:", initialData);
@@ -258,8 +254,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setTaskListId(initialData.taskListId?.toString() || "");
       setIsRecurring(initialData.isRecurring || false);
       setRecurringTaskCount(initialData.recurringTaskCount || 1);
+      setDaysOfWeek(initialData.daysOfWeek || DAYS_OF_WEEK);
     } else {
-      // Reset form for new project
       handleReset();
     }
   }, [initialData, open]);
@@ -277,6 +273,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       taskListId: taskListId ? parseInt(taskListId) : undefined,
       isRecurring,
       recurringTaskCount,
+      daysOfWeek,
     });
     
     onSubmit({
@@ -289,6 +286,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       taskListId: taskListId ? parseInt(taskListId) : undefined,
       isRecurring,
       recurringTaskCount,
+      daysOfWeek,
     });
   };
 
@@ -301,17 +299,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     setTaskListId("");
     setIsRecurring(false);
     setRecurringTaskCount(1);
+    setDaysOfWeek(DAYS_OF_WEEK);
     setActiveTab("details");
     setIsGoalsEnabled(false);
     setIsAddingGoal(false);
     setEditingGoal(null);
   };
 
-  // Set default dates when opening date pickers
   const handleStartDateOpenChange = (open: boolean) => {
     setStartDateOpen(open);
     if (open && !startDate) {
-      // Set today's date as default for start date
       setStartDate(new Date());
     }
   };
@@ -319,7 +316,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const handleDueDateOpenChange = (open: boolean) => {
     setDueDateOpen(open);
     if (open && !dueDate) {
-      // If start date is selected, use that as default for due date, otherwise use today
       setDueDate(startDate ? new Date(startDate) : new Date());
     }
   };
@@ -456,27 +452,57 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 </div>
                 
                 {isRecurring && (
-                  <div className="pl-4 pt-2 space-y-2">
-                    <Label htmlFor="daily-task-count" className="text-sm font-medium">Daily Task Count</Label>
-                    <Select
-                      value={recurringTaskCount.toString()}
-                      onValueChange={(value) => setRecurringTaskCount(Number(value) || 1)}
-                      disabled={!isRecurring}
-                    >
-                      <SelectTrigger id="daily-task-count" className="w-full">
-                        <SelectValue placeholder="Select daily task count" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DAILY_TASK_COUNT_OPTIONS.map((count) => (
-                          <SelectItem key={count} value={count.toString()}>
-                            {count}
-                          </SelectItem>
+                  <div className="pl-4 pt-2 space-y-4">
+                    <div>
+                      <Label htmlFor="daily-task-count" className="text-sm font-medium">Daily Task Count</Label>
+                      <Select
+                        value={recurringTaskCount.toString()}
+                        onValueChange={(value) => setRecurringTaskCount(Number(value) || 1)}
+                        disabled={!isRecurring}
+                      >
+                        <SelectTrigger id="daily-task-count" className="w-full">
+                          <SelectValue placeholder="Select daily task count" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DAILY_TASK_COUNT_OPTIONS.map((count) => (
+                            <SelectItem key={count} value={count.toString()}>
+                              {count}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium">Days of Week</Label>
+                      <div className="grid grid-cols-4 gap-2 mt-2">
+                        {DAYS_OF_WEEK.map((day) => (
+                          <div key={day} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`day-${day}`}
+                              checked={daysOfWeek.includes(day)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setDaysOfWeek([...daysOfWeek, day]);
+                                } else {
+                                  if (daysOfWeek.length > 1) {
+                                    setDaysOfWeek(daysOfWeek.filter(d => d !== day));
+                                  } else {
+                                    toast.error("At least one day must be selected");
+                                  }
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`day-${day}`} className="text-sm">
+                              {day}
+                            </Label>
+                          </div>
                         ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Tasks will be generated daily between start and due dates.
-                    </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Tasks will be generated on the selected days between start and due dates.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

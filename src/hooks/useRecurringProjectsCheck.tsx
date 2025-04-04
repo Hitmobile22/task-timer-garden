@@ -17,6 +17,10 @@ const lastFullCheck = {
 // Track the last day we reset daily goals
 let lastDailyGoalResetDay = new Date(0);
 
+// Helper function to normalize day names for consistent comparison
+const normalizeDay = (day: string): string => 
+  day?.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase()) || '';
+
 export const useRecurringProjectsCheck = () => {
   const [isLocalChecking, setIsLocalChecking] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
@@ -48,7 +52,7 @@ export const useRecurringProjectsCheck = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('Projects')
-        .select('*')
+        .select('*, recurring_settings:recurring_project_settings(*)')
         .eq('isRecurring', true)
         .neq('progress', 'Completed');
       
@@ -58,6 +62,15 @@ export const useRecurringProjectsCheck = () => {
       if (data && data.length > 0) {
         data.forEach(project => {
           console.log(`Recurring Project: ${project.id} (${project['Project Name']}) due: ${project.date_due}`);
+          
+          // Log project recurring settings if available
+          if (project.recurring_settings && project.recurring_settings.length > 0) {
+            console.log(`Project ${project.id} recurring settings:`, project.recurring_settings);
+            const daysOfWeek = project.recurring_settings[0]?.days_of_week || [];
+            console.log(`Project ${project.id} days of week:`, daysOfWeek);
+          } else {
+            console.log(`Project ${project.id} has no recurring settings configured`);
+          }
         });
       }
       
@@ -189,7 +202,8 @@ export const useRecurringProjectsCheck = () => {
       
       // Get current day for debugging
       const currentDayOfWeek = getCurrentDayName();
-      console.log(`Running recurring projects check on ${currentDayOfWeek}`);
+      const normalizedCurrentDay = normalizeDay(currentDayOfWeek);
+      console.log(`Running recurring projects check on ${currentDayOfWeek} (normalized: ${normalizedCurrentDay})`);
       
       if (!projects || projects.length === 0) {
         console.log('No recurring projects found, skipping check');
@@ -211,6 +225,23 @@ export const useRecurringProjectsCheck = () => {
         if (!forceCheck && lastCheck && (now.getTime() - lastCheck.getTime()) < rateLimitMs) {
           console.log(`Rate limiting check for project ${project.id}, last checked ${Math.round((now.getTime() - lastCheck.getTime()) / 1000 / 60)} minutes ago`);
           continue;
+        }
+        
+        // Check if this project should run today based on recurring settings
+        const projectSettings = project.recurring_settings?.[0];
+        if (projectSettings && projectSettings.days_of_week && projectSettings.days_of_week.length > 0) {
+          // Extract and normalize the days of week from the project settings
+          const projectDays = projectSettings.days_of_week.map(normalizeDay);
+          const shouldRunToday = projectDays.includes(normalizedCurrentDay);
+          
+          console.log(`Project ${project.id} (${project['Project Name']}) days of week:`, 
+            projectSettings.days_of_week.join(', '),
+            `- Should run today (${currentDayOfWeek}): ${shouldRunToday}`);
+          
+          if (!shouldRunToday && !forceCheck) {
+            console.log(`Project ${project.id} not scheduled for today (${currentDayOfWeek}), skipping`);
+            continue;
+          }
         }
         
         // Verify project due date is in the future or today
@@ -274,7 +305,11 @@ export const useRecurringProjectsCheck = () => {
             recurringTaskCount: p.recurringTaskCount,
             date_started: p.date_started,
             date_due: p.date_due,
-            progress: p.progress
+            progress: p.progress,
+            // Include recurring settings if available
+            recurring_settings: p.recurring_settings?.[0] ? {
+              days_of_week: p.recurring_settings[0].days_of_week
+            } : null
           })),
           dayOfWeek: currentDayOfWeek
         }

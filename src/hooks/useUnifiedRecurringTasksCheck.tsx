@@ -26,6 +26,7 @@ interface GenerationLog {
   generation_date: string;
   tasks_generated: number;
   details?: any;
+  project_id?: number;
 }
 
 export const useUnifiedRecurringTasksCheck = () => {
@@ -192,11 +193,21 @@ export const useUnifiedRecurringTasksCheck = () => {
         return;
       }
       
-      const relevantSettings = settings.filter(s => 
-        s.enabled && 
-        s.days_of_week.includes(currentDay) && 
-        s.daily_task_count > 0
-      );
+      const normalizeDay = (day: string): string => 
+        day.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase());
+      
+      const normalizedCurrentDay = normalizeDay(currentDay);
+      
+      const relevantSettings = settings.filter(s => {
+        if (!s.enabled || s.daily_task_count <= 0) return false;
+        
+        const normalizedDays = s.days_of_week.map(day => normalizeDay(day));
+        const dayMatches = normalizedDays.includes(normalizedCurrentDay);
+        
+        console.log(`List ${s.task_list_id} days: [${s.days_of_week.join(', ')}], current day: ${currentDay}, matches: ${dayMatches}`);
+        
+        return dayMatches;
+      });
       
       if (relevantSettings.length === 0) {
         console.log(`No recurring task settings for ${currentDay}, skipping check`);
@@ -212,7 +223,13 @@ export const useUnifiedRecurringTasksCheck = () => {
         }
         
         console.log(`Active recurring setting for task list ${setting.task_list_id}: ${JSON.stringify(setting, null, 2)}`);
-        console.log(`Configured days: ${setting.days_of_week.join(', ')}, Today: ${currentDay}`);
+        console.log(`Configured days: [${setting.days_of_week.join(', ')}], Today: ${currentDay}`);
+        
+        const normalizedDays = setting.days_of_week.map(day => normalizeDay(day));
+        if (!normalizedDays.includes(normalizedCurrentDay) && !forceCheck) {
+          console.log(`Task list ${setting.task_list_id} not configured for ${currentDay}, skipping`);
+          continue;
+        }
         
         const existingLog = await getGenerationLog(setting.task_list_id, setting.id);
         

@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
@@ -283,18 +284,8 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        // Improved day of week checking with case-insensitive comparison and trimming
-        const dayMatches = forceCheck || 
-          (setting.days_of_week && 
-           Array.isArray(setting.days_of_week) && 
-           setting.days_of_week.some(day => 
-             day.trim().toLowerCase() === dayOfWeek.trim().toLowerCase()
-           ));
-        
-        // Log day matching for debugging
-        console.log(`Task list ${setting.task_list_id} days: [${setting.days_of_week?.join(', ')}], current day: ${dayOfWeek}, matches: ${dayMatches}`);
-        
-        if (!dayMatches) {
+        // Final check to verify the setting is for today's day of week
+        if (!forceCheck && (!setting.days_of_week || !Array.isArray(setting.days_of_week) || !setting.days_of_week.includes(dayOfWeek))) {
           console.log(`Skipping setting for list ${setting.task_list_id} - not configured for ${dayOfWeek}`);
           results.push({
             task_list_id: setting.task_list_id,

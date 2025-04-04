@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,7 +25,7 @@ interface GenerationLog {
   setting_id: number;
   generation_date: string;
   tasks_generated: number;
-  details?: any; // Added the optional details property to fix TypeScript error
+  details?: any;
 }
 
 export const useUnifiedRecurringTasksCheck = () => {
@@ -193,19 +192,11 @@ export const useUnifiedRecurringTasksCheck = () => {
         return;
       }
       
-      // Improved day-of-week matching logic with case-insensitive comparison and trimming
-      const relevantSettings = settings.filter(s => {
-        if (!s.enabled || s.daily_task_count <= 0) return false;
-        
-        // More robust day of week checking with improved logging and normalization
-        const hasMatchingDay = Array.isArray(s.days_of_week) && 
-                              s.days_of_week.some(day => 
-                                day.trim().toLowerCase() === currentDay.trim().toLowerCase());
-        
-        console.log(`Task list ${s.task_list_id} configured days: [${s.days_of_week?.join(', ')}], current day: ${currentDay}, includes today? ${hasMatchingDay}`);
-        
-        return hasMatchingDay || forceCheck;
-      });
+      const relevantSettings = settings.filter(s => 
+        s.enabled && 
+        s.days_of_week.includes(currentDay) && 
+        s.daily_task_count > 0
+      );
       
       if (relevantSettings.length === 0) {
         console.log(`No recurring task settings for ${currentDay}, skipping check`);
@@ -222,16 +213,6 @@ export const useUnifiedRecurringTasksCheck = () => {
         
         console.log(`Active recurring setting for task list ${setting.task_list_id}: ${JSON.stringify(setting, null, 2)}`);
         console.log(`Configured days: ${setting.days_of_week.join(', ')}, Today: ${currentDay}`);
-        
-        // Double check the day matching using the more robust logic
-        const dayMatches = Array.isArray(setting.days_of_week) && 
-                          setting.days_of_week.some(day => 
-                            day.trim().toLowerCase() === currentDay.trim().toLowerCase());
-        
-        if (!dayMatches && !forceCheck) {
-          console.log(`Task list ${setting.task_list_id} is not configured for today (${currentDay}), skipping`);
-          continue;
-        }
         
         const existingLog = await getGenerationLog(setting.task_list_id, setting.id);
         

@@ -29,7 +29,8 @@ function ScrollToTop() {
   return <Outlet />;
 }
 
-export const router = createBrowserRouter([
+// Define the routes array that we'll use with useRoutes in App.tsx
+const routes = [
   {
     element: <ScrollToTop />,
     children: [
@@ -52,4 +53,10 @@ export const router = createBrowserRouter([
       }
     ]
   }
-]);
+];
+
+// Create the router for createBrowserRouter usage if needed elsewhere
+export const router = createBrowserRouter(routes);
+
+// Also export the routes array for use with useRoutes
+export { routes };

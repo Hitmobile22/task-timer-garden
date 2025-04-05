@@ -5,7 +5,14 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useRecalculateProjectGoals } from '@/hooks/useRecalculateProjectGoals';
 
-export const ProjectGoalsList = ({ goals, projectId }) => {
+// Update the props to match what's expected in ProjectModal.tsx
+export const ProjectGoalsList = ({ 
+  goals, 
+  projectId, 
+  onEdit = undefined,
+  onDelete = undefined,
+  onReset = undefined
+}) => {
   const recalculateGoals = useRecalculateProjectGoals();
   
   if (!goals || goals.length === 0) {
@@ -78,6 +85,39 @@ export const ProjectGoalsList = ({ goals, projectId }) => {
               }}
             ></div>
           </div>
+          
+          {/* Render edit/delete buttons only if the callback handlers are provided */}
+          {(onEdit || onDelete || onReset) && (
+            <div className="flex gap-2 mt-2 justify-end">
+              {onReset && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => onReset(goal.id)}
+                >
+                  Reset
+                </Button>
+              )}
+              {onEdit && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => onEdit(goal)}
+                >
+                  Edit
+                </Button>
+              )}
+              {onDelete && (
+                <Button 
+                  size="sm" 
+                  variant="destructive" 
+                  onClick={() => onDelete(goal.id)}
+                >
+                  Delete
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       ))}
     </div>

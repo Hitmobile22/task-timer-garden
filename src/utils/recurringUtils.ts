@@ -19,7 +19,10 @@ const globalState = {
   lastDailyGoalResetDay: new Date(0),
   
   // Track whether we've already shown the daily reset toast notification
-  hasShownDailyResetToast: false
+  hasShownDailyResetToast: false,
+  
+  // Task list generation cache to prevent duplicate task creation within one day
+  taskListGenerationCache: new Map<number, Date>()
 };
 
 // Getters and setters for the global state
@@ -31,6 +34,21 @@ export const getLastDailyGoalResetDay = () => globalState.lastDailyGoalResetDay;
 export const setLastDailyGoalResetDay = (date: Date) => { globalState.lastDailyGoalResetDay = date; };
 export const getHasShownDailyResetToast = () => globalState.hasShownDailyResetToast;
 export const setHasShownDailyResetToast = (value: boolean) => { globalState.hasShownDailyResetToast = value; };
+export const getTaskListGenerationCache = () => globalState.taskListGenerationCache;
+export const setTaskListGenerated = (listId: number, date: Date = new Date()) => {
+  globalState.taskListGenerationCache.set(listId, date);
+};
+export const hasTaskListBeenGeneratedToday = (listId: number): boolean => {
+  const cachedDate = globalState.taskListGenerationCache.get(listId);
+  if (!cachedDate) return false;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cachedDay = new Date(cachedDate);
+  cachedDay.setHours(0, 0, 0, 0);
+  
+  return cachedDay.getTime() === today.getTime();
+};
 
 // Helper function to normalize day names for consistent comparison
 export const normalizeDay = (day: string): string => 

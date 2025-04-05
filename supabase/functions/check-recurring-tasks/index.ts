@@ -357,27 +357,33 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Check if we already generated tasks for this list and setting today
+        // Enhanced check for existing generation logs to prevent duplicates
         const { data: existingLogs, error: logsError } = await supabaseClient
           .from('recurring_task_generation_logs')
           .select('*')
           .eq('task_list_id', setting.task_list_id)
-          .eq('setting_id', setting.id)
           .gte('generation_date', today.toISOString())
-          .lt('generation_date', tomorrow.toISOString());
+          .lt('generation_date', tomorrow.toISOString())
+          .order('generation_date', { ascending: false });
           
         if (logsError) {
           console.error(`Error checking generation logs for list ${setting.task_list_id}:`, logsError);
         } else if (existingLogs && existingLogs.length > 0 && !forceCheck) {
           // If we already generated tasks for this list today, skip
-          console.log(`Already generated ${existingLogs[0].tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
-          results.push({ 
-            task_list_id: setting.task_list_id, 
-            status: 'skipped', 
-            reason: 'already_generated',
-            existing: existingLogs[0].tasks_generated
-          });
-          continue;
+          // Sum up tasks generated across all logs for this list today
+          const totalTasksGenerated = existingLogs.reduce((sum, log) => sum + (log.tasks_generated || 0), 0);
+          console.log(`Already generated ${totalTasksGenerated} tasks for list ${setting.task_list_id} today, skipping`);
+          
+          if (totalTasksGenerated >= setting.daily_task_count) {
+            console.log(`Daily task goal of ${setting.daily_task_count} already met for list ${setting.task_list_id}, skipping`);
+            results.push({ 
+              task_list_id: setting.task_list_id, 
+              status: 'skipped', 
+              reason: 'already_generated',
+              existing: totalTasksGenerated
+            });
+            continue;
+          }
         }
 
         // Create a unique cache key for this generation attempt
@@ -391,7 +397,7 @@ Deno.serve(async (req) => {
           });
           continue;
         }
-
+        
         // Get the task list info for the task name
         const { data: taskList, error: taskListError } = await supabaseClient
           .from('TaskLists')

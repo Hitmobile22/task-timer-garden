@@ -1,619 +1,463 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from 'date-fns';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Goal, Plus, Trophy } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Task, ProjectGoal } from '@/types/task.types';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { ProjectGoalForm } from './ProjectGoalForm';
 import { ProjectGoalsList } from './ProjectGoalsList';
+import { GoalForm } from '../goals/GoalForm';
 
-interface ProjectModalProps {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (projectData: any) => void;
-  taskLists: any[];
-  availableTasks: Task[];
-  initialData?: {
-    id?: number;
-    name: string;
-    startDate?: Date;
-    dueDate?: Date;
-    status: string;
-    taskListId?: number;
-    selectedTasks?: number[];
-    isRecurring?: boolean;
-    recurringTaskCount?: number;
-    daysOfWeek?: string[];
-  };
-}
-
-const DAILY_TASK_COUNT_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
-
-const DAYS_OF_WEEK = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday"
-];
-
-export const ProjectModal: React.FC<ProjectModalProps> = ({
-  open,
-  onClose,
-  onSubmit,
-  taskLists,
-  availableTasks,
-  initialData,
-}) => {
-  const [name, setName] = React.useState(initialData?.name || "");
-  const [selectedTasks, setSelectedTasks] = React.useState<number[]>(initialData?.selectedTasks || []);
-  const [startDate, setStartDate] = React.useState<Date | undefined>(initialData?.startDate);
-  const [dueDate, setDueDate] = React.useState<Date | undefined>(initialData?.dueDate);
-  const [status, setStatus] = React.useState(initialData?.status || "Not started");
-  const [taskListId, setTaskListId] = React.useState(initialData?.taskListId?.toString() || "");
-  const [isRecurring, setIsRecurring] = React.useState(initialData?.isRecurring || false);
-  const [recurringTaskCount, setRecurringTaskCount] = React.useState(initialData?.recurringTaskCount || 1);
-  const [daysOfWeek, setDaysOfWeek] = React.useState<string[]>(initialData?.daysOfWeek || DAYS_OF_WEEK);
-  const [startDateOpen, setStartDateOpen] = React.useState(false);
-  const [dueDateOpen, setDueDateOpen] = React.useState(false);
-  const [activeTab, setActiveTab] = useState("details");
-  const [isGoalsEnabled, setIsGoalsEnabled] = useState(false);
-  const [isAddingGoal, setIsAddingGoal] = useState(false);
-  const [editingGoal, setEditingGoal] = useState<ProjectGoal | null>(null);
+export const ProjectModal = ({ project, onClose, onUpdateProject, projType }) => {
+  const [editMode, setEditMode] = useState(false);
+  const [projectName, setProjectName] = useState(project?.['Project Name'] || '');
+  const [projectDescription, setProjectDescription] = useState(project?.description || '');
+  const [dateStarted, setDateStarted] = useState(project?.date_started ? new Date(project.date_started) : undefined);
+  const [dateDue, setDateDue] = useState(project?.date_due ? new Date(project.date_due) : undefined);
+  const [progress, setProgress] = useState(project?.progress || 'Not started');
+  const [goals, setGoals] = useState(project?.goals || []);
+  const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
   
-  const queryClient = useQueryClient();
-  
-  const { data: projectGoals = [], isLoading: isLoadingGoals } = useQuery({
-    queryKey: ['project-goals', initialData?.id],
-    queryFn: async () => {
-      if (!initialData?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('project_goals')
-        .select('*')
-        .eq('project_id', initialData.id)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as ProjectGoal[];
-    },
-    enabled: !!initialData?.id && open,
-  });
-
   useEffect(() => {
-    if (projectGoals && projectGoals.length > 0) {
-      setIsGoalsEnabled(true);
+    setProjectName(project?.['Project Name'] || '');
+    setProjectDescription(project?.description || '');
+    setDateStarted(project?.date_started ? new Date(project.date_started) : undefined);
+    setDateDue(project?.date_due ? new Date(project.date_due) : undefined);
+    setProgress(project?.progress || 'Not started');
+    setGoals(project?.goals || []);
+  }, [project]);
+  
+  const handleEditGoal = (goal) => {
+    setSelectedGoal(goal);
+    setIsGoalFormOpen(true);
+  };
+  
+  const handleDeleteGoal = async (goalId) => {
+    if (!project?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Project ID is missing."
+      });
+      return;
     }
-  }, [projectGoals]);
-
-  const createGoalMutation = useMutation({
-    mutationFn: async (goalData: Partial<ProjectGoal>) => {
-      if (!goalData.goal_type || !goalData.project_id || !goalData.start_date) {
-        throw new Error("Missing required goal data");
-      }
-      
-      const typedGoalData = {
-        project_id: goalData.project_id,
-        goal_type: goalData.goal_type,
-        task_count_goal: goalData.task_count_goal || 1,
-        start_date: goalData.start_date,
-        end_date: goalData.end_date,
-        reward: goalData.reward,
-        is_enabled: goalData.is_enabled ?? true,
-      };
-      
-      const { data, error } = await supabase
-        .from('project_goals')
-        .insert(typedGoalData)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-goals', initialData?.id] });
-      toast.success('Goal created successfully');
-      setIsAddingGoal(false);
-      setEditingGoal(null);
-    },
-    onError: (error) => {
-      console.error('Error creating goal:', error);
-      toast.error('Failed to create goal');
-    }
-  });
-
-  const updateGoalMutation = useMutation({
-    mutationFn: async (goalData: Partial<ProjectGoal>) => {
-      if (!goalData.id) {
-        throw new Error("Missing goal ID for update");
-      }
-      
-      const { data, error } = await supabase
-        .from('project_goals')
-        .update(goalData)
-        .eq('id', goalData.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-goals', initialData?.id] });
-      toast.success('Goal updated successfully');
-      setIsAddingGoal(false);
-      setEditingGoal(null);
-    },
-    onError: (error) => {
-      console.error('Error updating goal:', error);
-      toast.error('Failed to update goal');
-    }
-  });
-
-  const deleteGoalMutation = useMutation({
-    mutationFn: async (goalId: number) => {
+    
+    try {
       const { error } = await supabase
         .from('project_goals')
         .delete()
         .eq('id', goalId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-goals', initialData?.id] });
-      toast.success('Goal deleted successfully');
-    },
-    onError: (error) => {
-      console.error('Error deleting goal:', error);
-      toast.error('Failed to delete goal');
+        
+      if (error) {
+        console.error("Error deleting goal:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to delete goal."
+        });
+      } else {
+        // Optimistically update the UI
+        setGoals(currentGoals => currentGoals.filter(goal => goal.id !== goalId));
+        toast({
+          title: "Success",
+          description: "Goal deleted successfully."
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting goal:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete goal."
+      });
     }
-  });
-
-  const resetGoalMutation = useMutation({
-    mutationFn: async (goalId: number) => {
-      const { data, error } = await supabase
+  };
+  
+  const handleResetGoal = async (goalId) => {
+    if (!project?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Project ID is missing."
+      });
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
         .from('project_goals')
         .update({ current_count: 0 })
-        .eq('id', goalId)
+        .eq('id', goalId);
+        
+      if (error) {
+        console.error("Error resetting goal:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to reset goal."
+        });
+      } else {
+        // Optimistically update the UI
+        setGoals(currentGoals => {
+          return currentGoals.map(goal => {
+            if (goal.id === goalId) {
+              return { ...goal, current_count: 0 };
+            }
+            return goal;
+          });
+        });
+        toast({
+          title: "Success",
+          description: "Goal reset successfully."
+        });
+      }
+    } catch (error) {
+      console.error("Error resetting goal:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to reset goal."
+      });
+    }
+  };
+  
+  const handleGoalFormSubmit = async (newGoal) => {
+    if (!project?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Project ID is missing."
+      });
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('project_goals')
+        .insert([{
+          ...newGoal,
+          project_id: project.id,
+        }])
         .select()
         .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-goals', initialData?.id] });
-      toast.success('Goal progress reset successfully');
-    },
-    onError: (error) => {
-      console.error('Error resetting goal:', error);
-      toast.error('Failed to reset goal progress');
-    }
-  });
-
-  const handleSaveGoal = (goalData: Partial<ProjectGoal>) => {
-    if (editingGoal?.id) {
-      updateGoalMutation.mutate({...goalData, id: editingGoal.id});
-    } else {
-      createGoalMutation.mutate(goalData);
-    }
-  };
-
-  const handleEditGoal = (goal: ProjectGoal) => {
-    setEditingGoal(goal);
-    setIsAddingGoal(true);
-  };
-
-  const handleDeleteGoal = (goalId: number) => {
-    if (window.confirm('Are you sure you want to delete this goal?')) {
-      deleteGoalMutation.mutate(goalId);
+        
+      if (error) {
+        console.error("Error creating goal:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to create goal."
+        });
+      } else {
+        setGoals(currentGoals => [...currentGoals, data]);
+        setIsGoalFormOpen(false);
+        setSelectedGoal(null);
+        toast({
+          title: "Success",
+          description: "Goal created successfully."
+        });
+      }
+    } catch (error) {
+      console.error("Error creating goal:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create goal."
+      });
     }
   };
-
-  const handleResetGoal = (goalId: number) => {
-    if (window.confirm('Are you sure you want to reset this goal\'s progress to zero?')) {
-      resetGoalMutation.mutate(goalId);
+  
+  const handleGoalFormUpdate = async (updatedGoal) => {
+    if (!project?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Project ID is missing."
+      });
+      return;
     }
-  };
-
-  useEffect(() => {
-    if (initialData) {
-      console.log("ProjectModal: Updating form with initialData:", initialData);
-      setName(initialData.name || "");
-      setSelectedTasks(initialData.selectedTasks || []);
-      setStartDate(initialData.startDate);
-      setDueDate(initialData.dueDate);
-      setStatus(initialData.status || "Not started");
-      setTaskListId(initialData.taskListId?.toString() || "");
-      setIsRecurring(initialData.isRecurring || false);
-      setRecurringTaskCount(initialData.recurringTaskCount || 1);
-      setDaysOfWeek(initialData.daysOfWeek || DAYS_OF_WEEK);
-    } else {
-      handleReset();
-    }
-  }, [initialData, open]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
     
-    console.log("ProjectModal: Submitting form with data:", {
-      id: initialData?.id,
-      name,
-      selectedTasks,
-      startDate,
-      dueDate,
-      status,
-      taskListId: taskListId ? parseInt(taskListId) : undefined,
-      isRecurring,
-      recurringTaskCount,
-      daysOfWeek,
-    });
-    
-    onSubmit({
-      id: initialData?.id,
-      name,
-      selectedTasks,
-      startDate,
-      dueDate,
-      status,
-      taskListId: taskListId ? parseInt(taskListId) : undefined,
-      isRecurring,
-      recurringTaskCount,
-      daysOfWeek,
-    });
-  };
-
-  const handleReset = () => {
-    setName("");
-    setSelectedTasks([]);
-    setStartDate(undefined);
-    setDueDate(undefined);
-    setStatus("Not started");
-    setTaskListId("");
-    setIsRecurring(false);
-    setRecurringTaskCount(1);
-    setDaysOfWeek(DAYS_OF_WEEK);
-    setActiveTab("details");
-    setIsGoalsEnabled(false);
-    setIsAddingGoal(false);
-    setEditingGoal(null);
-  };
-
-  const handleStartDateOpenChange = (open: boolean) => {
-    setStartDateOpen(open);
-    if (open && !startDate) {
-      setStartDate(new Date());
+    try {
+      const { error } = await supabase
+        .from('project_goals')
+        .update(updatedGoal)
+        .eq('id', updatedGoal.id);
+        
+      if (error) {
+        console.error("Error updating goal:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update goal."
+        });
+      } else {
+        setGoals(currentGoals => {
+          return currentGoals.map(goal => {
+            if (goal.id === updatedGoal.id) {
+              return { ...goal, ...updatedGoal };
+            }
+            return goal;
+          });
+        });
+        setIsGoalFormOpen(false);
+        setSelectedGoal(null);
+        toast({
+          title: "Success",
+          description: "Goal updated successfully."
+        });
+      }
+    } catch (error) {
+      console.error("Error updating goal:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update goal."
+      });
     }
   };
 
-  const handleDueDateOpenChange = (open: boolean) => {
-    setDueDateOpen(open);
-    if (open && !dueDate) {
-      setDueDate(startDate ? new Date(startDate) : new Date());
+  const handleSave = async () => {
+    if (!project) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Project data is missing."
+      });
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    try {
+      const { error } = await supabase
+        .from('Projects')
+        .update({
+          'Project Name': projectName,
+          description: projectDescription,
+          date_started: dateStarted?.toISOString(),
+          date_due: dateDue?.toISOString(),
+          progress: progress,
+        })
+        .eq('id', project.id);
+        
+      if (error) {
+        console.error("Error updating project:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update project."
+        });
+      } else {
+        onUpdateProject({
+          ...project,
+          'Project Name': projectName,
+          description: projectDescription,
+          date_started: dateStarted?.toISOString(),
+          date_due: dateDue?.toISOString(),
+          progress: progress,
+          goals: goals
+        });
+        toast({
+          title: "Success",
+          description: "Project updated successfully."
+        });
+        setEditMode(false);
+      }
+    } catch (error) {
+      console.error("Error updating project:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update project."
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(open) => {
-      if (!open) {
-        onClose();
-      }
-    }}>
-      <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{initialData?.id ? 'Edit Project' : 'Create New Project'}</DialogTitle>
+          <DialogTitle>{editMode ? "Edit Project" : "Project Details"}</DialogTitle>
+          <DialogDescription>
+            {editMode ? "Make changes to your project" : "View and manage your project"}
+          </DialogDescription>
         </DialogHeader>
         
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
-          <TabsList className="w-full">
-            <TabsTrigger value="details" className="flex-1">Project Details</TabsTrigger>
-            <TabsTrigger 
-              value="goals" 
-              className="flex-1"
-              disabled={!initialData?.id}
-            >
-              Goals
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="details" className="mt-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Project Name</label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter project name"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tasks</label>
-                <div className="max-h-[200px] overflow-y-auto space-y-2 border rounded-md p-2">
-                  {availableTasks.map((task) => (
-                    <div key={task.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`task-${task.id}`}
-                        checked={selectedTasks.includes(task.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedTasks([...selectedTasks, task.id]);
-                          } else {
-                            setSelectedTasks(selectedTasks.filter(id => id !== task.id));
-                          }
-                        }}
-                      />
-                      <label htmlFor={`task-${task.id}`} className="text-sm">
-                        {task["Task Name"]}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Start Date</label>
-                  <Popover open={startDateOpen} onOpenChange={handleStartDateOpenChange}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !startDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {startDate ? format(startDate, "PPP") : <span>Pick a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={startDate}
-                        onSelect={(date) => {
-                          setStartDate(date);
-                          setStartDateOpen(false);
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Due Date</label>
-                  <Popover open={dueDateOpen} onOpenChange={handleDueDateOpenChange}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !dueDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={dueDate}
-                        onSelect={(date) => {
-                          setDueDate(date);
-                          setDueDateOpen(false);
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="recurring-project" className="text-sm font-medium">Recurring Project</Label>
-                  <Switch
-                    id="recurring-project"
-                    checked={isRecurring}
-                    onCheckedChange={setIsRecurring}
-                  />
-                </div>
-                
-                {isRecurring && (
-                  <div className="pl-4 pt-2 space-y-4">
-                    <div>
-                      <Label htmlFor="daily-task-count" className="text-sm font-medium">Daily Task Count</Label>
-                      <Select
-                        value={recurringTaskCount.toString()}
-                        onValueChange={(value) => setRecurringTaskCount(Number(value) || 1)}
-                        disabled={!isRecurring}
-                      >
-                        <SelectTrigger id="daily-task-count" className="w-full">
-                          <SelectValue placeholder="Select daily task count" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DAILY_TASK_COUNT_OPTIONS.map((count) => (
-                            <SelectItem key={count} value={count.toString()}>
-                              {count}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
-                      <Label className="text-sm font-medium">Days of Week</Label>
-                      <div className="grid grid-cols-4 gap-2 mt-2">
-                        {DAYS_OF_WEEK.map((day) => (
-                          <div key={day} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`day-${day}`}
-                              checked={daysOfWeek.includes(day)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setDaysOfWeek([...daysOfWeek, day]);
-                                } else {
-                                  if (daysOfWeek.length > 1) {
-                                    setDaysOfWeek(daysOfWeek.filter(d => d !== day));
-                                  } else {
-                                    toast.error("At least one day must be selected");
-                                  }
-                                }
-                              }}
-                            />
-                            <Label htmlFor={`day-${day}`} className="text-sm">
-                              {day}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Tasks will be generated on the selected days between start and due dates.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Not started">Not started</SelectItem>
-                    <SelectItem value="In progress">In progress</SelectItem>
-                    <SelectItem value="Completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Task List</label>
-                <Select value={taskListId} onValueChange={setTaskListId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select task list" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {taskLists.map((list) => (
-                      <SelectItem key={list.id} value={list.id.toString()}>
-                        {list.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={onClose}>
-                  Cancel
-                </Button>
-                <Button type="submit">{initialData?.id ? 'Update' : 'Create'} Project</Button>
-              </DialogFooter>
-            </form>
-          </TabsContent>
-          
-          <TabsContent value="goals" className="mt-4 space-y-4">
-            {!initialData?.id ? (
-              <div className="text-center p-4">
-                <p>Please save the project first to add goals.</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Trophy className="h-5 w-5 text-amber-500" />
-                    <h3 className="text-lg font-medium">Project Goals</h3>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="enable-goals"
-                      checked={isGoalsEnabled}
-                      onCheckedChange={setIsGoalsEnabled}
-                    />
-                    <Label htmlFor="enable-goals" className="text-sm">Enable Goals</Label>
-                  </div>
-                </div>
-                
-                {isGoalsEnabled && (
-                  <div className="space-y-4">
-                    {isAddingGoal || editingGoal ? (
-                      <ProjectGoalForm
-                        projectId={initialData?.id}
-                        existingGoal={editingGoal || undefined}
-                        onSave={handleSaveGoal}
-                        onCancel={() => {
-                          setIsAddingGoal(false);
-                          setEditingGoal(null);
-                        }}
-                      />
-                    ) : (
-                      <>
-                        <Button 
-                          className="w-full" 
-                          variant="outline"
-                          onClick={() => setIsAddingGoal(true)}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add New Goal
-                        </Button>
-                        
-                        <ProjectGoalsList
-                          goals={projectGoals}
-                          onEdit={handleEditGoal}
-                          onDelete={handleDeleteGoal}
-                          onReset={handleResetGoal}
-                        />
-                      </>
+        {editMode ? (
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input id="name" value={projectName} className="col-span-3" onChange={(e) => setProjectName(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="description" className="text-right">
+                Description
+              </Label>
+              <Textarea id="description" value={projectDescription} className="col-span-3" onChange={(e) => setProjectDescription(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="dateStarted" className="text-right">
+                Date Started
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-[240px] justify-start text-left font-normal",
+                      !dateStarted && "text-muted-foreground"
                     )}
-                  </div>
-                )}
-                
-                {!isAddingGoal && !editingGoal && (
-                  <DialogFooter>
-                    <Button type="button" onClick={onClose}>
-                      Close
-                    </Button>
-                  </DialogFooter>
-                )}
-              </>
-            )}
-          </TabsContent>
-        </Tabs>
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateStarted ? format(dateStarted, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateStarted}
+                    onSelect={setDateStarted}
+                    disabled={(date) =>
+                      date > new Date()
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="dateDue" className="text-right">
+                Date Due
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-[240px] justify-start text-left font-normal",
+                      !dateDue && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateDue ? format(dateDue, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateDue}
+                    onSelect={setDateDue}
+                    disabled={(date) =>
+                      date < dateStarted || date < new Date()
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 items-start gap-2">
+              <Label htmlFor="name" className="text-left">
+                Name
+              </Label>
+              <div className="text-lg font-semibold">{projectName}</div>
+            </div>
+            <div className="grid grid-cols-1 items-start gap-2">
+              <Label htmlFor="description" className="text-left">
+                Description
+              </Label>
+              <div>{projectDescription || "No description provided."}</div>
+            </div>
+            <div className="grid grid-cols-1 items-start gap-2">
+              <Label htmlFor="dateStarted" className="text-left">
+                Date Started
+              </Label>
+              <div>{dateStarted ? format(dateStarted, "PPP") : "Not specified"}</div>
+            </div>
+            <div className="grid grid-cols-1 items-start gap-2">
+              <Label htmlFor="dateDue" className="text-left">
+                Date Due
+              </Label>
+              <div>{dateDue ? format(dateDue, "PPP") : "Not specified"}</div>
+            </div>
+          </div>
+        )}
+        
+        {/* Fix the projectId prop for ProjectGoalsList */}
+        <ProjectGoalsList 
+          goals={goals} 
+          projectId={project.id}
+          onEdit={handleEditGoal}
+          onDelete={handleDeleteGoal}
+          onReset={handleResetGoal}
+        />
+        
+        <DialogFooter>
+          {editMode ? (
+            <div className="space-x-2">
+              <Button variant="ghost" onClick={() => setEditMode(false)}>Cancel</Button>
+              <Button type="submit" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-x-2">
+              <Button variant="ghost" onClick={onClose}>Close</Button>
+              <Button onClick={() => setEditMode(true)}>Edit</Button>
+            </div>
+          )}
+          <Button variant="outline" onClick={() => setIsGoalFormOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Goal
+          </Button>
+        </DialogFooter>
       </DialogContent>
+      
+      <Dialog open={isGoalFormOpen} onOpenChange={() => setIsGoalFormOpen(false)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{selectedGoal ? "Edit Goal" : "Add Goal"}</DialogTitle>
+            <DialogDescription>
+              {selectedGoal ? "Make changes to your goal" : "Create a new goal for this project"}
+            </DialogDescription>
+          </DialogHeader>
+          <GoalForm 
+            goal={selectedGoal} 
+            onSubmit={selectedGoal ? handleGoalFormUpdate : handleGoalFormSubmit} 
+            onCancel={() => {
+              setIsGoalFormOpen(false);
+              setSelectedGoal(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };

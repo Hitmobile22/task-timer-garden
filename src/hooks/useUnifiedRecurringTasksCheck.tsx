@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,6 +8,8 @@ import { getCurrentDayName } from '@/lib/utils';
 // Global state for the hook to prevent multiple instances from running concurrently
 let isGlobalChecking = false;
 const lastGlobalCheck = new Date(0);
+// Add a cache to prevent duplicate generation within the same session
+const generationCache = new Map<number, Date>();
 
 interface RecurringTaskSettings {
   id: number;
@@ -162,8 +165,11 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
     
     const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    
     const timeSinceLastCheck = now.getTime() - lastGlobalCheck.getTime();
-    const minInterval = 5 * 60 * 1000;
+    const minInterval = 5 * 60 * 1000; // 5 minutes
     
     if (!forceCheck && timeSinceLastCheck < minInterval) {
       console.log(`Last recurring tasks check was ${Math.round(timeSinceLastCheck / 1000 / 60)} minutes ago, skipping`);
@@ -176,7 +182,7 @@ export const useUnifiedRecurringTasksCheck = () => {
       const currentCheckId = ++checkCountRef.current;
       activeCheckIdRef.current = currentCheckId;
       
-      console.log(`Reset ${currentCheckId} daily goals`);
+      console.log(`Starting check #${currentCheckId} for recurring tasks`);
       
       const currentDay = getCurrentDayName();
       console.log(`Running unified recurring task check on ${currentDay}`);
@@ -222,6 +228,16 @@ export const useUnifiedRecurringTasksCheck = () => {
           break;
         }
         
+        // Check in-memory cache first to prevent duplicate generation within a session
+        const cachedTime = generationCache.get(setting.task_list_id);
+        if (!forceCheck && cachedTime) {
+          const cachedDate = new Date(cachedTime);
+          if (cachedDate.toDateString() === today.toDateString()) {
+            console.log(`List ${setting.task_list_id} already processed today (in-memory cache), skipping`);
+            continue;
+          }
+        }
+        
         console.log(`Active recurring setting for task list ${setting.task_list_id}: ${JSON.stringify(setting, null, 2)}`);
         console.log(`Configured days: [${setting.days_of_week.join(', ')}], Today: ${currentDay}`);
         
@@ -235,6 +251,8 @@ export const useUnifiedRecurringTasksCheck = () => {
         
         if (!forceCheck && existingLog) {
           console.log(`Already generated ${existingLog.tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
+          // Update in-memory cache
+          generationCache.set(setting.task_list_id, new Date());
           continue;
         }
         
@@ -263,6 +281,9 @@ export const useUnifiedRecurringTasksCheck = () => {
             }
             
             console.log(`Edge function result for list ${setting.task_list_id}:`, data);
+            
+            // Update in-memory cache to prevent duplicates in this session
+            generationCache.set(setting.task_list_id, new Date());
             
             const generationLog = await getGenerationLog(setting.task_list_id, setting.id);
             
@@ -296,6 +317,8 @@ export const useUnifiedRecurringTasksCheck = () => {
           }
         } else {
           console.log(`No need to create tasks for list ${setting.task_list_id}`);
+          // Update in-memory cache even when no tasks were created
+          generationCache.set(setting.task_list_id, new Date());
         }
       }
       

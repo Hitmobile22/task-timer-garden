@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Plus } from "lucide-react";
-import { useState, useEffect } from 'react';
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ProjectGoalsList } from './ProjectGoalsList';
 import { GoalForm } from '../goals/GoalForm';
@@ -40,7 +40,6 @@ export const ProjectModal = ({
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
   
   useEffect(() => {
     setProjectName(project?.['Project Name'] || '');

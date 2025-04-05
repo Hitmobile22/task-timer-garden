@@ -14,9 +14,10 @@ import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import { Goal } from '@/types/goals.types';
 
 interface GoalFormProps {
-  goal?: any;
+  goal?: Goal | null;
   onSubmit: (goal: any) => void;
   onCancel: () => void;
 }
@@ -56,10 +57,14 @@ export const GoalForm = ({
       is_enabled: isEnabled,
     };
     
-    if (goal) {
+    if (goal?.id) {
       // If editing an existing goal, include its id
       newGoal.id = goal.id;
-      newGoal.current_count = goal.current_count || 0;
+
+      // Include current count if available
+      if (typeof goal.current_count !== 'undefined') {
+        newGoal.current_count = goal.current_count;
+      }
     }
     
     onSubmit(newGoal);

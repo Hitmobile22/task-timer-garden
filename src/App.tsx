@@ -1,32 +1,30 @@
 
-import React, { Suspense } from 'react';
-import { RouterProvider } from 'react-router-dom';
+import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, useRoutes } from 'react-router-dom';
+import { routes } from './router';
 import { Toaster } from 'sonner';
-import { router } from './router';
-import { useUnifiedRecurringTasksCheck } from './hooks/useUnifiedRecurringTasksCheck';
+import { InitializationComponent } from './components/goals/InitializationComponent';
+import './App.css';
 
+// Create a client
 const queryClient = new QueryClient();
 
-// Create a wrapper component that uses hooks after the providers are in place
-const AppContent = () => {
-  // Use the unified recurring tasks check hook
-  useUnifiedRecurringTasksCheck();
-  
+const App = () => {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <RouterProvider router={router} />
-    </Suspense>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AppRoutes />
+        <Toaster position="top-right" />
+        <InitializationComponent />
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 };
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AppContent />
-      <Toaster position="top-right" closeButton richColors />
-    </QueryClientProvider>
-  );
-}
+const AppRoutes = () => {
+  const routeContent = useRoutes(routes);
+  return routeContent;
+};
 
 export default App;

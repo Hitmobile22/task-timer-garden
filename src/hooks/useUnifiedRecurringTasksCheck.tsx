@@ -148,6 +148,7 @@ export const useUnifiedRecurringTasksCheck = () => {
   
   const countActiveTasks = async (taskListId: number) => {
     try {
+      // FIXED: Only count Not started and In progress tasks
       const { data, error } = await supabase
         .from('Tasks')
         .select('id')
@@ -249,9 +250,11 @@ export const useUnifiedRecurringTasksCheck = () => {
           continue;
         }
         
+        // FIXED: Count ONLY active tasks (Not started, In progress) for this list
         const activeTaskCount = await countActiveTasks(setting.task_list_id);
         console.log(`Task list ${setting.task_list_id} has ${activeTaskCount} active tasks of ${setting.daily_task_count} goal`);
         
+        // Only create additional tasks if we have fewer active tasks than the daily goal
         const additionalListTasksToCreate = Math.max(0, setting.daily_task_count - activeTaskCount);
         
         if (additionalListTasksToCreate > 0) {

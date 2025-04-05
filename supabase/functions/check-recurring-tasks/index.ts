@@ -82,6 +82,28 @@ interface RecurringTaskSetting {
   created_at?: string;
 }
 
+// Enhanced countActiveTasks function to properly filter for active tasks only
+const countActiveTasks = async (taskListId: number) => {
+  try {
+    // FIXED: Only count Not started and In progress tasks - not Completed tasks
+    const { data, error } = await supabaseClient
+      .from('Tasks')
+      .select('id')
+      .eq('task_list_id', taskListId)
+      .in('Progress', ['Not started', 'In progress']);
+      
+    if (error) {
+      console.error(`Error counting active tasks for list ${taskListId}:`, error);
+      return 0;
+    }
+    
+    return data?.length || 0;
+  } catch (error) {
+    console.error('Error in countActiveTasks:', error);
+    return 0;
+  }
+};
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -124,6 +146,7 @@ Deno.serve(async (req) => {
     let specificListId: number | null = null;
     const forceCheck = !!body.forceCheck;
     
+    // When processing a specific list
     if (body.specificListId) {
       specificListId = body.specificListId;
       console.log(`Processing specific list ID: ${specificListId}`);

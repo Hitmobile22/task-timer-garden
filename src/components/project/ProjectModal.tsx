@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,6 @@ export const ProjectModal = ({
   const handleDeleteGoal = async (goalId) => {
     if (!project?.id) {
       toast({
-        title: "Error",
         description: "Project ID is missing."
       });
       return;
@@ -69,21 +69,18 @@ export const ProjectModal = ({
       if (error) {
         console.error("Error deleting goal:", error);
         toast({
-          title: "Error",
           description: "Failed to delete goal."
         });
       } else {
         setGoals((currentGoals) => currentGoals.filter((goal) => goal.id !== goalId));
         
         toast({
-          title: "Success",
           description: "Goal deleted successfully."
         });
       }
     } catch (error) {
       console.error("Error deleting goal:", error);
       toast({
-        title: "Error",
         description: "Failed to delete goal."
       });
     }
@@ -92,7 +89,6 @@ export const ProjectModal = ({
   const handleResetGoal = async (goalId) => {
     if (!project?.id) {
       toast({
-        title: "Error",
         description: "Project ID is missing."
       });
       return;
@@ -107,7 +103,6 @@ export const ProjectModal = ({
       if (error) {
         console.error("Error resetting goal:", error);
         toast({
-          title: "Error",
           description: "Failed to reset goal."
         });
       } else {
@@ -121,14 +116,12 @@ export const ProjectModal = ({
         });
         
         toast({
-          title: "Success",
           description: "Goal reset successfully."
         });
       }
     } catch (error) {
       console.error("Error resetting goal:", error);
       toast({
-        title: "Error",
         description: "Failed to reset goal."
       });
     }
@@ -137,7 +130,6 @@ export const ProjectModal = ({
   const handleGoalFormSubmit = async (newGoal) => {
     if (!project?.id) {
       toast({
-        title: "Error",
         description: "Project ID is missing."
       });
       return;
@@ -158,7 +150,6 @@ export const ProjectModal = ({
       if (error) {
         console.error("Error creating goal:", error);
         toast({
-          title: "Error",
           description: "Failed to create goal."
         });
       } else {
@@ -167,14 +158,12 @@ export const ProjectModal = ({
         setSelectedGoal(null);
         
         toast({
-          title: "Success",
           description: "Goal created successfully."
         });
       }
     } catch (error) {
       console.error("Error creating goal:", error);
       toast({
-        title: "Error",
         description: "Failed to create goal."
       });
     }
@@ -183,7 +172,6 @@ export const ProjectModal = ({
   const handleGoalFormUpdate = async (updatedGoal) => {
     if (!project?.id) {
       toast({
-        title: "Error",
         description: "Project ID is missing."
       });
       return;
@@ -198,7 +186,6 @@ export const ProjectModal = ({
       if (error) {
         console.error("Error updating goal:", error);
         toast({
-          title: "Error",
           description: "Failed to update goal."
         });
       } else {
@@ -215,14 +202,12 @@ export const ProjectModal = ({
         setSelectedGoal(null);
         
         toast({
-          title: "Success",
           description: "Goal updated successfully."
         });
       }
     } catch (error) {
       console.error("Error updating goal:", error);
       toast({
-        title: "Error",
         description: "Failed to update goal."
       });
     }
@@ -231,7 +216,6 @@ export const ProjectModal = ({
   const handleSave = async () => {
     if (!project) {
       toast({
-        title: "Error",
         description: "Project data is missing."
       });
       return;
@@ -254,7 +238,6 @@ export const ProjectModal = ({
       if (error) {
         console.error("Error updating project:", error);
         toast({
-          title: "Error",
           description: "Failed to update project."
         });
       } else {
@@ -269,7 +252,6 @@ export const ProjectModal = ({
         });
         
         toast({
-          title: "Success",
           description: "Project updated successfully."
         });
         
@@ -278,7 +260,6 @@ export const ProjectModal = ({
     } catch (error) {
       console.error("Error updating project:", error);
       toast({
-        title: "Error",
         description: "Failed to update project."
       });
     } finally {

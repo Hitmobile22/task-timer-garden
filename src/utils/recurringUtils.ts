@@ -105,3 +105,22 @@ export const shouldRateLimitCheck = (
   const timeSinceLastCheck = now.getTime() - lastCheckTime.getTime();
   return timeSinceLastCheck < rateLimitMs;
 };
+
+// Reset the generation cache for a new day
+export const resetGenerationCacheIfNewDay = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Check if we've stored the last reset date
+  const lastResetKey = 'last_cache_reset_date';
+  const lastResetStr = localStorage.getItem(lastResetKey);
+  const lastReset = lastResetStr ? new Date(lastResetStr) : null;
+  
+  // If we haven't reset today, clear the cache
+  if (!lastReset || lastReset.getTime() !== today.getTime()) {
+    console.log('New day detected, clearing task generation cache');
+    globalState.taskListGenerationCache.clear();
+    localStorage.setItem(lastResetKey, today.toISOString());
+  }
+};
+

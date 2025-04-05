@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -8,11 +9,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Plus } from "lucide-react";
+import { CalendarIcon, Plus, Repeat } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ProjectGoalsList } from './ProjectGoalsList';
 import { GoalForm } from '../goals/GoalForm';
+import { Switch } from "@/components/ui/switch";
 
 interface ProjectModalProps {
   project?: any;
@@ -39,6 +41,8 @@ export const ProjectModal = ({
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(project?.isRecurring || false);
+  const [recurringTaskCount, setRecurringTaskCount] = useState(project?.recurringTaskCount || 1);
   
   useEffect(() => {
     setProjectName(project?.['Project Name'] || '');
@@ -47,6 +51,8 @@ export const ProjectModal = ({
     setDateDue(project?.date_due ? new Date(project.date_due) : undefined);
     setProgress(project?.progress || 'Not started');
     setGoals(project?.goals || []);
+    setIsRecurring(project?.isRecurring || false);
+    setRecurringTaskCount(project?.recurringTaskCount || 1);
   }, [project]);
   
   const handleEditGoal = (goal) => {
@@ -196,7 +202,9 @@ export const ProjectModal = ({
           description: projectDescription,
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
-          progress: progress
+          progress: progress,
+          isRecurring: isRecurring,
+          recurringTaskCount: recurringTaskCount
         })
         .eq('id', project.id);
       
@@ -211,7 +219,9 @@ export const ProjectModal = ({
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
           progress: progress,
-          goals: goals
+          goals: goals,
+          isRecurring: isRecurring,
+          recurringTaskCount: recurringTaskCount
         });
         
         toast("Project updated successfully.");
@@ -310,6 +320,40 @@ export const ProjectModal = ({
                 </PopoverContent>
               </Popover>
             </div>
+
+            {/* Recurring Task Settings */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="isRecurring" className="text-right">
+                Recurring Tasks
+              </Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Switch
+                  id="isRecurring"
+                  checked={isRecurring}
+                  onCheckedChange={setIsRecurring}
+                />
+                <span className="text-sm">
+                  {isRecurring ? "Enabled" : "Disabled"}
+                </span>
+              </div>
+            </div>
+
+            {isRecurring && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="recurringTaskCount" className="text-right">
+                  Daily Task Count
+                </Label>
+                <Input
+                  id="recurringTaskCount"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={recurringTaskCount}
+                  onChange={(e) => setRecurringTaskCount(Number(e.target.value))}
+                  className="w-20"
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid gap-4 py-4">
@@ -336,6 +380,25 @@ export const ProjectModal = ({
                 Date Due
               </Label>
               <div>{dateDue ? format(dateDue, "PPP") : "Not specified"}</div>
+            </div>
+
+            {/* Show recurring task status in view mode */}
+            <div className="grid grid-cols-1 items-start gap-2">
+              <Label htmlFor="recurring" className="text-left flex items-center gap-2">
+                <Repeat className="h-4 w-4" />
+                Recurring Tasks
+              </Label>
+              <div className="flex items-center">
+                {isRecurring ? (
+                  <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                    Enabled ({recurringTaskCount} tasks per day)
+                  </span>
+                ) : (
+                  <span className="text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                    Disabled
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

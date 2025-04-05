@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   Dialog,
@@ -21,12 +22,18 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { useState, useEffect } from 'react';
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ProjectGoalsList } from './ProjectGoalsList';
 import { GoalForm } from '../goals/GoalForm';
 
-export const ProjectModal = ({ project, onClose, onUpdateProject, projType }) => {
+export const ProjectModal = ({ 
+  project, 
+  onClose, 
+  onUpdateProject, 
+  projType,
+  open = true 
+}) => {
   const [editMode, setEditMode] = useState(false);
   const [projectName, setProjectName] = useState(project?.['Project Name'] || '');
   const [projectDescription, setProjectDescription] = useState(project?.description || '');
@@ -37,7 +44,6 @@ export const ProjectModal = ({ project, onClose, onUpdateProject, projType }) =>
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
   
   useEffect(() => {
     setProjectName(project?.['Project Name'] || '');
@@ -297,7 +303,7 @@ export const ProjectModal = ({ project, onClose, onUpdateProject, projType }) =>
   };
 
   return (
-    <Dialog open={true} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editMode ? "Edit Project" : "Project Details"}</DialogTitle>
@@ -410,10 +416,9 @@ export const ProjectModal = ({ project, onClose, onUpdateProject, projType }) =>
           </div>
         )}
         
-        {/* Fix the projectId prop for ProjectGoalsList */}
         <ProjectGoalsList 
           goals={goals} 
-          projectId={project.id}
+          projectId={project?.id}
           onEdit={handleEditGoal}
           onDelete={handleDeleteGoal}
           onReset={handleResetGoal}

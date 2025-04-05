@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -894,15 +893,14 @@ export function TaskView() {
       </main>
 
       <ProjectModal
-        open={showProjectModal}
+        project={editingProject}
         onClose={() => {
           setShowProjectModal(false);
           setEditingProject(null);
         }}
-        onSubmit={handleProjectSubmit}
-        taskLists={taskLists || []}
-        availableTasks={tasks || []}
-        initialData={editingProject}
+        onUpdateProject={handleProjectSubmit}
+        projType="edit"
+        open={showProjectModal}
       />
 
       <RecurringTasksModal

@@ -40,10 +40,42 @@ export const getTaskListGenerationCache = () => globalState.taskListGenerationCa
 export const setTaskListGenerated = (listId: number, date: Date = new Date()) => {
   console.log(`Marking task list ${listId} as generated for today (${date.toISOString()})`);
   globalState.taskListGenerationCache.set(listId, date);
+  
+  // Also store in localStorage for persistence across page refreshes
+  try {
+    const cacheData = JSON.parse(localStorage.getItem('task_list_generation_cache') || '{}');
+    cacheData[listId] = date.toISOString();
+    localStorage.setItem('task_list_generation_cache', JSON.stringify(cacheData));
+  } catch (error) {
+    console.error('Error updating localStorage cache:', error);
+  }
 };
 
 // More strict checking if a task list has been generated today
 export const hasTaskListBeenGeneratedToday = (listId: number): boolean => {
+  // First try localStorage for persistence across page refreshes
+  try {
+    const cacheData = JSON.parse(localStorage.getItem('task_list_generation_cache') || '{}');
+    if (cacheData[listId]) {
+      const cachedDate = new Date(cacheData[listId]);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const cachedDay = new Date(cachedDate);
+      cachedDay.setHours(0, 0, 0, 0);
+      
+      const result = cachedDay.getTime() === today.getTime();
+      if (result) {
+        console.log(`Task list ${listId} was generated today (from localStorage cache): ${cachedDate}`);
+        // Also update memory cache
+        globalState.taskListGenerationCache.set(listId, cachedDate);
+        return true;
+      }
+    }
+  } catch (error) {
+    console.error('Error checking localStorage cache:', error);
+  }
+  
+  // Fall back to memory cache
   const cachedDate = globalState.taskListGenerationCache.get(listId);
   if (!cachedDate) return false;
   
@@ -120,7 +152,24 @@ export const resetGenerationCacheIfNewDay = () => {
   if (!lastReset || lastReset.getTime() !== today.getTime()) {
     console.log('New day detected, clearing task generation cache');
     globalState.taskListGenerationCache.clear();
+    localStorage.removeItem('task_list_generation_cache');
     localStorage.setItem(lastResetKey, today.toISOString());
   }
 };
+
+// Load cache from localStorage on module initialization
+const initializeCache = () => {
+  try {
+    const cacheData = JSON.parse(localStorage.getItem('task_list_generation_cache') || '{}');
+    for (const [listId, dateStr] of Object.entries(cacheData)) {
+      globalState.taskListGenerationCache.set(Number(listId), new Date(dateStr as string));
+    }
+    console.log('Initialized task generation cache from localStorage');
+  } catch (error) {
+    console.error('Error loading cache from localStorage:', error);
+  }
+};
+
+// Initialize cache on module load
+initializeCache();
 

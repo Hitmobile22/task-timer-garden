@@ -7,7 +7,8 @@ import { getCurrentDayName } from '@/lib/utils';
 import { 
   hasTaskListBeenGeneratedToday, 
   setTaskListGenerated, 
-  isDayMatch 
+  isDayMatch,
+  resetGenerationCacheIfNewDay
 } from '@/utils/recurringUtils';
 
 // Global state for the hook to prevent multiple instances from running concurrently
@@ -139,6 +140,11 @@ export const useUnifiedRecurringTasksCheck = () => {
         return null;
       }
       
+      if (data) {
+        // If we found a log, also update our memory cache
+        setTaskListGenerated(taskListId, new Date(data.generation_date));
+      }
+      
       return data as GenerationLog | null;
     } catch (error) {
       console.error('Error in getGenerationLog:', error);
@@ -146,7 +152,7 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
   };
   
-  // Improved function to count ONLY active tasks plus any tasks generated today (even if completed)
+  // Complete rewrite of countActiveTasks to include all relevant tasks
   const countActiveTasks = async (taskListId: number, settingId: number) => {
     try {
       // Get today's date bounds
@@ -156,10 +162,10 @@ export const useUnifiedRecurringTasksCheck = () => {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
-      // Count active tasks in the list (Not Started or In Progress)
+      // 1. Count active tasks in the list (Not Started or In Progress)
       const { data: activeTasks, error: activeError } = await supabase
         .from('Tasks')
-        .select('id')
+        .select('id, Progress')
         .eq('task_list_id', taskListId)
         .in('Progress', ['Not started', 'In progress']);
       
@@ -168,22 +174,7 @@ export const useUnifiedRecurringTasksCheck = () => {
         return 0;
       }
       
-      // Get the number of tasks already generated today (even if they're completed)
-      // This is critical to avoid regenerating tasks that were completed earlier today
-      const { data: generationLogs, error: logError } = await supabase
-        .from('recurring_task_generation_logs')
-        .select('tasks_generated')
-        .eq('task_list_id', taskListId)
-        .eq('setting_id', settingId)
-        .gte('generation_date', today.toISOString())
-        .lt('generation_date', tomorrow.toISOString())
-        .maybeSingle();
-      
-      if (logError) {
-        console.error(`Error getting generation logs for list ${taskListId}:`, logError);
-      }
-      
-      // Count tasks that were completed today but were generated as part of recurring tasks
+      // 2. Count tasks completed today
       const { data: completedTodayTasks, error: completedError } = await supabase
         .from('Tasks')
         .select('id')
@@ -196,16 +187,38 @@ export const useUnifiedRecurringTasksCheck = () => {
         console.error(`Error counting completed tasks for list ${taskListId}:`, completedError);
       }
       
+      // 3. Get all generation logs for today to account for tasks that might have been deleted
+      const { data: todaysLogs, error: logsError } = await supabase
+        .from('recurring_task_generation_logs')
+        .select('tasks_generated')
+        .eq('task_list_id', taskListId)
+        .gte('generation_date', today.toISOString())
+        .lt('generation_date', tomorrow.toISOString());
+      
+      if (logsError) {
+        console.error(`Error getting generation logs for list ${taskListId}:`, logsError);
+      }
+      
+      // Calculate totals
       const activeCount = activeTasks?.length || 0;
-      const tasksAlreadyGeneratedToday = generationLogs?.tasks_generated || 0;
       const completedTodayCount = completedTodayTasks?.length || 0;
       
-      // Total tasks to consider = active tasks + completed tasks from today
+      // Sum up all tasks that have been generated today according to logs
+      const loggedGeneratedTaskCount = todaysLogs?.reduce((sum, log) => sum + (log.tasks_generated || 0), 0) || 0;
+      
+      // Use the maximum value: either actual tasks we can count, or the logged generation count
+      // This ensures we don't regenerate tasks that were already created and possibly deleted
       const totalRelevantTaskCount = activeCount + completedTodayCount;
+      const effectiveTaskCount = Math.max(totalRelevantTaskCount, loggedGeneratedTaskCount);
       
-      console.log(`List ${taskListId} task counts: active=${activeCount}, completedToday=${completedTodayCount}, previouslyGenerated=${tasksAlreadyGeneratedToday}`);
+      console.log(
+        `List ${taskListId} task counts: active=${activeCount}, ` + 
+        `completedToday=${completedTodayCount}, ` +
+        `loggedGenerated=${loggedGeneratedTaskCount}, ` +
+        `effectiveCount=${effectiveTaskCount}`
+      );
       
-      return Math.max(totalRelevantTaskCount, tasksAlreadyGeneratedToday);
+      return effectiveTaskCount;
     } catch (error) {
       console.error('Error in countActiveTasks:', error);
       return 0;
@@ -213,6 +226,9 @@ export const useUnifiedRecurringTasksCheck = () => {
   };
   
   const checkRecurringTasks = useCallback(async (forceCheck = false) => {
+    // First check if cache needs to be reset for a new day
+    resetGenerationCacheIfNewDay();
+    
     if (isGlobalChecking || isChecking) {
       console.log('Already checking recurring tasks, skipping');
       return;
@@ -257,9 +273,9 @@ export const useUnifiedRecurringTasksCheck = () => {
       const relevantSettings = settings.filter(s => {
         if (!s.enabled || s.daily_task_count <= 0) return false;
         
-        // First check our in-memory cache
+        // First check our in-memory and localStorage cache
         if (!forceCheck && hasTaskListBeenGeneratedToday(s.task_list_id)) {
-          console.log(`Task list ${s.task_list_id} already generated today (cached), skipping`);
+          console.log(`Task list ${s.task_list_id} already generated today (from cache), skipping`);
           return false;
         }
         
@@ -291,11 +307,11 @@ export const useUnifiedRecurringTasksCheck = () => {
           console.log(`Already generated ${existingLog.tasks_generated} tasks for list ${setting.task_list_id} today (database), skipping`);
           
           // Update in-memory cache
-          setTaskListGenerated(setting.task_list_id, new Date());
+          setTaskListGenerated(setting.task_list_id, new Date(existingLog.generation_date));
           continue;
         }
         
-        // IMPROVED: Count active tasks AND tasks completed today AND previously generated tasks
+        // CRITICAL: Count all relevant tasks - active, completed today, and from logs
         const totalTaskCount = await countActiveTasks(setting.task_list_id, setting.id);
         console.log(`Task list ${setting.task_list_id} has ${totalTaskCount} relevant tasks of ${setting.daily_task_count} goal`);
         
@@ -324,7 +340,7 @@ export const useUnifiedRecurringTasksCheck = () => {
             
             console.log(`Edge function result for list ${setting.task_list_id}:`, data);
             
-            // Update in-memory cache to prevent duplicates in this session
+            // Update both memory and localStorage cache to prevent duplicates
             setTaskListGenerated(setting.task_list_id, new Date());
             
             const generationLog = await getGenerationLog(setting.task_list_id, setting.id);
@@ -349,6 +365,15 @@ export const useUnifiedRecurringTasksCheck = () => {
                 { createdAt: new Date().toISOString() }
               );
               console.log(`Created generation log for list ${setting.task_list_id} with ${data.tasksCreated} tasks`);
+            } else {
+              // Create a log entry even if no tasks were created, to mark this list as processed today
+              await logGenerationActivity(
+                setting.task_list_id,
+                setting.id,
+                0,
+                { createdAt: new Date().toISOString(), note: "No tasks needed to be created" }
+              );
+              console.log(`Created empty generation log for list ${setting.task_list_id} to mark as processed`);
             }
             
             if (data?.tasksCreated > 0) {
@@ -359,7 +384,7 @@ export const useUnifiedRecurringTasksCheck = () => {
           }
         } else {
           console.log(`No need to create tasks for list ${setting.task_list_id}`);
-          // Update in-memory cache even when no tasks were created
+          // Update in-memory and localStorage cache even when no tasks were created
           setTaskListGenerated(setting.task_list_id, new Date());
           
           // Also log in the database to prevent further checks today
@@ -398,7 +423,11 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
   }, [queryClient]);
   
+  // Run an initial check when the component mounts
   useEffect(() => {
+    // Reset generation cache if it's a new day first
+    resetGenerationCacheIfNewDay();
+    
     const timer = setTimeout(() => {
       checkRecurringTasks(false);
     }, 3000);
@@ -406,6 +435,7 @@ export const useUnifiedRecurringTasksCheck = () => {
     return () => clearTimeout(timer);
   }, [checkRecurringTasks]);
   
+  // Set up periodic checks
   useEffect(() => {
     const interval = setInterval(() => {
       try {
@@ -429,4 +459,3 @@ export const useUnifiedRecurringTasksCheck = () => {
     forceCheck: () => checkRecurringTasks(true)
   };
 };
-

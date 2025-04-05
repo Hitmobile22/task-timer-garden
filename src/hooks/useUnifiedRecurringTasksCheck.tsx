@@ -153,7 +153,7 @@ export const useUnifiedRecurringTasksCheck = () => {
   };
   
   // Complete rewrite of countActiveTasks to include all relevant tasks
-  const countActiveTasks = async (taskListId: number, settingId: number) => {
+  const countAllRelevantTasks = async (taskListId: number) => {
     try {
       // Get today's date bounds
       const today = new Date();
@@ -311,8 +311,24 @@ export const useUnifiedRecurringTasksCheck = () => {
           continue;
         }
         
+        // CRITICAL: At this point, we're sure there's no generation log - this task list needs processing
+        // Even if there are already tasks in the list, we need to create a generation log to prevent
+        // future checks from generating more tasks
+        
+        // Create a generation log entry even before checking for tasks
+        // This will serve as a marker that this list was processed today
+        await logGenerationActivity(
+          setting.task_list_id,
+          setting.id,
+          0,  // Initial count 0, we'll update after creation if needed
+          { initialCheck: new Date().toISOString() }
+        );
+        
+        // Update in-memory and localStorage cache right away
+        setTaskListGenerated(setting.task_list_id, new Date());
+        
         // CRITICAL: Count all relevant tasks - active, completed today, and from logs
-        const totalTaskCount = await countActiveTasks(setting.task_list_id, setting.id);
+        const totalTaskCount = await countAllRelevantTasks(setting.task_list_id);
         console.log(`Task list ${setting.task_list_id} has ${totalTaskCount} relevant tasks of ${setting.daily_task_count} goal`);
         
         // Only create additional tasks if we have fewer relevant tasks than the daily goal
@@ -340,9 +356,6 @@ export const useUnifiedRecurringTasksCheck = () => {
             
             console.log(`Edge function result for list ${setting.task_list_id}:`, data);
             
-            // Update both memory and localStorage cache to prevent duplicates
-            setTaskListGenerated(setting.task_list_id, new Date());
-            
             const generationLog = await getGenerationLog(setting.task_list_id, setting.id);
             
             if (generationLog) {
@@ -357,23 +370,6 @@ export const useUnifiedRecurringTasksCheck = () => {
                 .eq('id', generationLog.id);
               
               console.log(`Updated generation log for list ${setting.task_list_id} to ${newTaskCount} tasks`);
-            } else if (data?.tasksCreated > 0) {
-              await logGenerationActivity(
-                setting.task_list_id,
-                setting.id,
-                data.tasksCreated,
-                { createdAt: new Date().toISOString() }
-              );
-              console.log(`Created generation log for list ${setting.task_list_id} with ${data.tasksCreated} tasks`);
-            } else {
-              // Create a log entry even if no tasks were created, to mark this list as processed today
-              await logGenerationActivity(
-                setting.task_list_id,
-                setting.id,
-                0,
-                { createdAt: new Date().toISOString(), note: "No tasks needed to be created" }
-              );
-              console.log(`Created empty generation log for list ${setting.task_list_id} to mark as processed`);
             }
             
             if (data?.tasksCreated > 0) {
@@ -383,19 +379,7 @@ export const useUnifiedRecurringTasksCheck = () => {
             console.error(`Error processing recurring tasks for list ${setting.task_list_id}:`, fnError);
           }
         } else {
-          console.log(`No need to create tasks for list ${setting.task_list_id}`);
-          // Update in-memory and localStorage cache even when no tasks were created
-          setTaskListGenerated(setting.task_list_id, new Date());
-          
-          // Also log in the database to prevent further checks today
-          if (!existingLog) {
-            await logGenerationActivity(
-              setting.task_list_id,
-              setting.id,
-              0,
-              { note: "No additional tasks needed", createdAt: new Date().toISOString() }
-            );
-          }
+          console.log(`No need to create tasks for list ${setting.task_list_id}, already has ${totalTaskCount} tasks`);
         }
       }
       

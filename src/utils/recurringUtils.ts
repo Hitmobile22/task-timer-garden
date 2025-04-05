@@ -46,6 +46,7 @@ export const setTaskListGenerated = (listId: number, date: Date = new Date()) =>
     const cacheData = JSON.parse(localStorage.getItem('task_list_generation_cache') || '{}');
     cacheData[listId] = date.toISOString();
     localStorage.setItem('task_list_generation_cache', JSON.stringify(cacheData));
+    console.log(`Updated localStorage cache for list ${listId}`);
   } catch (error) {
     console.error('Error updating localStorage cache:', error);
   }
@@ -172,4 +173,3 @@ const initializeCache = () => {
 
 // Initialize cache on module load
 initializeCache();
-

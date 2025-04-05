@@ -4,6 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { getCurrentDayName } from '@/lib/utils';
+import { 
+  hasTaskListBeenGeneratedToday, 
+  setTaskListGenerated, 
+  isDayMatch 
+} from '@/utils/recurringUtils';
 
 // Global state for the hook to prevent multiple instances from running concurrently
 let isGlobalChecking = false;
@@ -64,6 +69,9 @@ export const useUnifiedRecurringTasksCheck = () => {
         console.error('Error logging task generation activity:', error);
         return null;
       }
+      
+      // Also update the in-memory cache to prevent duplicate generation
+      setTaskListGenerated(taskListId, now);
       
       return data;
     } catch (error) {
@@ -199,24 +207,26 @@ export const useUnifiedRecurringTasksCheck = () => {
         return;
       }
       
-      const normalizeDay = (day: string): string => 
-        day.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase());
-      
-      const normalizedCurrentDay = normalizeDay(currentDay);
-      
+      // Filter settings to only include those that should run today
       const relevantSettings = settings.filter(s => {
         if (!s.enabled || s.daily_task_count <= 0) return false;
         
-        const normalizedDays = s.days_of_week.map(day => normalizeDay(day));
-        const dayMatches = normalizedDays.includes(normalizedCurrentDay);
+        // First check our in-memory cache
+        if (!forceCheck && hasTaskListBeenGeneratedToday(s.task_list_id)) {
+          console.log(`Task list ${s.task_list_id} already generated today (cached), skipping`);
+          return false;
+        }
+        
+        // Use our improved day matching function
+        const dayMatches = isDayMatch(currentDay, s.days_of_week);
         
         console.log(`List ${s.task_list_id} days: [${s.days_of_week.join(', ')}], current day: ${currentDay}, matches: ${dayMatches}`);
         
-        return dayMatches;
+        return dayMatches || forceCheck;
       });
       
       if (relevantSettings.length === 0) {
-        console.log(`No recurring task settings for ${currentDay}, skipping check`);
+        console.log(`No recurring task settings for ${currentDay} or all already processed, skipping check`);
         return;
       }
       
@@ -228,31 +238,14 @@ export const useUnifiedRecurringTasksCheck = () => {
           break;
         }
         
-        // Check in-memory cache first to prevent duplicate generation within a session
-        const cachedTime = generationCache.get(setting.task_list_id);
-        if (!forceCheck && cachedTime) {
-          const cachedDate = new Date(cachedTime);
-          if (cachedDate.toDateString() === today.toDateString()) {
-            console.log(`List ${setting.task_list_id} already processed today (in-memory cache), skipping`);
-            continue;
-          }
-        }
-        
-        console.log(`Active recurring setting for task list ${setting.task_list_id}: ${JSON.stringify(setting, null, 2)}`);
-        console.log(`Configured days: [${setting.days_of_week.join(', ')}], Today: ${currentDay}`);
-        
-        const normalizedDays = setting.days_of_week.map(day => normalizeDay(day));
-        if (!normalizedDays.includes(normalizedCurrentDay) && !forceCheck) {
-          console.log(`Task list ${setting.task_list_id} not configured for ${currentDay}, skipping`);
-          continue;
-        }
-        
+        // Check database generation log as secondary validation
         const existingLog = await getGenerationLog(setting.task_list_id, setting.id);
         
         if (!forceCheck && existingLog) {
-          console.log(`Already generated ${existingLog.tasks_generated} tasks for list ${setting.task_list_id} today, skipping`);
+          console.log(`Already generated ${existingLog.tasks_generated} tasks for list ${setting.task_list_id} today (database), skipping`);
+          
           // Update in-memory cache
-          generationCache.set(setting.task_list_id, new Date());
+          setTaskListGenerated(setting.task_list_id, new Date());
           continue;
         }
         
@@ -283,7 +276,7 @@ export const useUnifiedRecurringTasksCheck = () => {
             console.log(`Edge function result for list ${setting.task_list_id}:`, data);
             
             // Update in-memory cache to prevent duplicates in this session
-            generationCache.set(setting.task_list_id, new Date());
+            setTaskListGenerated(setting.task_list_id, new Date());
             
             const generationLog = await getGenerationLog(setting.task_list_id, setting.id);
             
@@ -318,7 +311,17 @@ export const useUnifiedRecurringTasksCheck = () => {
         } else {
           console.log(`No need to create tasks for list ${setting.task_list_id}`);
           // Update in-memory cache even when no tasks were created
-          generationCache.set(setting.task_list_id, new Date());
+          setTaskListGenerated(setting.task_list_id, new Date());
+          
+          // Also log in the database to prevent further checks today
+          if (!existingLog) {
+            await logGenerationActivity(
+              setting.task_list_id,
+              setting.id,
+              0,
+              { note: "No additional tasks needed", createdAt: new Date().toISOString() }
+            );
+          }
         }
       }
       

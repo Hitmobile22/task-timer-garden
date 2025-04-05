@@ -15,11 +15,17 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 
+interface GoalFormProps {
+  goal?: any;
+  onSubmit: (goal: any) => void;
+  onCancel: () => void;
+}
+
 export const GoalForm = ({ 
   goal = null, 
   onSubmit, 
   onCancel 
-}) => {
+}: GoalFormProps) => {
   const [goalType, setGoalType] = useState(goal?.goal_type || 'daily');
   const [taskCount, setTaskCount] = useState(goal?.task_count_goal || 5);
   const [startDate, setStartDate] = useState(goal?.start_date ? new Date(goal?.start_date) : new Date());
@@ -38,12 +44,12 @@ export const GoalForm = ({
     }
   }, [goal]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     const newGoal = {
       goal_type: goalType,
-      task_count_goal: parseInt(taskCount),
+      task_count_goal: parseInt(taskCount as unknown as string),
       start_date: startDate?.toISOString(),
       end_date: goalType === 'date_period' ? endDate?.toISOString() : null,
       reward: reward,
@@ -53,7 +59,7 @@ export const GoalForm = ({
     if (goal) {
       // If editing an existing goal, include its id
       newGoal.id = goal.id;
-      newGoal.current_count = goal.current_count;
+      newGoal.current_count = goal.current_count || 0;
     }
     
     onSubmit(newGoal);
@@ -94,7 +100,7 @@ export const GoalForm = ({
           id="task-count" 
           type="number" 
           value={taskCount} 
-          onChange={(e) => setTaskCount(e.target.value)}
+          onChange={(e) => setTaskCount(parseInt(e.target.value))}
           min={1}
           className="w-full"
         />

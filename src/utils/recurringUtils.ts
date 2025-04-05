@@ -35,9 +35,14 @@ export const setLastDailyGoalResetDay = (date: Date) => { globalState.lastDailyG
 export const getHasShownDailyResetToast = () => globalState.hasShownDailyResetToast;
 export const setHasShownDailyResetToast = (value: boolean) => { globalState.hasShownDailyResetToast = value; };
 export const getTaskListGenerationCache = () => globalState.taskListGenerationCache;
+
+// Improved cache system for task list generation
 export const setTaskListGenerated = (listId: number, date: Date = new Date()) => {
+  console.log(`Marking task list ${listId} as generated for today (${date.toISOString()})`);
   globalState.taskListGenerationCache.set(listId, date);
 };
+
+// More strict checking if a task list has been generated today
 export const hasTaskListBeenGeneratedToday = (listId: number): boolean => {
   const cachedDate = globalState.taskListGenerationCache.get(listId);
   if (!cachedDate) return false;
@@ -47,7 +52,9 @@ export const hasTaskListBeenGeneratedToday = (listId: number): boolean => {
   const cachedDay = new Date(cachedDate);
   cachedDay.setHours(0, 0, 0, 0);
   
-  return cachedDay.getTime() === today.getTime();
+  const result = cachedDay.getTime() === today.getTime();
+  console.log(`Checking if task list ${listId} was generated today: ${result} (cached: ${cachedDate.toISOString()})`);
+  return result;
 };
 
 // Helper function to normalize day names for consistent comparison
@@ -58,6 +65,18 @@ export const normalizeDay = (day: string): string =>
 export const getCurrentNormalizedDay = (): string => {
   const currentDayName = getCurrentDayName();
   return normalizeDay(currentDayName);
+};
+
+// Exact day matching function to determine if a specific day matches any in an array
+export const isDayMatch = (currentDay: string, configuredDays: string[]): boolean => {
+  if (!configuredDays || configuredDays.length === 0) return true; // No days specified means all days
+  
+  const normalizedCurrentDay = normalizeDay(currentDay);
+  const normalizedConfiguredDays = configuredDays.map(normalizeDay);
+  
+  const isMatch = normalizedConfiguredDays.includes(normalizedCurrentDay);
+  console.log(`Day match check: current day "${normalizedCurrentDay}" in [${normalizedConfiguredDays.join(', ')}] = ${isMatch}`);
+  return isMatch;
 };
 
 // Check if it's daytime hours for running checks

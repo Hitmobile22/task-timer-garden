@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Plus } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ProjectGoalsList } from './ProjectGoalsList';
 import { GoalForm } from '../goals/GoalForm';
@@ -30,6 +29,7 @@ export const ProjectModal = ({
   projType,
   open = false
 }: ProjectModalProps) => {
+  const { toast } = useToast();
   const [editMode, setEditMode] = useState(false);
   const [projectName, setProjectName] = useState(project?.['Project Name'] || '');
   const [projectDescription, setProjectDescription] = useState(project?.description || '');
@@ -76,7 +76,6 @@ export const ProjectModal = ({
           description: "Failed to delete goal."
         });
       } else {
-        // Optimistically update the UI
         setGoals((currentGoals) => currentGoals.filter((goal) => goal.id !== goalId));
         
         toast({
@@ -118,7 +117,6 @@ export const ProjectModal = ({
           description: "Failed to reset goal."
         });
       } else {
-        // Optimistically update the UI
         setGoals((currentGoals) => {
           return currentGoals.map((goal) => {
             if (goal.id === goalId) {

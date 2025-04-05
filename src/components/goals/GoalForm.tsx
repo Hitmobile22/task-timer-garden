@@ -48,7 +48,8 @@ export const GoalForm = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newGoal = {
+    // Create a base goal object
+    const newGoal: Partial<Goal> = {
       goal_type: goalType,
       task_count_goal: parseInt(taskCount as unknown as string),
       start_date: startDate?.toISOString(),

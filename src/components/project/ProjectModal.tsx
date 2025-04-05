@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,7 @@ export const ProjectModal = ({
 }: ProjectModalProps) => {
   const [editMode, setEditMode] = useState(false);
   const [projectName, setProjectName] = useState(project?.['Project Name'] || '');
-  const [projectDescription, setProjectDescription] = useState(project?.description || '');
+  const [projectNotes, setProjectNotes] = useState('');
   const [dateStarted, setDateStarted] = useState(project?.date_started ? new Date(project.date_started) : undefined);
   const [dateDue, setDateDue] = useState(project?.date_due ? new Date(project.date_due) : undefined);
   const [progress, setProgress] = useState(project?.progress || 'Not started');
@@ -45,14 +44,17 @@ export const ProjectModal = ({
   const [recurringTaskCount, setRecurringTaskCount] = useState(project?.recurringTaskCount || 1);
   
   useEffect(() => {
-    setProjectName(project?.['Project Name'] || '');
-    setProjectDescription(project?.description || '');
-    setDateStarted(project?.date_started ? new Date(project.date_started) : undefined);
-    setDateDue(project?.date_due ? new Date(project.date_due) : undefined);
-    setProgress(project?.progress || 'Not started');
-    setGoals(project?.goals || []);
-    setIsRecurring(project?.isRecurring || false);
-    setRecurringTaskCount(project?.recurringTaskCount || 1);
+    if (project) {
+      console.log("Project data loaded:", project);
+      setProjectName(project['Project Name'] || '');
+      setProjectNotes('');
+      setDateStarted(project.date_started ? new Date(project.date_started) : undefined);
+      setDateDue(project.date_due ? new Date(project.date_due) : undefined);
+      setProgress(project.progress || 'Not started');
+      setGoals(project.goals || []);
+      setIsRecurring(project.isRecurring || false);
+      setRecurringTaskCount(project.recurringTaskCount || 1);
+    }
   }, [project]);
   
   const handleEditGoal = (goal) => {
@@ -195,11 +197,19 @@ export const ProjectModal = ({
     setIsSaving(true);
     
     try {
+      console.log("Saving project with data:", {
+        'Project Name': projectName,
+        date_started: dateStarted?.toISOString(),
+        date_due: dateDue?.toISOString(),
+        progress,
+        isRecurring,
+        recurringTaskCount
+      });
+      
       const { error } = await supabase
         .from('Projects')
         .update({
           'Project Name': projectName,
-          description: projectDescription,
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
           progress: progress,
@@ -215,7 +225,6 @@ export const ProjectModal = ({
         onUpdateProject({
           ...project,
           'Project Name': projectName,
-          description: projectDescription,
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
           progress: progress,
@@ -256,9 +265,9 @@ export const ProjectModal = ({
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="description" className="text-right">
-                Description
+                Notes
               </Label>
-              <Textarea id="description" value={projectDescription} className="col-span-3" onChange={(e) => setProjectDescription(e.target.value)} />
+              <Textarea id="description" value={projectNotes} className="col-span-3" onChange={(e) => setProjectNotes(e.target.value)} />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="dateStarted" className="text-right">
@@ -365,9 +374,9 @@ export const ProjectModal = ({
             </div>
             <div className="grid grid-cols-1 items-start gap-2">
               <Label htmlFor="description" className="text-left">
-                Description
+                Notes
               </Label>
-              <div>{projectDescription || "No description provided."}</div>
+              <div>{projectNotes || "No notes provided."}</div>
             </div>
             <div className="grid grid-cols-1 items-start gap-2">
               <Label htmlFor="dateStarted" className="text-left">

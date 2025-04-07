@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -47,7 +46,11 @@ export const ProjectModal = ({
   useEffect(() => {
     if (project) {
       console.log("Project data loaded:", project);
+      
+      // Handle project name correctly - look at the actual object
       setProjectName(project['Project Name'] || '');
+      
+      // Handle notes correctly
       setProjectNotes(project.notes || '');
       
       // Handle date conversion properly
@@ -58,6 +61,7 @@ export const ProjectModal = ({
           setDateStarted(startDate);
         } catch (error) {
           console.error("Error parsing start date:", error);
+          setDateStarted(undefined);
         }
       } else {
         setDateStarted(undefined);
@@ -70,6 +74,7 @@ export const ProjectModal = ({
           setDateDue(dueDate);
         } catch (error) {
           console.error("Error parsing due date:", error);
+          setDateDue(undefined);
         }
       } else {
         setDateDue(undefined);
@@ -403,7 +408,7 @@ export const ProjectModal = ({
               <Label htmlFor="name" className="text-left">
                 Name
               </Label>
-              <div className="text-lg font-semibold">{projectName}</div>
+              <div className="text-lg font-semibold">{projectName || "No name provided"}</div>
             </div>
             <div className="grid grid-cols-1 items-start gap-2">
               <Label htmlFor="description" className="text-left">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -31,25 +32,45 @@ export const ProjectModal = ({
   open = false
 }: ProjectModalProps) => {
   const [editMode, setEditMode] = useState(false);
-  const [projectName, setProjectName] = useState(project?.['Project Name'] || '');
+  const [projectName, setProjectName] = useState('');
   const [projectNotes, setProjectNotes] = useState('');
-  const [dateStarted, setDateStarted] = useState(project?.date_started ? new Date(project.date_started) : undefined);
-  const [dateDue, setDateDue] = useState(project?.date_due ? new Date(project.date_due) : undefined);
-  const [progress, setProgress] = useState(project?.progress || 'Not started');
-  const [goals, setGoals] = useState(project?.goals || []);
+  const [dateStarted, setDateStarted] = useState<Date | undefined>(undefined);
+  const [dateDue, setDateDue] = useState<Date | undefined>(undefined);
+  const [progress, setProgress] = useState('Not started');
+  const [goals, setGoals] = useState([]);
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isRecurring, setIsRecurring] = useState(project?.isRecurring || false);
-  const [recurringTaskCount, setRecurringTaskCount] = useState(project?.recurringTaskCount || 1);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringTaskCount, setRecurringTaskCount] = useState(1);
   
   useEffect(() => {
     if (project) {
       console.log("Project data loaded:", project);
       setProjectName(project['Project Name'] || '');
-      setProjectNotes('');
-      setDateStarted(project.date_started ? new Date(project.date_started) : undefined);
-      setDateDue(project.date_due ? new Date(project.date_due) : undefined);
+      setProjectNotes(project.notes || '');
+      
+      // Handle date conversion properly
+      if (project.date_started) {
+        try {
+          const startDate = new Date(project.date_started);
+          console.log("Parsed start date:", startDate);
+          setDateStarted(startDate);
+        } catch (error) {
+          console.error("Error parsing start date:", error);
+        }
+      }
+      
+      if (project.date_due) {
+        try {
+          const dueDate = new Date(project.date_due);
+          console.log("Parsed due date:", dueDate);
+          setDateDue(dueDate);
+        } catch (error) {
+          console.error("Error parsing due date:", error);
+        }
+      }
+      
       setProgress(project.progress || 'Not started');
       setGoals(project.goals || []);
       setIsRecurring(project.isRecurring || false);
@@ -199,6 +220,7 @@ export const ProjectModal = ({
     try {
       console.log("Saving project with data:", {
         'Project Name': projectName,
+        notes: projectNotes,
         date_started: dateStarted?.toISOString(),
         date_due: dateDue?.toISOString(),
         progress,
@@ -210,6 +232,7 @@ export const ProjectModal = ({
         .from('Projects')
         .update({
           'Project Name': projectName,
+          notes: projectNotes,
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
           progress: progress,
@@ -225,6 +248,7 @@ export const ProjectModal = ({
         onUpdateProject({
           ...project,
           'Project Name': projectName,
+          notes: projectNotes,
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
           progress: progress,

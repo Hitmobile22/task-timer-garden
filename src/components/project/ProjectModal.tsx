@@ -47,78 +47,55 @@ export const ProjectModal = ({
     if (project) {
       console.log("Project data loaded:", project);
       
-      // Handle project name from different possible sources
-      if (project['Project Name']) {
-        setProjectName(project['Project Name']);
-      } else if (project.name) {
-        setProjectName(project.name);
-      } else {
-        setProjectName('');
-      }
+      // Handle project name
+      setProjectName(project['Project Name'] || project.name || '');
       
-      // Handle notes correctly
+      // Handle notes
       setProjectNotes(project.notes || '');
       
-      // Handle start date - check all possible data formats
-      let parsedStartDate;
-      if (project.date_started) {
-        try {
-          parsedStartDate = new Date(project.date_started);
-          console.log("Parsed start date from date_started:", parsedStartDate);
-          setDateStarted(parsedStartDate);
-        } catch (error) {
-          console.error("Error parsing date_started:", error);
-        }
-      } else if (project.startDate && project.startDate._type === 'Date' && project.startDate.value && project.startDate.value.iso) {
-        try {
-          parsedStartDate = new Date(project.startDate.value.iso);
-          console.log("Parsed start date from startDate.value.iso:", parsedStartDate);
-          setDateStarted(parsedStartDate);
-        } catch (error) {
-          console.error("Error parsing startDate.value.iso:", error);
-        }
-      }
+      // Parse dates
+      parseDates();
       
-      // Handle due date - check all possible data formats
-      let parsedDueDate;
-      if (project.date_due) {
-        try {
-          parsedDueDate = new Date(project.date_due);
-          console.log("Parsed due date from date_due:", parsedDueDate);
-          setDateDue(parsedDueDate);
-        } catch (error) {
-          console.error("Error parsing date_due:", error);
-        }
-      } else if (project.dueDate && project.dueDate._type === 'Date' && project.dueDate.value && project.dueDate.value.iso) {
-        try {
-          parsedDueDate = new Date(project.dueDate.value.iso);
-          console.log("Parsed due date from dueDate.value.iso:", parsedDueDate);
-          setDateDue(parsedDueDate);
-        } catch (error) {
-          console.error("Error parsing dueDate.value.iso:", error);
-        }
-      }
-      
-      // Ensure progress is a valid value from the enum
+      // Handle progress status
       const validProgress = ['Not started', 'In progress', 'Completed', 'Backlog'].includes(project.progress || project.status) 
         ? (project.progress || project.status)
         : 'Not started';
       setProgress(validProgress as 'Not started' | 'In progress' | 'Completed' | 'Backlog');
       
+      // Handle goals and recurring settings
       setGoals(project.goals || []);
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
-      
-      console.log("Initialized state with:", {
-        projectName: project['Project Name'] || project.name || '',
-        dateStarted: parsedStartDate,
-        dateDue: parsedDueDate,
-        progress: validProgress,
-        isRecurring: project.isRecurring || false,
-        recurringTaskCount: project.recurringTaskCount || 1
-      });
     }
   }, [project]);
+  
+  const parseDates = () => {
+    // Parse start date
+    if (project.date_started) {
+      setDateStarted(new Date(project.date_started));
+    } else if (project.startDate) {
+      if (typeof project.startDate === 'object' && project.startDate?._type === 'Date') {
+        setDateStarted(new Date(project.startDate.value.iso));
+      } else {
+        setDateStarted(new Date(project.startDate));
+      }
+    } else {
+      setDateStarted(undefined);
+    }
+    
+    // Parse due date
+    if (project.date_due) {
+      setDateDue(new Date(project.date_due));
+    } else if (project.dueDate) {
+      if (typeof project.dueDate === 'object' && project.dueDate?._type === 'Date') {
+        setDateDue(new Date(project.dueDate.value.iso));
+      } else {
+        setDateDue(new Date(project.dueDate));
+      }
+    } else {
+      setDateDue(undefined);
+    }
+  };
   
   const handleEditGoal = (goal) => {
     setSelectedGoal(goal);

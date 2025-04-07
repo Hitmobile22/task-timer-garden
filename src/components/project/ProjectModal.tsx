@@ -36,7 +36,7 @@ export const ProjectModal = ({
   const [projectNotes, setProjectNotes] = useState('');
   const [dateStarted, setDateStarted] = useState<Date | undefined>(undefined);
   const [dateDue, setDateDue] = useState<Date | undefined>(undefined);
-  const [progress, setProgress] = useState('Not started');
+  const [progress, setProgress] = useState<'Not started' | 'In progress' | 'Completed' | 'Backlog'>('Not started');
   const [goals, setGoals] = useState([]);
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState(null);
@@ -59,6 +59,8 @@ export const ProjectModal = ({
         } catch (error) {
           console.error("Error parsing start date:", error);
         }
+      } else {
+        setDateStarted(undefined);
       }
       
       if (project.date_due) {
@@ -69,9 +71,16 @@ export const ProjectModal = ({
         } catch (error) {
           console.error("Error parsing due date:", error);
         }
+      } else {
+        setDateDue(undefined);
       }
       
-      setProgress(project.progress || 'Not started');
+      // Ensure progress is a valid value from the enum
+      const validProgress = ['Not started', 'In progress', 'Completed', 'Backlog'].includes(project.progress) 
+        ? project.progress 
+        : 'Not started';
+      setProgress(validProgress as 'Not started' | 'In progress' | 'Completed' | 'Backlog');
+      
       setGoals(project.goals || []);
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
@@ -346,7 +355,7 @@ export const ProjectModal = ({
                     selected={dateDue}
                     onSelect={setDateDue}
                     disabled={(date) =>
-                      date < dateStarted || date < new Date()
+                      date < new Date()
                     }
                     initialFocus
                   />

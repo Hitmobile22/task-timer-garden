@@ -4,31 +4,51 @@ import { Trophy, RefreshCw } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useRecalculateProjectGoals } from '@/hooks/useRecalculateProjectGoals';
+import { type Goal } from '@/types/goals.types';
 
-// Update the props to match what's expected in ProjectModal.tsx
-export const ProjectGoalsList = ({ 
+interface ProjectGoalsListProps {
+  goals: Goal[];
+  projectId?: number; 
+  onEdit?: (goal: Goal) => void;
+  onDelete?: (goalId: number) => void;
+  onReset?: (goalId: number) => void;
+}
+
+export const ProjectGoalsList: React.FC<ProjectGoalsListProps> = ({ 
   goals, 
   projectId, 
-  onEdit = undefined,
-  onDelete = undefined,
-  onReset = undefined
+  onEdit,
+  onDelete,
+  onReset
 }) => {
   const recalculateGoals = useRecalculateProjectGoals();
   
   if (!goals || goals.length === 0) {
-    return null;
+    return (
+      <div className="space-y-3 mb-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-amber-500" />
+            Project Goals
+          </h2>
+        </div>
+        <div className="text-gray-500 italic text-center py-3">
+          No goals set for this project yet. Add goals to track your progress!
+        </div>
+      </div>
+    );
   }
   
-  const getFormattedGoalType = (goal) => {
+  const getFormattedGoalType = (goal: Goal) => {
     switch (goal.goal_type) {
       case 'daily':
         return "Daily";
       case 'weekly':
         return "Weekly";
       case 'single_date':
-        return format(new Date(goal.start_date), 'MMM d');
+        return goal.start_date ? format(new Date(goal.start_date), 'MMM d') : "Single date";
       case 'date_period':
-        return `${format(new Date(goal.start_date), 'MMM d')} - ${goal.end_date ? format(new Date(goal.end_date), 'MMM d') : 'ongoing'}`;
+        return `${goal.start_date ? format(new Date(goal.start_date), 'MMM d') : ''} - ${goal.end_date ? format(new Date(goal.end_date), 'MMM d') : 'ongoing'}`;
       default:
         return "";
     }
@@ -39,17 +59,19 @@ export const ProjectGoalsList = ({
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-medium flex items-center gap-2">
           <Trophy className="h-5 w-5 text-amber-500" />
-          Project Goals
+          Project Goals ({goals.length})
         </h2>
-        <Button 
-          size="sm" 
-          variant="ghost" 
-          onClick={() => recalculateGoals(projectId)}
-          className="flex items-center gap-1"
-        >
-          <RefreshCw className="h-4 w-4" />
-          <span>Recalculate</span>
-        </Button>
+        {projectId && (
+          <Button 
+            size="sm" 
+            variant="ghost" 
+            onClick={() => recalculateGoals(projectId)}
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Recalculate</span>
+          </Button>
+        )}
       </div>
       
       {goals.map((goal) => (
@@ -57,7 +79,7 @@ export const ProjectGoalsList = ({
           <div className="flex justify-between items-center mb-2">
             <div>
               <span className="font-medium">
-                {goal.current_count}/{goal.task_count_goal} tasks
+                {goal.current_count || 0}/{goal.task_count_goal || 0} tasks
               </span>
               <span className="text-sm ml-2">
                 ({getFormattedGoalType(goal)})
@@ -81,7 +103,7 @@ export const ProjectGoalsList = ({
             <div 
               className="bg-primary h-1.5 rounded-full" 
               style={{ 
-                width: `${Math.min(100, (goal.current_count / goal.task_count_goal) * 100)}%` 
+                width: `${Math.min(100, ((goal.current_count || 0) / (goal.task_count_goal || 1)) * 100)}%` 
               }}
             ></div>
           </div>
@@ -93,7 +115,7 @@ export const ProjectGoalsList = ({
                 <Button 
                   size="sm" 
                   variant="outline" 
-                  onClick={() => onReset(goal.id)}
+                  onClick={() => onReset(goal.id || 0)}
                 >
                   Reset
                 </Button>
@@ -111,7 +133,7 @@ export const ProjectGoalsList = ({
                 <Button 
                   size="sm" 
                   variant="destructive" 
-                  onClick={() => onDelete(goal.id)}
+                  onClick={() => onDelete(goal.id || 0)}
                 >
                   Delete
                 </Button>

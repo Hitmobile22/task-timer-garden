@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ProjectGoalsList } from './ProjectGoalsList';
 import { GoalForm } from '../goals/GoalForm';
 import { Switch } from "@/components/ui/switch";
+import { type Goal } from '@/types/goals.types';
 
 interface ProjectModalProps {
   project?: any;
@@ -36,12 +38,13 @@ export const ProjectModal = ({
   const [dateStarted, setDateStarted] = useState<Date | undefined>(undefined);
   const [dateDue, setDateDue] = useState<Date | undefined>(undefined);
   const [progress, setProgress] = useState<'Not started' | 'In progress' | 'Completed' | 'Backlog'>('Not started');
-  const [goals, setGoals] = useState([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState(null);
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringTaskCount, setRecurringTaskCount] = useState(1);
+  const [isLoadingGoals, setIsLoadingGoals] = useState(false);
   
   useEffect(() => {
     if (project) {
@@ -54,7 +57,30 @@ export const ProjectModal = ({
       setProjectNotes(project.notes || '');
       
       // Parse dates
-      parseDates();
+      if (project.date_started) {
+        setDateStarted(new Date(project.date_started));
+      } else if (project.startDate) {
+        if (typeof project.startDate === 'object' && project.startDate?._type === 'Date') {
+          setDateStarted(new Date(project.startDate.value.iso));
+        } else {
+          setDateStarted(new Date(project.startDate));
+        }
+      } else {
+        setDateStarted(undefined);
+      }
+      
+      // Parse due date
+      if (project.date_due) {
+        setDateDue(new Date(project.date_due));
+      } else if (project.dueDate) {
+        if (typeof project.dueDate === 'object' && project.dueDate?._type === 'Date') {
+          setDateDue(new Date(project.dueDate.value.iso));
+        } else {
+          setDateDue(new Date(project.dueDate));
+        }
+      } else {
+        setDateDue(undefined);
+      }
       
       // Handle progress status
       const validProgress = ['Not started', 'In progress', 'Completed', 'Backlog'].includes(project.progress || project.status) 
@@ -62,47 +88,47 @@ export const ProjectModal = ({
         : 'Not started';
       setProgress(validProgress as 'Not started' | 'In progress' | 'Completed' | 'Backlog');
       
-      // Handle goals and recurring settings
-      setGoals(project.goals || []);
+      // Handle recurring settings
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
+      
+      // Load goals from database when project ID is available
+      loadProjectGoals(project.id);
     }
   }, [project]);
   
-  const parseDates = () => {
-    // Parse start date
-    if (project.date_started) {
-      setDateStarted(new Date(project.date_started));
-    } else if (project.startDate) {
-      if (typeof project.startDate === 'object' && project.startDate?._type === 'Date') {
-        setDateStarted(new Date(project.startDate.value.iso));
-      } else {
-        setDateStarted(new Date(project.startDate));
-      }
-    } else {
-      setDateStarted(undefined);
-    }
+  const loadProjectGoals = async (projectId: number) => {
+    if (!projectId) return;
     
-    // Parse due date
-    if (project.date_due) {
-      setDateDue(new Date(project.date_due));
-    } else if (project.dueDate) {
-      if (typeof project.dueDate === 'object' && project.dueDate?._type === 'Date') {
-        setDateDue(new Date(project.dueDate.value.iso));
+    setIsLoadingGoals(true);
+    try {
+      const { data, error } = await supabase
+        .from('project_goals')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        console.error("Error loading goals:", error);
+        toast("Failed to load project goals");
       } else {
-        setDateDue(new Date(project.dueDate));
+        console.log("Loaded project goals:", data);
+        setGoals(data || []);
       }
-    } else {
-      setDateDue(undefined);
+    } catch (error) {
+      console.error("Error loading goals:", error);
+      toast("Failed to load project goals");
+    } finally {
+      setIsLoadingGoals(false);
     }
   };
   
-  const handleEditGoal = (goal) => {
+  const handleEditGoal = (goal: Goal) => {
     setSelectedGoal(goal);
     setIsGoalFormOpen(true);
   };
   
-  const handleDeleteGoal = async (goalId) => {
+  const handleDeleteGoal = async (goalId: number) => {
     if (!project?.id) {
       toast("Project ID is missing.");
       return;
@@ -125,7 +151,7 @@ export const ProjectModal = ({
     }
   };
   
-  const handleResetGoal = async (goalId) => {
+  const handleResetGoal = async (goalId: number) => {
     if (!project?.id) {
       toast("Project ID is missing.");
       return;
@@ -158,7 +184,7 @@ export const ProjectModal = ({
     }
   };
   
-  const handleGoalFormSubmit = async (newGoal) => {
+  const handleGoalFormSubmit = async (newGoal: Goal) => {
     if (!project?.id) {
       toast("Project ID is missing.");
       return;
@@ -192,7 +218,7 @@ export const ProjectModal = ({
     }
   };
   
-  const handleGoalFormUpdate = async (updatedGoal) => {
+  const handleGoalFormUpdate = async (updatedGoal: Goal) => {
     if (!project?.id) {
       toast("Project ID is missing.");
       return;
@@ -450,13 +476,19 @@ export const ProjectModal = ({
           </div>
         )}
         
-        <ProjectGoalsList 
-          goals={goals} 
-          projectId={project?.id}
-          onEdit={handleEditGoal}
-          onDelete={handleDeleteGoal}
-          onReset={handleResetGoal}
-        />
+        {isLoadingGoals ? (
+          <div className="flex justify-center py-4">
+            <div className="animate-pulse text-gray-400">Loading project goals...</div>
+          </div>
+        ) : (
+          <ProjectGoalsList 
+            goals={goals} 
+            projectId={project?.id}
+            onEdit={handleEditGoal}
+            onDelete={handleDeleteGoal}
+            onReset={handleResetGoal}
+          />
+        )}
         
         <DialogFooter>
           {editMode ? (
@@ -479,7 +511,10 @@ export const ProjectModal = ({
         </DialogFooter>
       </DialogContent>
       
-      <Dialog open={isGoalFormOpen} onOpenChange={() => setIsGoalFormOpen(false)}>
+      <Dialog open={isGoalFormOpen} onOpenChange={() => {
+        setIsGoalFormOpen(false);
+        setSelectedGoal(null);
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{selectedGoal ? "Edit Goal" : "Add Goal"}</DialogTitle>

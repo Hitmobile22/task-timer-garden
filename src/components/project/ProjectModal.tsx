@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -47,48 +48,84 @@ export const ProjectModal = ({
     if (project) {
       console.log("Project data loaded:", project);
       
-      // Handle project name correctly - look at the actual object
-      setProjectName(project['Project Name'] || '');
+      // Handle project name from different possible sources
+      if (project['Project Name']) {
+        setProjectName(project['Project Name']);
+      } else if (project.name) {
+        setProjectName(project.name);
+      } else {
+        setProjectName('');
+      }
       
       // Handle notes correctly
       setProjectNotes(project.notes || '');
       
-      // Handle date conversion properly
+      // Handle start date from different possible sources
       if (project.date_started) {
         try {
           const startDate = new Date(project.date_started);
-          console.log("Parsed start date:", startDate);
+          console.log("Parsed start date from date_started:", startDate);
           setDateStarted(startDate);
         } catch (error) {
-          console.error("Error parsing start date:", error);
+          console.error("Error parsing start date from date_started:", error);
+          setDateStarted(undefined);
+        }
+      } else if (project.startDate?._type === 'Date' && project.startDate?.value?.iso) {
+        try {
+          const startDate = new Date(project.startDate.value.iso);
+          console.log("Parsed start date from startDate.value.iso:", startDate);
+          setDateStarted(startDate);
+        } catch (error) {
+          console.error("Error parsing start date from startDate object:", error);
           setDateStarted(undefined);
         }
       } else {
+        console.log("No valid date_started or startDate found");
         setDateStarted(undefined);
       }
       
+      // Handle due date from different possible sources
       if (project.date_due) {
         try {
           const dueDate = new Date(project.date_due);
-          console.log("Parsed due date:", dueDate);
+          console.log("Parsed due date from date_due:", dueDate);
           setDateDue(dueDate);
         } catch (error) {
-          console.error("Error parsing due date:", error);
+          console.error("Error parsing due date from date_due:", error);
+          setDateDue(undefined);
+        }
+      } else if (project.dueDate?._type === 'Date' && project.dueDate?.value?.iso) {
+        try {
+          const dueDate = new Date(project.dueDate.value.iso);
+          console.log("Parsed due date from dueDate.value.iso:", dueDate);
+          setDateDue(dueDate);
+        } catch (error) {
+          console.error("Error parsing due date from dueDate object:", error);
           setDateDue(undefined);
         }
       } else {
+        console.log("No valid date_due or dueDate found");
         setDateDue(undefined);
       }
       
       // Ensure progress is a valid value from the enum
-      const validProgress = ['Not started', 'In progress', 'Completed', 'Backlog'].includes(project.progress) 
-        ? project.progress 
+      const validProgress = ['Not started', 'In progress', 'Completed', 'Backlog'].includes(project.progress || project.status) 
+        ? (project.progress || project.status)
         : 'Not started';
       setProgress(validProgress as 'Not started' | 'In progress' | 'Completed' | 'Backlog');
       
       setGoals(project.goals || []);
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
+      
+      console.log("Initialized state with:", {
+        projectName: project['Project Name'] || project.name || '',
+        dateStarted: dateStarted,
+        dateDue: dateDue,
+        progress: validProgress,
+        isRecurring: project.isRecurring || false,
+        recurringTaskCount: project.recurringTaskCount || 1
+      });
     }
   }, [project]);
   
@@ -262,17 +299,20 @@ export const ProjectModal = ({
         onUpdateProject({
           ...project,
           'Project Name': projectName,
+          name: projectName, // Add this to ensure both field names are updated
           notes: projectNotes,
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
+          startDate: { _type: 'Date', value: { iso: dateStarted?.toISOString() } }, // Add for compatibility
+          dueDate: { _type: 'Date', value: { iso: dateDue?.toISOString() } }, // Add for compatibility
           progress: progress,
+          status: progress, // Add this to ensure both field names are updated
           goals: goals,
           isRecurring: isRecurring,
           recurringTaskCount: recurringTaskCount
         });
         
         toast("Project updated successfully.");
-        
         setEditMode(false);
       }
     } catch (error) {

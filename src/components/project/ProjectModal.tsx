@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -60,52 +59,44 @@ export const ProjectModal = ({
       // Handle notes correctly
       setProjectNotes(project.notes || '');
       
-      // Handle start date from different possible sources
+      // Handle start date - check all possible data formats
+      let parsedStartDate;
       if (project.date_started) {
         try {
-          const startDate = new Date(project.date_started);
-          console.log("Parsed start date from date_started:", startDate);
-          setDateStarted(startDate);
+          parsedStartDate = new Date(project.date_started);
+          console.log("Parsed start date from date_started:", parsedStartDate);
+          setDateStarted(parsedStartDate);
         } catch (error) {
-          console.error("Error parsing start date from date_started:", error);
-          setDateStarted(undefined);
+          console.error("Error parsing date_started:", error);
         }
-      } else if (project.startDate?._type === 'Date' && project.startDate?.value?.iso) {
+      } else if (project.startDate && project.startDate._type === 'Date' && project.startDate.value && project.startDate.value.iso) {
         try {
-          const startDate = new Date(project.startDate.value.iso);
-          console.log("Parsed start date from startDate.value.iso:", startDate);
-          setDateStarted(startDate);
+          parsedStartDate = new Date(project.startDate.value.iso);
+          console.log("Parsed start date from startDate.value.iso:", parsedStartDate);
+          setDateStarted(parsedStartDate);
         } catch (error) {
-          console.error("Error parsing start date from startDate object:", error);
-          setDateStarted(undefined);
+          console.error("Error parsing startDate.value.iso:", error);
         }
-      } else {
-        console.log("No valid date_started or startDate found");
-        setDateStarted(undefined);
       }
       
-      // Handle due date from different possible sources
+      // Handle due date - check all possible data formats
+      let parsedDueDate;
       if (project.date_due) {
         try {
-          const dueDate = new Date(project.date_due);
-          console.log("Parsed due date from date_due:", dueDate);
-          setDateDue(dueDate);
+          parsedDueDate = new Date(project.date_due);
+          console.log("Parsed due date from date_due:", parsedDueDate);
+          setDateDue(parsedDueDate);
         } catch (error) {
-          console.error("Error parsing due date from date_due:", error);
-          setDateDue(undefined);
+          console.error("Error parsing date_due:", error);
         }
-      } else if (project.dueDate?._type === 'Date' && project.dueDate?.value?.iso) {
+      } else if (project.dueDate && project.dueDate._type === 'Date' && project.dueDate.value && project.dueDate.value.iso) {
         try {
-          const dueDate = new Date(project.dueDate.value.iso);
-          console.log("Parsed due date from dueDate.value.iso:", dueDate);
-          setDateDue(dueDate);
+          parsedDueDate = new Date(project.dueDate.value.iso);
+          console.log("Parsed due date from dueDate.value.iso:", parsedDueDate);
+          setDateDue(parsedDueDate);
         } catch (error) {
-          console.error("Error parsing due date from dueDate object:", error);
-          setDateDue(undefined);
+          console.error("Error parsing dueDate.value.iso:", error);
         }
-      } else {
-        console.log("No valid date_due or dueDate found");
-        setDateDue(undefined);
       }
       
       // Ensure progress is a valid value from the enum
@@ -120,8 +111,8 @@ export const ProjectModal = ({
       
       console.log("Initialized state with:", {
         projectName: project['Project Name'] || project.name || '',
-        dateStarted: dateStarted,
-        dateDue: dateDue,
+        dateStarted: parsedStartDate,
+        dateDue: parsedDueDate,
         progress: validProgress,
         isRecurring: project.isRecurring || false,
         recurringTaskCount: project.recurringTaskCount || 1
@@ -369,9 +360,6 @@ export const ProjectModal = ({
                     mode="single"
                     selected={dateStarted}
                     onSelect={setDateStarted}
-                    disabled={(date) =>
-                      date > new Date()
-                    }
                     initialFocus
                   />
                 </PopoverContent>
@@ -399,9 +387,6 @@ export const ProjectModal = ({
                     mode="single"
                     selected={dateDue}
                     onSelect={setDateDue}
-                    disabled={(date) =>
-                      date < new Date()
-                    }
                     initialFocus
                   />
                 </PopoverContent>

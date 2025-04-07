@@ -239,7 +239,6 @@ export const ProjectModal = ({
     try {
       console.log("Saving project with data:", {
         'Project Name': projectName,
-        notes: projectNotes,
         date_started: dateStarted?.toISOString(),
         date_due: dateDue?.toISOString(),
         progress,
@@ -251,7 +250,6 @@ export const ProjectModal = ({
         .from('Projects')
         .update({
           'Project Name': projectName,
-          notes: projectNotes,
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
           progress: progress,
@@ -268,7 +266,7 @@ export const ProjectModal = ({
           ...project,
           'Project Name': projectName,
           name: projectName, // Add this to ensure both field names are updated
-          notes: projectNotes,
+          notes: projectNotes, // Keep this for the UI, but don't send to database
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
           startDate: { _type: 'Date', value: { iso: dateStarted?.toISOString() } }, // Add for compatibility

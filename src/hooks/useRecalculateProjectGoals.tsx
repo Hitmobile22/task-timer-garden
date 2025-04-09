@@ -38,11 +38,12 @@ export const useRecalculateProjectGoals = () => {
           case 'daily':
             // For daily goals, use the current date's start and end
             const today = new Date();
-            const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-            const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+            today.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(today);
+            endOfDay.setHours(23, 59, 59, 999);
             
             completedTasksQuery = completedTasksQuery
-              .gte('date_started', startOfDay.toISOString())
+              .gte('date_started', today.toISOString())
               .lte('date_started', endOfDay.toISOString());
             break;
             
@@ -50,31 +51,40 @@ export const useRecalculateProjectGoals = () => {
             const startOfWeek = new Date();
             startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Go to start of week (Sunday)
             startOfWeek.setHours(0, 0, 0, 0);
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+            endOfWeek.setHours(23, 59, 59, 999);
+            
             completedTasksQuery = completedTasksQuery
               .gte('date_started', startOfWeek.toISOString())
-              .lt('date_started', new Date(startOfWeek.getTime() + 7 * 86400000).toISOString());
+              .lte('date_started', endOfWeek.toISOString());
             break;
             
           case 'single_date':
             if (goal.start_date) {
               const dateStart = new Date(goal.start_date);
               dateStart.setHours(0, 0, 0, 0);
+              const dateEnd = new Date(dateStart);
+              dateEnd.setHours(23, 59, 59, 999);
+              
               completedTasksQuery = completedTasksQuery
                 .gte('date_started', dateStart.toISOString())
-                .lt('date_started', new Date(dateStart.getTime() + 86400000).toISOString());
+                .lte('date_started', dateEnd.toISOString());
             }
             break;
             
           case 'date_period':
             if (goal.start_date) {
+              const periodStart = new Date(goal.start_date);
+              periodStart.setHours(0, 0, 0, 0);
               completedTasksQuery = completedTasksQuery
-                .gte('date_started', new Date(goal.start_date).toISOString());
+                .gte('date_started', periodStart.toISOString());
                 
               if (goal.end_date) {
-                const endDate = new Date(goal.end_date);
-                endDate.setHours(23, 59, 59, 999);
+                const periodEnd = new Date(goal.end_date);
+                periodEnd.setHours(23, 59, 59, 999);
                 completedTasksQuery = completedTasksQuery
-                  .lte('date_started', endDate.toISOString());
+                  .lte('date_started', periodEnd.toISOString());
               }
             }
             break;
@@ -89,6 +99,7 @@ export const useRecalculateProjectGoals = () => {
         }
         
         const taskCount = completedTasks?.length || 0;
+        console.log(`Goal ${goal.id} type ${goal.goal_type}: Found ${taskCount} completed tasks`);
         
         // Update the goal count if different
         if (goal.current_count !== taskCount) {

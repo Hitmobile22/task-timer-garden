@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -81,8 +82,11 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     enabled: !!currentTask?.project_id,
   });
 
+  // Effect to recalculate goals when component mounts or when task changes
   useEffect(() => {
     if (goalsLoaded && currentTask?.project_id && projectGoals.length > 0) {
+      // Force recalculation of project goals whenever the timer mounts with a task
+      console.log("Recalculating goals for project:", currentTask.project_id);
       recalculateProjectGoals(currentTask.project_id);
     }
   }, [currentTask?.project_id, goalsLoaded, recalculateProjectGoals]);

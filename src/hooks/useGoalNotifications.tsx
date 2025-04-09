@@ -21,6 +21,7 @@ export const useGoalNotifications = () => {
   return useQuery({
     queryKey: ['goal-notifications'],
     queryFn: async (): Promise<GoalNotification[]> => {
+      // Get only non-deleted, non-redeemed notifications
       const { data: notifications, error } = await supabase
         .from('goal_completion_notifications')
         .select(`
@@ -34,6 +35,7 @@ export const useGoalNotifications = () => {
       if (error) throw error;
       
       // Process notifications to remove duplicates per project_goal_id
+      // This ensures we only show the most recent notification for each goal
       const uniqueGoalNotifications = new Map<number, GoalNotification>();
       
       notifications.forEach(notification => {
@@ -52,6 +54,8 @@ export const useGoalNotifications = () => {
       
       // Convert map values back to array
       return Array.from(uniqueGoalNotifications.values());
-    }
+    },
+    staleTime: 2 * 60 * 1000, // Data is fresh for 2 minutes
+    refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
   });
 };

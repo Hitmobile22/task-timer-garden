@@ -2,6 +2,7 @@
 import { useUnifiedRecurringTasksCheck } from './useUnifiedRecurringTasksCheck';
 import { resetGenerationCacheIfNewDay } from '@/utils/recurringUtils';
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 /**
  * Hook to check and trigger recurring tasks generation
@@ -10,6 +11,7 @@ import { useEffect } from 'react';
  */
 export const useRecurringTasksCheck = () => {
   const unifiedChecker = useUnifiedRecurringTasksCheck();
+  const queryClient = useQueryClient();
   
   // Add safety measure to check and reset the cache if it's a new day
   // This helps prevent issues with stale cache data
@@ -24,6 +26,17 @@ export const useRecurringTasksCheck = () => {
     
     return () => clearInterval(interval);
   }, []);
+  
+  // Make sure completed tasks are counted correctly
+  useEffect(() => {
+    // Periodically refresh tasks data to ensure completed tasks are properly counted
+    const taskRefreshInterval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+    }, 30 * 60 * 1000); // Refresh every 30 minutes
+    
+    return () => clearInterval(taskRefreshInterval);
+  }, [queryClient]);
   
   // Pass through the functionality from the unified checker
   return {

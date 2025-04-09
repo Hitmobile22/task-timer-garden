@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        // Check active tasks for this project
+        // IMPORTANT FIX: Count ONLY "Not started" and "In progress" tasks for proper active task calculation
         const { data: activeTasks, error: tasksError } = await supabaseClient
           .from('Tasks')
           .select('id')

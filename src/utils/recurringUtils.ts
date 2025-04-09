@@ -38,6 +38,8 @@ export const getTaskListGenerationCache = () => globalState.taskListGenerationCa
 
 // Improved cache system for task list generation
 export const setTaskListGenerated = (listId: number, date: Date = new Date()) => {
+  if (!listId) return;
+  
   console.log(`Marking task list ${listId} as generated for today (${date.toISOString()})`);
   globalState.taskListGenerationCache.set(listId, date);
   
@@ -54,6 +56,8 @@ export const setTaskListGenerated = (listId: number, date: Date = new Date()) =>
 
 // More strict checking if a task list has been generated today
 export const hasTaskListBeenGeneratedToday = (listId: number): boolean => {
+  if (!listId) return false;
+  
   // First try localStorage for persistence across page refreshes
   try {
     const cacheData = JSON.parse(localStorage.getItem('task_list_generation_cache') || '{}');

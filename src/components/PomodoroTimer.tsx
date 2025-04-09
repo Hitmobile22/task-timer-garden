@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +11,7 @@ import { ProjectGoalDisplay } from './pomodoro/ProjectGoalDisplay';
 import { usePomodoro } from '@/hooks/usePomodoro';
 import { formatTime, setupFullscreenHandlers, restoreFullscreen } from '@/utils/timerUtils';
 import { ProjectGoal } from '@/types/task.types';
+import { useRecalculateProjectGoals } from '@/hooks/useRecalculateProjectGoals';
 
 interface PomodoroTimerProps {
   tasks: string[];
@@ -27,6 +27,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   onShuffleTasks
 }) => {
   const fullscreenContainerRef = useRef<HTMLDivElement>(null);
+  const recalculateProjectGoals = useRecalculateProjectGoals();
   
   const {
     timeLeft,
@@ -63,7 +64,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
   });
 
-  const { data: projectGoals = [] } = useQuery({
+  const { data: projectGoals = [], isSuccess: goalsLoaded } = useQuery({
     queryKey: ['project-goals', currentTask?.project_id],
     queryFn: async () => {
       if (!currentTask?.project_id) return [];
@@ -80,7 +81,12 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     enabled: !!currentTask?.project_id,
   });
 
-  // Enhanced visibility check to include upcoming task countdown
+  useEffect(() => {
+    if (goalsLoaded && currentTask?.project_id && projectGoals.length > 0) {
+      recalculateProjectGoals(currentTask.project_id);
+    }
+  }, [currentTask?.project_id, goalsLoaded, recalculateProjectGoals]);
+
   const isVisible = useTimerVisibility(currentTask, getNextTask, isCountdownToNextTask);
   
   const {
@@ -93,28 +99,21 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     previewSound
   } = usePomodoroSounds(isVisible);
 
-  // Play tick sound at regular intervals when timer is running
   useEffect(() => {
     let tickInterval: NodeJS.Timeout | null = null;
 
     if (isRunning && timeLeft !== null && !isBreak && !isMuted && isVisible && soundSettings.tick !== 'none') {
-      console.log("Setting up tick sound interval");
-      
-      // Force an immediate tick sound when starting
       setTimeout(() => {
-        console.log("Playing initial tick sound");
         playSound('tick');
       }, 100);
       
-      // Create a precise interval for consistent tick sounds
-      const tickDelay = 1000; // 1 second between ticks
-      
+      const tickDelay = 1000;
+
       const scheduleTick = () => {
         playSound('tick');
         tickInterval = setTimeout(scheduleTick, tickDelay);
       };
       
-      // Start the scheduled ticks
       tickInterval = setTimeout(scheduleTick, tickDelay);
     }
 
@@ -125,7 +124,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     };
   }, [isRunning, isBreak, timeLeft, isMuted, isVisible, playSound, soundSettings.tick]);
 
-  // Handle task completion and break sounds
   useEffect(() => {
     if (timeLeft === 0) {
       if (isBreak) {
@@ -136,17 +134,14 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
   }, [timeLeft, isBreak, playSound]);
 
-  // Handle fullscreen toggling
   const handleToggleFullscreen = () => {
     toggleFullscreen(fullscreenContainerRef.current);
   };
 
-  // Setup fullscreen change listener
   useEffect(() => {
     return setupFullscreenHandlers(setIsFullscreen, shouldBeFullscreen, isTransitioning);
   }, []);
 
-  // Restore fullscreen if it was active before
   useEffect(() => {
     restoreFullscreen(
       requestFullscreenSafely, 
@@ -156,13 +151,11 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     );
   }, []);
 
-  // Handle fullscreen restoration after transitions
   useEffect(() => {
     if (isTransitioning.current && shouldBeFullscreen.current && !document.fullscreenElement) {
-      const delay = 800; // Increased delay for better chance of success
-      
+      const delay = 800;
+
       const restoreTimeout = setTimeout(() => {
-        console.log("Attempting to restore fullscreen after transition");
         requestFullscreenSafely(fullscreenContainerRef.current).then(success => {
           if (success) {
             setIsFullscreen(true);

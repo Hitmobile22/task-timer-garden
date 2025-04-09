@@ -36,11 +36,14 @@ export const useRecalculateProjectGoals = () => {
         // Apply date filters based on goal type
         switch (goal.goal_type) {
           case 'daily':
+            // For daily goals, use the current date's start and end
             const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+            const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+            
             completedTasksQuery = completedTasksQuery
-              .gte('date_started', today.toISOString())
-              .lt('date_started', new Date(today.getTime() + 86400000).toISOString());
+              .gte('date_started', startOfDay.toISOString())
+              .lte('date_started', endOfDay.toISOString());
             break;
             
           case 'weekly':

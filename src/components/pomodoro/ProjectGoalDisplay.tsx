@@ -20,9 +20,9 @@ export const ProjectGoalDisplay: React.FC<ProjectGoalDisplayProps> = ({ goals })
       case 'weekly':
         return "Weekly";
       case 'single_date':
-        return format(new Date(goal.start_date), 'MMM d');
+        return goal.start_date ? format(new Date(goal.start_date), 'MMM d') : "Single date";
       case 'date_period':
-        return `${format(new Date(goal.start_date), 'MMM d')} - ${goal.end_date ? format(new Date(goal.end_date), 'MMM d') : 'ongoing'}`;
+        return `${goal.start_date ? format(new Date(goal.start_date), 'MMM d') : ''} - ${goal.end_date ? format(new Date(goal.end_date), 'MMM d') : 'ongoing'}`;
       default:
         return "";
     }
@@ -35,7 +35,7 @@ export const ProjectGoalDisplay: React.FC<ProjectGoalDisplayProps> = ({ goals })
           <div className="flex items-center gap-1">
             <Trophy className="h-3 w-3 text-amber-500" />
             <span className="font-medium">
-              {goal.current_count}/{goal.task_count_goal} tasks ({getFormattedGoalType(goal)})
+              {goal.current_count || 0}/{goal.task_count_goal || 0} tasks ({getFormattedGoalType(goal)})
             </span>
           </div>
           {goal.reward && (
@@ -47,7 +47,7 @@ export const ProjectGoalDisplay: React.FC<ProjectGoalDisplayProps> = ({ goals })
             <div 
               className="bg-primary h-1.5 rounded-full" 
               style={{ 
-                width: `${Math.min(100, (goal.current_count / goal.task_count_goal) * 100)}%` 
+                width: `${Math.min(100, ((goal.current_count || 0) / (goal.task_count_goal || 1)) * 100)}%` 
               }}
             ></div>
           </div>

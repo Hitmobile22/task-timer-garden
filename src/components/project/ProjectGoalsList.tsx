@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Trophy, RefreshCw } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -22,6 +22,14 @@ export const ProjectGoalsList: React.FC<ProjectGoalsListProps> = ({
   onReset
 }) => {
   const recalculateGoals = useRecalculateProjectGoals();
+  
+  // Add an effect to automatically recalculate goals when component mounts
+  useEffect(() => {
+    if (projectId) {
+      console.log("ProjectGoalsList: Auto-recalculating goals for project:", projectId);
+      recalculateGoals(projectId);
+    }
+  }, [projectId, recalculateGoals]);
   
   if (!goals || goals.length === 0) {
     return (

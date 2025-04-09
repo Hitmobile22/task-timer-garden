@@ -33,10 +33,25 @@ export const useGoalNotifications = () => {
       
       if (error) throw error;
       
-      return notifications.map(notification => ({
-        ...notification,
-        project_name: notification.Projects ? notification.Projects["Project Name"] : 'Unknown Project'
-      }));
+      // Process notifications to remove duplicates per project_goal_id
+      const uniqueGoalNotifications = new Map<number, GoalNotification>();
+      
+      notifications.forEach(notification => {
+        const existingNotification = uniqueGoalNotifications.get(notification.project_goal_id);
+        
+        // If no notification for this goal exists yet, or this is a newer notification,
+        // add it to our unique map
+        if (!existingNotification || 
+            new Date(notification.completed_at) > new Date(existingNotification.completed_at)) {
+          uniqueGoalNotifications.set(notification.project_goal_id, {
+            ...notification,
+            project_name: notification.Projects ? notification.Projects["Project Name"] : 'Unknown Project'
+          });
+        }
+      });
+      
+      // Convert map values back to array
+      return Array.from(uniqueGoalNotifications.values());
     }
   });
 };

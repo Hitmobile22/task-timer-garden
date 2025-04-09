@@ -19,10 +19,11 @@ export const useRecalculateProjectGoals = () => {
       if (goalsError) throw goalsError;
       
       if (!goals || goals.length === 0) {
-        toast.info('No goals found for this project');
+        console.log('No goals found for project:', projectId);
         return;
       }
       
+      console.log(`Recalculating ${goals.length} goals for project ${projectId}`);
       let updated = 0;
       
       // Process each goal
@@ -42,6 +43,8 @@ export const useRecalculateProjectGoals = () => {
             const endOfDay = new Date(today);
             endOfDay.setHours(23, 59, 59, 999);
             
+            console.log(`Daily goal ${goal.id}: Filter between ${today.toISOString()} and ${endOfDay.toISOString()}`);
+            
             completedTasksQuery = completedTasksQuery
               .gte('date_started', today.toISOString())
               .lte('date_started', endOfDay.toISOString());
@@ -55,6 +58,8 @@ export const useRecalculateProjectGoals = () => {
             endOfWeek.setDate(endOfWeek.getDate() + 6);
             endOfWeek.setHours(23, 59, 59, 999);
             
+            console.log(`Weekly goal ${goal.id}: Filter between ${startOfWeek.toISOString()} and ${endOfWeek.toISOString()}`);
+            
             completedTasksQuery = completedTasksQuery
               .gte('date_started', startOfWeek.toISOString())
               .lte('date_started', endOfWeek.toISOString());
@@ -67,6 +72,8 @@ export const useRecalculateProjectGoals = () => {
               const dateEnd = new Date(dateStart);
               dateEnd.setHours(23, 59, 59, 999);
               
+              console.log(`Single date goal ${goal.id}: Filter between ${dateStart.toISOString()} and ${dateEnd.toISOString()}`);
+              
               completedTasksQuery = completedTasksQuery
                 .gte('date_started', dateStart.toISOString())
                 .lte('date_started', dateEnd.toISOString());
@@ -77,12 +84,18 @@ export const useRecalculateProjectGoals = () => {
             if (goal.start_date) {
               const periodStart = new Date(goal.start_date);
               periodStart.setHours(0, 0, 0, 0);
+              
+              console.log(`Date period goal ${goal.id}: Filter from ${periodStart.toISOString()}`);
+              
               completedTasksQuery = completedTasksQuery
                 .gte('date_started', periodStart.toISOString());
                 
               if (goal.end_date) {
                 const periodEnd = new Date(goal.end_date);
                 periodEnd.setHours(23, 59, 59, 999);
+                
+                console.log(`Date period goal ${goal.id}: Filter until ${periodEnd.toISOString()}`);
+                
                 completedTasksQuery = completedTasksQuery
                   .lte('date_started', periodEnd.toISOString());
               }
@@ -101,7 +114,23 @@ export const useRecalculateProjectGoals = () => {
         const taskCount = completedTasks?.length || 0;
         console.log(`Goal ${goal.id} type ${goal.goal_type}: Found ${taskCount} completed tasks`);
         
-        // Update the goal count if different
+        // Check if this update would trigger a goal completion
+        const wouldComplete = taskCount >= goal.task_count_goal && goal.current_count < goal.task_count_goal;
+        
+        if (wouldComplete) {
+          // Check if a notification already exists for this goal
+          const { data: existingNotifications } = await supabase
+            .from('goal_completion_notifications')
+            .select('id')
+            .eq('project_goal_id', goal.id)
+            .eq('is_deleted', false);
+          
+          if (existingNotifications && existingNotifications.length > 0) {
+            console.log(`Goal ${goal.id} already has a notification, not creating a new one`);
+          }
+        }
+        
+        // Update the goal count
         if (goal.current_count !== taskCount) {
           const { error: updateError } = await supabase
             .from('project_goals')
@@ -121,9 +150,9 @@ export const useRecalculateProjectGoals = () => {
       if (updated > 0) {
         queryClient.invalidateQueries({ queryKey: ['project-goals'] });
         queryClient.invalidateQueries({ queryKey: ['goal-notifications'] });
-        toast.success(`Updated ${updated} goal(s) with correct task counts`);
+        console.log(`Updated ${updated} goal(s) with correct task counts`);
       } else {
-        toast.info('All goals already have correct task counts');
+        console.log('All goals already have correct task counts');
       }
       
     } catch (error) {

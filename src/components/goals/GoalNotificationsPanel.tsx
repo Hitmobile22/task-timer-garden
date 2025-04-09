@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Collapsible, 
   CollapsibleContent, 
@@ -7,7 +6,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Trophy, ChevronUp, ChevronDown } from 'lucide-react';
 import { GoalNotification, GoalNotificationProps } from './GoalNotification';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 
 interface GoalNotification {
@@ -33,6 +32,35 @@ export const GoalNotificationsPanel = ({
 }: GoalNotificationsPanelProps) => {
   const [open, setOpen] = useState(true);
   const queryClient = useQueryClient();
+  const [processedNotifications, setProcessedNotifications] = useState<Set<number>>(new Set());
+  
+  useEffect(() => {
+    if (notifications && notifications.length > 0) {
+      const goalMap = new Map<number, GoalNotification>();
+      
+      const sortedNotifications = [...notifications].sort(
+        (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
+      );
+      
+      sortedNotifications.forEach(notification => {
+        if (!goalMap.has(notification.project_goal_id)) {
+          goalMap.set(notification.project_goal_id, notification);
+        }
+      });
+      
+      const duplicates = sortedNotifications
+        .filter(n => goalMap.get(n.project_goal_id)?.id !== n.id)
+        .map(n => n.id);
+      
+      if (duplicates.length > 0) {
+        console.log(`Found ${duplicates.length} duplicate notifications to clean up`);
+        duplicates.forEach(id => {
+          setProcessedNotifications(prev => new Set([...prev, id]));
+          deleteNotificationMutation.mutate(id);
+        });
+      }
+    }
+  }, [notifications]);
   
   const deleteNotificationMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -70,8 +98,11 @@ export const GoalNotificationsPanel = ({
     deleteNotificationMutation.mutate(id);
   };
   
-  // If there are no notifications, don't render anything
-  if ((!notifications || notifications.length === 0) && !isLoading) {
+  const filteredNotifications = notifications?.filter(
+    n => !processedNotifications.has(n.id)
+  ) || [];
+  
+  if ((!filteredNotifications || filteredNotifications.length === 0) && !isLoading) {
     return null;
   }
 
@@ -81,7 +112,7 @@ export const GoalNotificationsPanel = ({
         <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-2 hover:bg-muted/50">
           <div className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-amber-500" />
-            <span className="font-medium">Unlocked Rewards ({notifications.length})</span>
+            <span className="font-medium">Unlocked Rewards ({filteredNotifications.length})</span>
           </div>
           {open ? (
             <ChevronDown className="h-5 w-5 text-muted-foreground" />
@@ -92,10 +123,10 @@ export const GoalNotificationsPanel = ({
         <CollapsibleContent className="p-4 pt-2 max-h-[300px] overflow-y-auto">
           {isLoading ? (
             <div className="text-center py-4 text-muted-foreground">Loading rewards...</div>
-          ) : notifications.length === 0 ? (
+          ) : filteredNotifications.length === 0 ? (
             <div className="text-center py-4 text-muted-foreground">No rewards to show</div>
           ) : (
-            notifications.map(notification => (
+            filteredNotifications.map(notification => (
               <GoalNotification 
                 key={notification.id}
                 id={notification.id}

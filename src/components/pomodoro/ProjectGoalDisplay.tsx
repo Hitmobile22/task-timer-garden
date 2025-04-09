@@ -27,10 +27,24 @@ export const ProjectGoalDisplay: React.FC<ProjectGoalDisplayProps> = ({ goals })
         return "";
     }
   };
+  
+  // Filter to show only active and current goals
+  const activeGoals = goals.filter(goal => {
+    if (goal.goal_type === 'daily') {
+      const goalDate = new Date(goal.start_date);
+      const today = new Date();
+      return (
+        goalDate.getDate() === today.getDate() &&
+        goalDate.getMonth() === today.getMonth() &&
+        goalDate.getFullYear() === today.getFullYear()
+      );
+    }
+    return true;
+  });
 
   return (
     <div className="w-full space-y-2 mt-2">
-      {goals.map((goal) => (
+      {activeGoals.map((goal) => (
         <div key={goal.id} className="text-xs flex flex-col items-center p-1 rounded bg-primary-foreground bg-opacity-10">
           <div className="flex items-center gap-1">
             <Trophy className="h-3 w-3 text-amber-500" />

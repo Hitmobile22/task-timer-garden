@@ -50,7 +50,7 @@ export const ProjectGoalsList: React.FC<ProjectGoalsListProps> = ({
   const getFormattedGoalType = (goal: Goal) => {
     switch (goal.goal_type) {
       case 'daily':
-        return "Daily";
+        return goal.start_date ? format(new Date(goal.start_date), 'MMM d') : "Daily";
       case 'weekly':
         return "Weekly";
       case 'single_date':
@@ -62,6 +62,12 @@ export const ProjectGoalsList: React.FC<ProjectGoalsListProps> = ({
     }
   };
   
+  // Filter to focus on active goals first
+  const dailyGoals = goals.filter(g => g.goal_type === 'daily');
+  const otherGoals = goals.filter(g => g.goal_type !== 'daily');
+  
+  const sortedGoals = [...dailyGoals, ...otherGoals];
+
   return (
     <div className="space-y-3 mb-4">
       <div className="flex items-center justify-between">
@@ -82,7 +88,7 @@ export const ProjectGoalsList: React.FC<ProjectGoalsListProps> = ({
         )}
       </div>
       
-      {goals.map((goal) => (
+      {sortedGoals.map((goal) => (
         <div key={goal.id} className="border rounded-lg p-3 bg-primary-foreground bg-opacity-10">
           <div className="flex justify-between items-center mb-2">
             <div>

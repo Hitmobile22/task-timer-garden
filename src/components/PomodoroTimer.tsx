@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -90,6 +89,22 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
       recalculateProjectGoals(currentTask.project_id);
     }
   }, [currentTask?.project_id, goalsLoaded, recalculateProjectGoals]);
+  
+  // Add an interval to periodically recalculate goals during active tasks
+  useEffect(() => {
+    if (currentTask?.project_id) {
+      // Initial calculation
+      recalculateProjectGoals(currentTask.project_id);
+      
+      // Set up interval for periodic recalculation
+      const intervalId = setInterval(() => {
+        console.log("Periodic recalculation for project:", currentTask.project_id);
+        recalculateProjectGoals(currentTask.project_id);
+      }, 60000); // Recalculate every minute
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [currentTask?.project_id, recalculateProjectGoals]);
 
   const isVisible = useTimerVisibility(currentTask, getNextTask, isCountdownToNextTask);
   
@@ -138,9 +153,9 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     }
   }, [timeLeft, isBreak, playSound]);
 
-  const handleToggleFullscreen = () => {
+  function handleToggleFullscreen() {
     toggleFullscreen(fullscreenContainerRef.current);
-  };
+  }
 
   useEffect(() => {
     return setupFullscreenHandlers(setIsFullscreen, shouldBeFullscreen, isTransitioning);

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { SubtaskItem } from './SubtaskItem';
 import { supabase } from "@/integrations/supabase/client";
@@ -285,6 +287,36 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
                 value={editedTask?.["Task Name"] || ''} 
                 onChange={(e) => setEditedTask({...editedTask, "Task Name": e.target.value})}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="taskList">Task List</Label>
+              <Select
+                value={editedTask.task_list_id?.toString() || ''}
+                onValueChange={(value) => setEditedTask({...editedTask, task_list_id: parseInt(value)})}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a task list" />
+                </SelectTrigger>
+                <SelectContent>
+                  {taskLists?.map((list) => (
+                    <SelectItem 
+                      key={list.id} 
+                      value={list.id.toString()}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-2 h-2 rounded-full"
+                          style={{ 
+                            backgroundColor: list.color || 'gray'
+                          }} 
+                        />
+                        {list.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="grid grid-cols-2 gap-4">

@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Plus, Repeat } from "lucide-react";
+import { CalendarIcon, Plus, Repeat, ListFilter } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ProjectGoalsList } from './ProjectGoalsList';
@@ -23,6 +24,7 @@ interface ProjectModalProps {
   onUpdateProject: (project: any) => void;
   projType?: string;
   open: boolean;
+  taskLists?: any[]; // Added task lists prop
 }
 
 export const ProjectModal = ({ 
@@ -30,7 +32,8 @@ export const ProjectModal = ({
   onClose, 
   onUpdateProject, 
   projType,
-  open = false
+  open = false,
+  taskLists = [] // Default to empty array
 }: ProjectModalProps) => {
   const [editMode, setEditMode] = useState(false);
   const [projectName, setProjectName] = useState('');
@@ -45,6 +48,7 @@ export const ProjectModal = ({
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringTaskCount, setRecurringTaskCount] = useState(1);
   const [isLoadingGoals, setIsLoadingGoals] = useState(false);
+  const [taskListId, setTaskListId] = useState<number | null>(null);
   
   useEffect(() => {
     if (project) {
@@ -91,6 +95,9 @@ export const ProjectModal = ({
       // Handle recurring settings
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
+      
+      // Set task list ID
+      setTaskListId(project.task_list_id || 1);
       
       // Load goals from database when project ID is available
       loadProjectGoals(project.id);
@@ -269,7 +276,8 @@ export const ProjectModal = ({
         date_due: dateDue?.toISOString(),
         progress,
         isRecurring,
-        recurringTaskCount
+        recurringTaskCount,
+        task_list_id: taskListId
       });
       
       const { error } = await supabase
@@ -280,7 +288,8 @@ export const ProjectModal = ({
           date_due: dateDue?.toISOString(),
           progress: progress,
           isRecurring: isRecurring,
-          recurringTaskCount: recurringTaskCount
+          recurringTaskCount: recurringTaskCount,
+          task_list_id: taskListId
         })
         .eq('id', project.id);
       
@@ -301,7 +310,8 @@ export const ProjectModal = ({
           status: progress, // Add this to ensure both field names are updated
           goals: goals,
           isRecurring: isRecurring,
-          recurringTaskCount: recurringTaskCount
+          recurringTaskCount: recurringTaskCount,
+          task_list_id: taskListId
         });
         
         toast("Project updated successfully.");
@@ -339,6 +349,43 @@ export const ProjectModal = ({
               </Label>
               <Textarea id="description" value={projectNotes} className="col-span-3" onChange={(e) => setProjectNotes(e.target.value)} />
             </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="taskList" className="text-right">
+                Task List
+              </Label>
+              <div className="col-span-3">
+                <Select 
+                  value={taskListId?.toString() || '1'} 
+                  onValueChange={(value) => setTaskListId(parseInt(value))}
+                >
+                  <SelectTrigger className="w-full">
+                    <div className="flex items-center gap-2">
+                      <ListFilter className="h-4 w-4" />
+                      <SelectValue placeholder="Select a list" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {taskLists?.map((list) => (
+                      <SelectItem 
+                        key={list.id} 
+                        value={list.id.toString()}
+                        className="flex items-center gap-2"
+                      >
+                        <div 
+                          className="w-2 h-2 rounded-full"
+                          style={{ 
+                            backgroundColor: list.color || 'gray'
+                          }} 
+                        />
+                        {list.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="dateStarted" className="text-right">
                 Date Started
@@ -442,6 +489,28 @@ export const ProjectModal = ({
               </Label>
               <div>{projectNotes || "No notes provided."}</div>
             </div>
+            
+            <div className="grid grid-cols-1 items-start gap-2">
+              <Label htmlFor="taskList" className="text-left">
+                Task List
+              </Label>
+              <div className="flex items-center gap-2">
+                {taskLists?.find(list => list.id === taskListId) ? (
+                  <>
+                    <div 
+                      className="w-2 h-2 rounded-full"
+                      style={{ 
+                        backgroundColor: taskLists?.find(list => list.id === taskListId)?.color || 'gray'
+                      }} 
+                    />
+                    <span>{taskLists?.find(list => list.id === taskListId)?.name || "Default List"}</span>
+                  </>
+                ) : (
+                  <span>Default List</span>
+                )}
+              </div>
+            </div>
+            
             <div className="grid grid-cols-1 items-start gap-2">
               <Label htmlFor="dateStarted" className="text-left">
                 Date Started

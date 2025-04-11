@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -54,13 +53,13 @@ export const ProjectModal = ({
     if (project) {
       console.log("Project data loaded:", project);
       
-      // Handle project name
       setProjectName(project['Project Name'] || project.name || '');
-      
-      // Handle notes
       setProjectNotes(project.notes || '');
+      setProgress((project.progress || project.status || 'Not started') as 'Not started' | 'In progress' | 'Completed' | 'Backlog');
+      setIsRecurring(project.isRecurring || false);
+      setRecurringTaskCount(project.recurringTaskCount || 1);
+      setTaskListId(project.task_list_id || 1);
       
-      // Parse dates
       if (project.date_started) {
         setDateStarted(new Date(project.date_started));
       } else if (project.startDate) {
@@ -73,7 +72,6 @@ export const ProjectModal = ({
         setDateStarted(undefined);
       }
       
-      // Parse due date
       if (project.date_due) {
         setDateDue(new Date(project.date_due));
       } else if (project.dueDate) {
@@ -86,20 +84,6 @@ export const ProjectModal = ({
         setDateDue(undefined);
       }
       
-      // Handle progress status
-      const validProgress = ['Not started', 'In progress', 'Completed', 'Backlog'].includes(project.progress || project.status) 
-        ? (project.progress || project.status)
-        : 'Not started';
-      setProgress(validProgress as 'Not started' | 'In progress' | 'Completed' | 'Backlog');
-      
-      // Handle recurring settings
-      setIsRecurring(project.isRecurring || false);
-      setRecurringTaskCount(project.recurringTaskCount || 1);
-      
-      // Set task list ID
-      setTaskListId(project.task_list_id || 1);
-      
-      // Load goals from database when project ID is available
       loadProjectGoals(project.id);
     }
   }, [project]);
@@ -300,14 +284,12 @@ export const ProjectModal = ({
         onUpdateProject({
           ...project,
           'Project Name': projectName,
-          name: projectName, // Add this to ensure both field names are updated
-          notes: projectNotes, // Keep this for the UI, but don't send to database
+          name: projectName,
+          notes: projectNotes,
           date_started: dateStarted?.toISOString(),
           date_due: dateDue?.toISOString(),
-          startDate: { _type: 'Date', value: { iso: dateStarted?.toISOString() } }, // Add for compatibility
-          dueDate: { _type: 'Date', value: { iso: dateDue?.toISOString() } }, // Add for compatibility
           progress: progress,
-          status: progress, // Add this to ensure both field names are updated
+          status: progress,
           goals: goals,
           isRecurring: isRecurring,
           recurringTaskCount: recurringTaskCount,
@@ -441,7 +423,6 @@ export const ProjectModal = ({
               </Popover>
             </div>
 
-            {/* Recurring Task Settings */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="isRecurring" className="text-right">
                 Recurring Tasks
@@ -524,7 +505,6 @@ export const ProjectModal = ({
               <div>{dateDue ? format(dateDue, "PPP") : "Not specified"}</div>
             </div>
 
-            {/* Show recurring task status in view mode */}
             <div className="grid grid-cols-1 items-start gap-2">
               <Label htmlFor="recurring" className="text-left flex items-center gap-2">
                 <Repeat className="h-4 w-4" />

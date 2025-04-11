@@ -108,6 +108,7 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
               value={editingTaskName}
               onChange={(e) => onEditNameChange(e.target.value)}
               className="w-full"
+              autoFocus
             />
           </div>
         ) : (
@@ -115,7 +116,7 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
             className="cursor-pointer hover:text-blue-600 transition-colors"
             onClick={handleTaskClick}
           >
-            {task["Task Name"]}
+            {task["Task Name"] || "Unnamed Task"}
           </span>
         )}
       </div>

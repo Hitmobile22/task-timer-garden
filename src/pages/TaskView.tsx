@@ -336,36 +336,48 @@ export function TaskView() {
     mutationFn: async (projectData: any) => {
       console.log("Updating project with data:", projectData);
       
+      const updateObject = {
+        "Project Name": projectData.name,
+        progress: projectData.status,
+        date_started: projectData.date_started || (projectData.startDate && typeof projectData.startDate !== 'object' 
+                       ? projectData.startDate
+                       : projectData.startDate?._type === 'Date' 
+                         ? projectData.startDate.value.iso 
+                         : null),
+        date_due: projectData.date_due || (projectData.dueDate && typeof projectData.dueDate !== 'object'
+                  ? projectData.dueDate 
+                  : projectData.dueDate?._type === 'Date'
+                    ? projectData.dueDate.value.iso
+                    : null),
+        task_list_id: projectData.taskListId || projectData.task_list_id,
+        isRecurring: projectData.isRecurring || false,
+        recurringTaskCount: projectData.recurringTaskCount || 1
+      };
+
+      console.log("Sanitized update object:", updateObject);
+      
       const { data: updatedProject, error: projectError } = await supabase
         .from('Projects')
-        .update({
-          "Project Name": projectData.name,
-          progress: projectData.status,
-          date_started: projectData.startDate?.toISOString(),
-          date_due: projectData.dueDate?.toISOString(),
-          task_list_id: projectData.taskListId,
-          isRecurring: projectData.isRecurring || false,
-          recurringTaskCount: projectData.recurringTaskCount || 1
-        })
+        .update(updateObject)
         .eq('id', projectData.id)
         .select()
         .single();
 
       if (projectError) throw projectError;
 
-      const { error: tasksError } = await supabase
-        .from('Tasks')
-        .update({ project_id: null })
-        .eq('project_id', projectData.id);
-
-      if (tasksError) throw tasksError;
-
-      if (projectData.selectedTasks.length > 0) {
+      if (projectData.selectedTasks && projectData.selectedTasks.length > 0) {
+        const { error: tasksError } = await supabase
+          .from('Tasks')
+          .update({ project_id: null })
+          .eq('project_id', projectData.id);
+  
+        if (tasksError) throw tasksError;
+  
         const { error: assignError } = await supabase
           .from('Tasks')
           .update({ project_id: projectData.id })
           .in('id', projectData.selectedTasks);
-
+  
         if (assignError) throw assignError;
       }
 

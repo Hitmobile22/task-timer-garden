@@ -152,8 +152,8 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
   };
   
-  // Complete rewrite of countActiveTasks to include all relevant tasks
-  const countAllRelevantTasks = async (taskListId: number) => {
+  // Improved count function to include all tasks that are relevant for daily goal tracking
+  const countAllTasksForDaily = async (taskListId: number) => {
     try {
       // Get today's date bounds
       const today = new Date();
@@ -171,57 +171,38 @@ export const useUnifiedRecurringTasksCheck = () => {
       
       if (activeError) {
         console.error(`Error counting active tasks for list ${taskListId}:`, activeError);
-        return 0;
+        return { total: 0, active: 0, completedToday: 0 };
       }
       
-      // 2. Count tasks completed today
+      // 2. Count tasks completed today - THIS IS THE KEY FIX
       const { data: completedTodayTasks, error: completedError } = await supabase
         .from('Tasks')
         .select('id')
         .eq('task_list_id', taskListId)
         .eq('Progress', 'Completed')
-        .gte('date_completed', today.toISOString())
+        .gte('date_completed', today.toISOString()) // Make sure we're checking date_completed, not date_started
         .lt('date_completed', tomorrow.toISOString());
       
       if (completedError) {
         console.error(`Error counting completed tasks for list ${taskListId}:`, completedError);
-      }
-      
-      // 3. Get all generation logs for today to account for tasks that might have been deleted
-      const { data: todaysLogs, error: logsError } = await supabase
-        .from('recurring_task_generation_logs')
-        .select('tasks_generated')
-        .eq('task_list_id', taskListId)
-        .gte('generation_date', today.toISOString())
-        .lt('generation_date', tomorrow.toISOString());
-      
-      if (logsError) {
-        console.error(`Error getting generation logs for list ${taskListId}:`, logsError);
+        return { total: 0, active: 0, completedToday: 0 };
       }
       
       // Calculate totals
       const activeCount = activeTasks?.length || 0;
       const completedTodayCount = completedTodayTasks?.length || 0;
+      const totalCount = activeCount + completedTodayCount;
       
-      // Sum up all tasks that have been generated today according to logs
-      const loggedGeneratedTaskCount = todaysLogs?.reduce((sum, log) => sum + (log.tasks_generated || 0), 0) || 0;
+      console.log(`Task list ${taskListId} counts: active=${activeCount}, completedToday=${completedTodayCount}, total=${totalCount}`);
       
-      // Use the maximum value: either actual tasks we can count, or the logged generation count
-      // This ensures we don't regenerate tasks that were already created and possibly deleted
-      const totalRelevantTaskCount = activeCount + completedTodayCount;
-      const effectiveTaskCount = Math.max(totalRelevantTaskCount, loggedGeneratedTaskCount);
-      
-      console.log(
-        `List ${taskListId} task counts: active=${activeCount}, ` + 
-        `completedToday=${completedTodayCount}, ` +
-        `loggedGenerated=${loggedGeneratedTaskCount}, ` +
-        `effectiveCount=${effectiveTaskCount}`
-      );
-      
-      return effectiveTaskCount;
+      return { 
+        total: totalCount,
+        active: activeCount,
+        completedToday: completedTodayCount
+      };
     } catch (error) {
-      console.error('Error in countActiveTasks:', error);
-      return 0;
+      console.error('Error in countAllTasksForDaily:', error);
+      return { total: 0, active: 0, completedToday: 0 };
     }
   };
   
@@ -311,9 +292,27 @@ export const useUnifiedRecurringTasksCheck = () => {
           continue;
         }
         
-        // CRITICAL: At this point, we're sure there's no generation log - this task list needs processing
-        // Even if there are already tasks in the list, we need to create a generation log to prevent
-        // future checks from generating more tasks
+        // CRITICAL: Count both active AND completed tasks for today - KEY FIX
+        const taskCounts = await countAllTasksForDaily(setting.task_list_id);
+        console.log(`Task list ${setting.task_list_id} has ${taskCounts.total} relevant tasks (${taskCounts.active} active, ${taskCounts.completedToday} completed today) of ${setting.daily_task_count} goal`);
+        
+        // If we already have enough tasks (active + completed today), don't create more
+        if (!forceCheck && taskCounts.total >= setting.daily_task_count) {
+          console.log(`Task list ${setting.task_list_id} already has enough tasks (${taskCounts.total}) for today's goal (${setting.daily_task_count}), skipping`);
+          
+          // Create a generation log entry to mark this list as processed
+          await logGenerationActivity(
+            setting.task_list_id,
+            setting.id,
+            taskCounts.total,
+            { status: 'skipped', reason: 'goal_already_met', activeCount: taskCounts.active, completedToday: taskCounts.completedToday }
+          );
+          
+          // Update in-memory and localStorage cache
+          setTaskListGenerated(setting.task_list_id, new Date());
+          
+          continue;
+        }
         
         // Create a generation log entry even before checking for tasks
         // This will serve as a marker that this list was processed today
@@ -327,12 +326,8 @@ export const useUnifiedRecurringTasksCheck = () => {
         // Update in-memory and localStorage cache right away
         setTaskListGenerated(setting.task_list_id, new Date());
         
-        // CRITICAL: Count all relevant tasks - active, completed today, and from logs
-        const totalTaskCount = await countAllRelevantTasks(setting.task_list_id);
-        console.log(`Task list ${setting.task_list_id} has ${totalTaskCount} relevant tasks of ${setting.daily_task_count} goal`);
-        
         // Only create additional tasks if we have fewer relevant tasks than the daily goal
-        const additionalTasksToCreate = Math.max(0, setting.daily_task_count - totalTaskCount);
+        const additionalTasksToCreate = Math.max(0, setting.daily_task_count - taskCounts.total);
         
         if (additionalTasksToCreate > 0) {
           console.log(`Creating ${additionalTasksToCreate} tasks for list ${setting.task_list_id}`);
@@ -343,9 +338,10 @@ export const useUnifiedRecurringTasksCheck = () => {
                 specificListId: setting.task_list_id,
                 forceCheck: forceCheck,
                 targetTaskCount: setting.daily_task_count,
-                currentTaskCount: totalTaskCount,
+                currentTaskCount: taskCounts.total,
                 additionalTasksNeeded: additionalTasksToCreate,
-                currentDay: currentDay
+                currentDay: currentDay,
+                completedTodayCount: taskCounts.completedToday // Pass the completed count to the edge function
               }
             });
             
@@ -379,7 +375,7 @@ export const useUnifiedRecurringTasksCheck = () => {
             console.error(`Error processing recurring tasks for list ${setting.task_list_id}:`, fnError);
           }
         } else {
-          console.log(`No need to create tasks for list ${setting.task_list_id}, already has ${totalTaskCount} tasks`);
+          console.log(`No need to create tasks for list ${setting.task_list_id}, already has ${taskCounts.total} tasks`);
         }
       }
       

@@ -35,6 +35,10 @@ export const useRecurringTasksCheck = () => {
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
     }, 30 * 60 * 1000); // Refresh every 30 minutes
     
+    // Add an initial refresh on mount to ensure we have fresh data
+    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+    
     return () => clearInterval(taskRefreshInterval);
   }, [queryClient]);
   

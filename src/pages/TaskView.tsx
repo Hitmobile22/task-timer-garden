@@ -300,12 +300,13 @@ export function TaskView() {
 
   const createProjectMutation = useMutation({
     mutationFn: async (projectData: any) => {
-      const { name, selectedTasks, startDate, dueDate, status, taskListId, isRecurring, recurringTaskCount } = projectData;
+      const { name, notes, selectedTasks, startDate, dueDate, status, taskListId, isRecurring, recurringTaskCount } = projectData;
       
       const { data: newProject, error: projectError } = await supabase
         .from('Projects')
         .insert([{
           "Project Name": name,
+          notes: notes || "",
           progress: status || "Not started",
           date_started: startDate?.toISOString(),
           date_due: dueDate?.toISOString(),
@@ -319,10 +320,20 @@ export function TaskView() {
       
       if (projectError) throw projectError;
       
+      if (selectedTasks && selectedTasks.length > 0) {
+        const { error: tasksError } = await supabase
+          .from('Tasks')
+          .update({ project_id: newProject.id })
+          .in('id', selectedTasks);
+          
+        if (tasksError) throw tasksError;
+      }
+      
       return newProject;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setShowProjectModal(false);
       toast.success('Project created successfully');
     },
@@ -546,9 +557,20 @@ export function TaskView() {
     if (projectData.id) {
       updateProjectMutation.mutate(projectData);
     } else {
-      createProjectMutation.mutate(projectData);
+      createProjectMutation.mutate({
+        name: projectData["Project Name"] || projectData.name,
+        notes: projectData.notes,
+        selectedTasks: projectData.selectedTasks,
+        startDate: projectData.date_started || projectData.startDate,
+        dueDate: projectData.date_due || projectData.dueDate,
+        status: projectData.progress || projectData.status,
+        taskListId: projectData.task_list_id,
+        isRecurring: projectData.isRecurring,
+        recurringTaskCount: projectData.recurringTaskCount
+      });
     }
     setShowProjectModal(false);
+    setEditingProject(null);
   };
 
   const handleRecurringTasksSubmit = async (settings: RecurringTaskSettings) => {
@@ -911,8 +933,9 @@ export function TaskView() {
           setEditingProject(null);
         }}
         onUpdateProject={handleProjectSubmit}
-        projType="edit"
+        projType={editingProject ? 'edit' : 'create'}
         open={showProjectModal}
+        taskLists={taskLists || []}
       />
 
       <RecurringTasksModal

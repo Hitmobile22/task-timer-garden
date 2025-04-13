@@ -2,32 +2,30 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Filter, ArrowUpDown, Plus } from "lucide-react";
-import { Task } from '@/types/task.types';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ChevronDown, Filter, Plus, Search } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Task } from '@/types/task.types';
 
 interface TaskFiltersProps {
   searchQuery: string;
-  progressFilter: Task['Progress'] | "all";
+  progressFilter: Task['Progress'] | 'all';
   sortBy: 'date' | 'list' | 'project';
   showNewTaskListDialog: boolean;
   showProjectModal: boolean;
   newTaskListName: string;
-  onSearchChange: (value: string) => void;
-  onProgressFilterChange: (value: Task['Progress'] | "all") => void;
-  onSortByChange: (value: 'date' | 'list' | 'project') => void;
+  onSearchChange: (query: string) => void;
+  onProgressFilterChange: (filter: Task['Progress'] | 'all') => void;
+  onSortByChange: (sort: 'date' | 'list' | 'project') => void;
   onNewTaskListDialogChange: (open: boolean) => void;
   onProjectModalChange: (open: boolean) => void;
-  onNewTaskListNameChange: (value: string) => void;
+  onNewTaskListNameChange: (name: string) => void;
   onCreateTaskList: () => void;
 }
 
@@ -46,100 +44,99 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   onNewTaskListNameChange,
   onCreateTaskList,
 }) => {
-  const isMobile = useIsMobile();
-
   return (
-    <div className="w-full space-y-4">
-      <div className={`flex flex-wrap gap-4 ${isMobile ? 'flex-col' : 'items-center justify-between'}`}>
-        <div className={`${isMobile ? 'w-full' : 'flex-1 min-w-[200px] max-w-sm'}`}>
-          <Input
-            placeholder="Search tasks..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full"
-          />
-        </div>
-        <div className={`flex ${isMobile ? 'flex-wrap w-full justify-between' : 'items-center'} gap-2`}>
-          <div className="flex items-center gap-2">
-            <Dialog open={showNewTaskListDialog} onOpenChange={onNewTaskListDialogChange}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="icon" className="flex-shrink-0" title="New Task List">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Task List</DialogTitle>
-                  <DialogDescription>
-                    Enter a name for your new task list.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <Input
-                    placeholder="Task List Name"
-                    value={newTaskListName}
-                    onChange={(e) => onNewTaskListNameChange(e.target.value)}
-                  />
-                  <Button 
-                    onClick={onCreateTaskList}
-                    disabled={!newTaskListName.trim()}
-                  >
-                    Create List
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={() => onProjectModalChange(true)}
-              className="flex-shrink-0"
-              title="New Project"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className={`flex ${isMobile ? 'w-full mt-2 justify-between' : 'items-center'} gap-2`}>
-            <Select
-              value={progressFilter}
-              onValueChange={(value: Task['Progress'] | "all") => onProgressFilterChange(value)}
-            >
-              <SelectTrigger className={`${isMobile ? 'w-full' : 'w-[180px]'}`}>
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 flex-shrink-0" />
-                  <SelectValue placeholder="Filter by status" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Not started">Not Started</SelectItem>
-                <SelectItem value="In progress">In Progress</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Backlog">Backlog</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select
-              value={sortBy}
-              onValueChange={(value: 'date' | 'list' | 'project') => onSortByChange(value)}
-            >
-              <SelectTrigger className={`${isMobile ? 'w-full' : 'w-[180px]'}`}>
-                <div className="flex items-center gap-2">
-                  <ArrowUpDown className="h-4 w-4 flex-shrink-0" />
-                  <SelectValue placeholder="Sort by" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date">Sort by Date</SelectItem>
-                <SelectItem value="list">Sort by List</SelectItem>
-                <SelectItem value="project">Sort by Project</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+    <div className="flex flex-wrap items-center gap-4 mb-4">
+      <div className="relative flex-grow md:max-w-xs">
+        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          className="pl-8"
+          placeholder="Search tasks..."
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
       </div>
+      
+      <Select value={progressFilter} onValueChange={(value: Task['Progress'] | 'all') => onProgressFilterChange(value)}>
+        <SelectTrigger className="w-[160px]">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            <SelectValue placeholder="Filter" />
+          </div>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All</SelectItem>
+          <SelectItem value="Not started">Not started</SelectItem>
+          <SelectItem value="In progress">In progress</SelectItem>
+          <SelectItem value="Completed">Completed</SelectItem>
+          <SelectItem value="Backlog">Backlog</SelectItem>
+        </SelectContent>
+      </Select>
+      
+      <Select value={sortBy} onValueChange={(value: 'date' | 'list' | 'project') => onSortByChange(value)}>
+        <SelectTrigger className="w-[140px]">
+          <div className="flex items-center gap-2">
+            <ChevronDown className="h-4 w-4" />
+            <SelectValue placeholder="Group by" />
+          </div>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="date">By Date</SelectItem>
+          <SelectItem value="list">By List</SelectItem>
+          <SelectItem value="project">By Project</SelectItem>
+        </SelectContent>
+      </Select>
+      
+      <Button
+        variant="outline"
+        onClick={() => onNewTaskListDialogChange(true)}
+        className="flex items-center gap-2"
+      >
+        <Plus className="h-4 w-4" />
+        New List
+      </Button>
+      
+      <Button
+        onClick={() => onProjectModalChange(true)}
+        className="flex items-center gap-2"
+      >
+        <Plus className="h-4 w-4" />
+        New Project
+      </Button>
+      
+      <Dialog open={showNewTaskListDialog} onOpenChange={onNewTaskListDialogChange}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Create a new task list</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label htmlFor="name" className="text-right">
+                Name
+              </label>
+              <Input 
+                id="name" 
+                value={newTaskListName} 
+                onChange={(e) => onNewTaskListNameChange(e.target.value)} 
+                className="col-span-3" 
+                placeholder="Enter list name"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newTaskListName.trim()) {
+                    onCreateTaskList();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => onNewTaskListDialogChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" onClick={onCreateTaskList} disabled={!newTaskListName.trim()}>
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

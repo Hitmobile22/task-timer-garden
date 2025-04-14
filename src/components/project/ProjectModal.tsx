@@ -20,13 +20,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type Goal } from '@/types/goals.types';
 
+interface TaskList {
+  id: number;
+  name: string;
+  color?: string;
+}
+
 interface ProjectModalProps {
   project?: any;
   onClose: () => void;
   onUpdateProject: (project: any) => void;
   projType?: string;
   open: boolean;
-  taskLists: Array<{id: number, name: string, color?: string}>;
+  taskLists: TaskList[];
 }
 
 export const ProjectModal = ({ 
@@ -35,7 +41,7 @@ export const ProjectModal = ({
   onUpdateProject, 
   projType = 'create',
   open = false,
-  taskLists = [] // Default value to ensure it's always an array
+  taskLists = [] 
 }: ProjectModalProps) => {
   const [editMode, setEditMode] = useState(projType === 'create');
   const [projectName, setProjectName] = useState('');

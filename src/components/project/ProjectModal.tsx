@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -477,14 +476,14 @@ export const ProjectModal = ({
     }
   };
   
-  const tasksByList = availableTasks.reduce((acc, task) => {
+  const tasksByList = availableTasks.reduce<Record<string, any[]>>((acc, task) => {
     const listId = task.task_list_id;
     if (!acc[listId]) {
       acc[listId] = [];
     }
     acc[listId].push(task);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {});
   
   return (
     <Dialog open={open} onOpenChange={onClose}>

@@ -41,7 +41,7 @@ export const ProjectModal = ({
   onUpdateProject, 
   projType = 'create',
   open = false,
-  taskLists = [] 
+  taskLists = [] as TaskList[] // Explicitly type the default value
 }: ProjectModalProps) => {
   const [editMode, setEditMode] = useState(projType === 'create');
   const [projectName, setProjectName] = useState('');

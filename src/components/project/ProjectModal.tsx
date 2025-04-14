@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ interface ProjectModalProps {
   onUpdateProject: (project: any) => void;
   projType?: string;
   open: boolean;
-  taskLists?: any[];
+  taskLists?: Array<{id: number, name: string, color?: string}>;
 }
 
 export const ProjectModal = ({ 
@@ -556,7 +557,7 @@ export const ProjectModal = ({
                         </div>
                       </SelectTrigger>
                       <SelectContent>
-                        {taskLists?.map((list) => (
+                        {taskLists.map((list) => (
                           <SelectItem 
                             key={list.id} 
                             value={list.id.toString()}
@@ -764,7 +765,7 @@ export const ProjectModal = ({
             
             <ScrollArea className="h-[300px] rounded-md border p-4">
               {Object.entries(tasksByList).map(([listId, tasks]) => {
-                const list = taskLists?.find(l => l.id === parseInt(listId));
+                const list = taskLists.find(l => l.id === parseInt(listId));
                 return (
                   <div key={listId} className="mb-4">
                     <div className="mb-2 font-medium flex items-center gap-2">

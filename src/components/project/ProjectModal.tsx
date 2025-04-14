@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ export const ProjectModal = ({
   onUpdateProject, 
   projType = 'create',
   open = false,
-  taskLists = []
+  taskLists = [] // Default value to ensure it's always an array
 }: ProjectModalProps) => {
   const [editMode, setEditMode] = useState(projType === 'create');
   const [projectName, setProjectName] = useState('');

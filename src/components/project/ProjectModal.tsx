@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ interface ProjectModalProps {
   onUpdateProject: (project: any) => void;
   projType?: string;
   open: boolean;
-  taskLists?: Array<{id: number, name: string, color?: string}>;
+  taskLists: Array<{id: number, name: string, color?: string}>;
 }
 
 export const ProjectModal = ({ 
@@ -69,7 +70,7 @@ export const ProjectModal = ({
       console.log("Project data loaded:", project);
       
       setProjectName(project['Project Name'] || project.name || '');
-      setProjectNotes(project.notes || '');
+      setProjectNotes(''); // Initialize with empty string since notes column doesn't exist
       setProgress((project.progress || project.status || 'Not started') as 'Not started' | 'In progress' | 'Completed' | 'Backlog');
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
@@ -347,7 +348,6 @@ export const ProjectModal = ({
     try {
       const projectData = {
         'Project Name': projectName,
-        notes: projectNotes,
         date_started: dateStarted?.toISOString(),
         date_due: dateDue?.toISOString(),
         progress: progress,
@@ -363,7 +363,6 @@ export const ProjectModal = ({
           .from('Projects')
           .update({
             'Project Name': projectName,
-            notes: projectNotes,
             date_started: dateStarted?.toISOString(),
             date_due: dateDue?.toISOString(),
             progress: progress,
@@ -376,6 +375,7 @@ export const ProjectModal = ({
         if (error) {
           console.error("Error updating project:", error);
           toast.error("Failed to update project.");
+          setIsSaving(false);
           return;
         }
         
@@ -410,7 +410,6 @@ export const ProjectModal = ({
           .from('Projects')
           .insert([{
             'Project Name': projectName,
-            notes: projectNotes,
             date_started: dateStarted?.toISOString(),
             date_due: dateDue?.toISOString(),
             progress: progress,
@@ -425,6 +424,7 @@ export const ProjectModal = ({
         if (error) {
           console.error("Error creating project:", error);
           toast.error("Failed to create project.");
+          setIsSaving(false);
           return;
         }
         
@@ -525,18 +525,6 @@ export const ProjectModal = ({
                     className="col-span-3" 
                     onChange={(e) => setProjectName(e.target.value)} 
                     placeholder="Enter project name"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="description" className="text-right">
-                    Notes
-                  </Label>
-                  <Textarea 
-                    id="description" 
-                    value={projectNotes} 
-                    className="col-span-3" 
-                    onChange={(e) => setProjectNotes(e.target.value)} 
-                    placeholder="Add notes about this project"
                   />
                 </div>
                 
@@ -691,12 +679,6 @@ export const ProjectModal = ({
                     Name
                   </Label>
                   <div className="text-lg font-semibold">{projectName || "No name provided"}</div>
-                </div>
-                <div className="grid grid-cols-1 items-start gap-2">
-                  <Label htmlFor="description" className="text-left">
-                    Notes
-                  </Label>
-                  <div>{projectNotes || "No notes provided."}</div>
                 </div>
                 
                 <div className="grid grid-cols-1 items-start gap-2">

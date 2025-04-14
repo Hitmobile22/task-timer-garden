@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -56,7 +55,7 @@ export const ProjectModal = ({
   const [activeTab, setActiveTab] = useState<'details' | 'tasks' | 'goals'>('details');
   
   useEffect(() => {
-    if (taskLists?.length > 0 && !taskListId) {
+    if (taskLists.length > 0 && !taskListId) {
       setTaskListId(taskLists[0].id);
     }
   }, [taskLists, taskListId]);
@@ -705,15 +704,15 @@ export const ProjectModal = ({
                     Task List
                   </Label>
                   <div className="flex items-center gap-2">
-                    {taskLists?.find(list => list.id === taskListId) ? (
+                    {taskLists.find(list => list.id === taskListId) ? (
                       <>
                         <div 
                           className="w-2 h-2 rounded-full"
                           style={{ 
-                            backgroundColor: taskLists?.find(list => list.id === taskListId)?.color || 'gray'
+                            backgroundColor: taskLists.find(list => list.id === taskListId)?.color || 'gray'
                           }} 
                         />
-                        <span>{taskLists?.find(list => list.id === taskListId)?.name || "Default List"}</span>
+                        <span>{taskLists.find(list => list.id === taskListId)?.name || "Default List"}</span>
                       </>
                     ) : (
                       <span>Default List</span>

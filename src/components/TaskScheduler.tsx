@@ -15,6 +15,8 @@ import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
 import { syncGoogleCalendar } from './task/GoogleCalendarIntegration';
 import { NotificationBell } from './notifications/NotificationBell';
 import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 interface SubTask {
   name: string;
@@ -33,6 +35,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number>();
+  const [isGeneratingTasks, setIsGeneratingTasks] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -41,9 +44,19 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const recurringTasksChecker = useUnifiedRecurringTasksCheck();
   
   // Add button to manually trigger recurring task generation
-  const triggerRecurringTasksGeneration = () => {
+  const triggerRecurringTasksGeneration = async () => {
+    setIsGeneratingTasks(true);
     toast.info('Checking for recurring tasks...');
-    recurringTasksChecker.forceCheck();
+    
+    try {
+      await recurringTasksChecker.forceCheck();
+      toast.success('Recurring tasks updated');
+    } catch (error) {
+      console.error('Error triggering recurring tasks:', error);
+      toast.error('Failed to check recurring tasks');
+    } finally {
+      setIsGeneratingTasks(false);
+    }
   };
   
   const {
@@ -475,13 +488,20 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       <div className="container mx-auto flex justify-between items-center py-4">
         <MenuBar />
         <div className="flex items-center gap-2">
-          <button 
+          <Button
             onClick={triggerRecurringTasksGeneration}
             className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm"
-            title="Check for recurring tasks"
+            disabled={isGeneratingTasks}
+            size="sm"
           >
-            Generate Recurring Tasks
-          </button>
+            {isGeneratingTasks ? (
+              <>
+                <RefreshCw className="mr-1 h-3 w-3 animate-spin" /> Generating...
+              </>
+            ) : (
+              'Generate Recurring Tasks'
+            )}
+          </Button>
           <NotificationBell />
         </div>
       </div>

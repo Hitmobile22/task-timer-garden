@@ -14,7 +14,8 @@ import {
   normalizeDay,
   getCurrentNormalizedDay,
   isTooEarlyForTaskGeneration,
-  shouldRateLimitCheck
+  shouldRateLimitCheck,
+  isDayMatch
 } from '@/utils/recurringUtils';
 import { RecurringProject, RecurringProjectSettings, ProjectForEdgeFunction } from '@/types/recurring.types';
 import { getCurrentDayName } from '@/lib/utils';
@@ -98,7 +99,7 @@ export const useRecurringProjectsCheck = () => {
           // Extract and normalize the days of week from the project settings
           const settings = project.recurring_settings[0] as RecurringProjectSettings;
           const projectDays = settings.days_of_week?.map(normalizeDay) || [];
-          const shouldRunToday = projectDays.includes(normalizedCurrentDay);
+          const shouldRunToday = isDayMatch(normalizedCurrentDay, projectDays);
           
           console.log(`Project ${project.id} (${project['Project Name']}) days of week:`, 
             settings.days_of_week?.join(', ') || 'all days',
@@ -246,7 +247,7 @@ export const useRecurringProjectsCheck = () => {
       mountedRef.current = true;
       // Delay initial check to allow task list checks to go first
       setTimeout(() => {
-        checkRecurringProjects(true); // Force check on initial load
+        checkRecurringProjects(false); // Don't force check on initial load - respect day settings
       }, 5000);
     }
   }, [projects, checkRecurringProjects, isLocalChecking]);

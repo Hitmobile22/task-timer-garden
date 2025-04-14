@@ -236,6 +236,10 @@ export const RecurringTasksModal = ({
           const currentDay = getCurrentDayName();
           console.log(`Current day is ${currentDay}, selected days are ${settings.daysOfWeek.join(', ')}`);
           
+          // Check if current day is in the selected days
+          const isDaySelected = settings.daysOfWeek.includes(currentDay);
+          console.log(`Is today (${currentDay}) selected for task generation? ${isDaySelected}`);
+          
           // First check how many active tasks we already have
           const { data: activeTasks, error: countError } = await supabase
             .from('Tasks')
@@ -249,9 +253,9 @@ export const RecurringTasksModal = ({
             const activeTaskCount = activeTasks?.length || 0;
             console.log(`List already has ${activeTaskCount} active tasks out of goal ${settings.dailyTaskCount}`);
             
-            // Only check if the current day is in the selected days and we don't have enough tasks already
-            // Fix: Remove the undefined forceCheck and set it to true to force check after saving settings
-            if (settings.daysOfWeek.includes(currentDay) && (true || activeTaskCount < settings.dailyTaskCount)) {
+            // Only check if the current day is in the selected days
+            // Use forceCheck=true only when the day is actually selected
+            if (isDaySelected) {
               console.log('Running check for recurring tasks after saving settings');
               
               // Check if there's already a generation log for today
@@ -276,7 +280,7 @@ export const RecurringTasksModal = ({
               if (existingLog && existingLog.tasks_generated >= settings.dailyTaskCount) {
                 console.log(`Already generated ${existingLog.tasks_generated} tasks today (target: ${settings.dailyTaskCount}), skipping check`);
               } else {
-                // Always force check for the specific list after saving settings
+                // Force check for the specific list only if current day is in selected days
                 const { error: checkError } = await supabase.functions.invoke('check-recurring-tasks', {
                   body: { 
                     forceCheck: true,

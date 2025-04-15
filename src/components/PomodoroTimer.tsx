@@ -76,35 +76,31 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         .eq('is_enabled', true);
       
       if (error) throw error;
+      console.log(`Fetched ${data?.length || 0} goals for project ${currentTask.project_id}`);
       return data as ProjectGoal[];
     },
     enabled: !!currentTask?.project_id,
   });
 
-  // Effect to recalculate goals when component mounts or when task changes
   useEffect(() => {
     if (goalsLoaded && currentTask?.project_id && projectGoals.length > 0) {
-      // Force recalculation of project goals whenever the timer mounts with a task
-      console.log("Recalculating goals for project:", currentTask.project_id);
+      console.log(`Initial recalculating goals for project: ${currentTask.project_id}`);
       recalculateProjectGoals(currentTask.project_id);
     }
-  }, [currentTask?.project_id, goalsLoaded, recalculateProjectGoals]);
+  }, [currentTask?.project_id, goalsLoaded, projectGoals.length, recalculateProjectGoals]);
   
-  // Add an interval to periodically recalculate goals during active tasks
   useEffect(() => {
-    if (currentTask?.project_id) {
-      // Initial calculation
+    if (currentTask?.project_id && projectGoals.length > 0) {
       recalculateProjectGoals(currentTask.project_id);
       
-      // Set up interval for periodic recalculation
       const intervalId = setInterval(() => {
-        console.log("Periodic recalculation for project:", currentTask.project_id);
+        console.log(`Periodic recalculation for project: ${currentTask.project_id}`);
         recalculateProjectGoals(currentTask.project_id);
       }, 60000); // Recalculate every minute
       
       return () => clearInterval(intervalId);
     }
-  }, [currentTask?.project_id, recalculateProjectGoals]);
+  }, [currentTask?.project_id, projectGoals.length, recalculateProjectGoals]);
 
   const isVisible = useTimerVisibility(currentTask, getNextTask, isCountdownToNextTask);
   

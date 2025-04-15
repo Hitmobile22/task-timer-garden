@@ -28,18 +28,45 @@ export const ProjectGoalDisplay: React.FC<ProjectGoalDisplayProps> = ({ goals })
     }
   };
   
-  // Filter to show only active and current goals
+  // Improved filtering for active goals to ensure daily goals show properly
   const activeGoals = goals.filter(goal => {
-    if (goal.goal_type === 'daily') {
+    // For daily goals, show all enabled ones regardless of date
+    // Daily goals are reset each day so we should always show them
+    if (goal.goal_type === 'daily' && goal.is_enabled) {
+      return true;
+    }
+    
+    // For weekly goals, check if we're in the current week
+    if (goal.goal_type === 'weekly' && goal.is_enabled) {
+      return true;
+    }
+    
+    // For single date goals, check if the date matches
+    if (goal.goal_type === 'single_date' && goal.start_date) {
       const goalDate = new Date(goal.start_date);
       const today = new Date();
-      return (
-        goalDate.getDate() === today.getDate() &&
-        goalDate.getMonth() === today.getMonth() &&
-        goalDate.getFullYear() === today.getFullYear()
-      );
+      return goalDate.toDateString() === today.toDateString() && goal.is_enabled;
     }
-    return true;
+    
+    // For date period goals, check if we're in the range
+    if (goal.goal_type === 'date_period' && goal.is_enabled) {
+      const today = new Date();
+      let inRange = true;
+      
+      if (goal.start_date) {
+        const startDate = new Date(goal.start_date);
+        if (today < startDate) inRange = false;
+      }
+      
+      if (goal.end_date) {
+        const endDate = new Date(goal.end_date);
+        if (today > endDate) inRange = false;
+      }
+      
+      return inRange;
+    }
+    
+    return false;
   });
 
   return (

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,10 +10,8 @@ import {
   resetGenerationCacheIfNewDay
 } from '@/utils/recurringUtils';
 
-// Global state for the hook to prevent multiple instances from running concurrently
 let isGlobalChecking = false;
 const lastGlobalCheck = new Date(0);
-// Add a cache to prevent duplicate generation within the same session
 const generationCache = new Map<number, Date>();
 
 interface RecurringTaskSettings {
@@ -71,7 +68,6 @@ export const useUnifiedRecurringTasksCheck = () => {
         return null;
       }
       
-      // Also update the in-memory cache to prevent duplicate generation
       setTaskListGenerated(taskListId, now);
       
       return data;
@@ -141,7 +137,6 @@ export const useUnifiedRecurringTasksCheck = () => {
       }
       
       if (data) {
-        // If we found a log, also update our memory cache
         setTaskListGenerated(taskListId, new Date(data.generation_date));
       }
       
@@ -152,17 +147,14 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
   };
   
-  // Improved count function to include all tasks that are relevant for daily goal tracking
   const countAllTasksForDaily = async (taskListId: number) => {
     try {
-      // Get today's date bounds
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
-      // 1. Count active tasks in the list (Not Started or In Progress)
       const { data: activeTasks, error: activeError } = await supabase
         .from('Tasks')
         .select('id, Progress')
@@ -174,13 +166,12 @@ export const useUnifiedRecurringTasksCheck = () => {
         return { total: 0, active: 0, completedToday: 0 };
       }
       
-      // 2. Count tasks completed today - THIS IS THE KEY FIX
       const { data: completedTodayTasks, error: completedError } = await supabase
         .from('Tasks')
         .select('id')
         .eq('task_list_id', taskListId)
         .eq('Progress', 'Completed')
-        .gte('date_completed', today.toISOString()) // Make sure we're checking date_completed, not date_started
+        .gte('date_completed', today.toISOString())
         .lt('date_completed', tomorrow.toISOString());
       
       if (completedError) {
@@ -188,7 +179,6 @@ export const useUnifiedRecurringTasksCheck = () => {
         return { total: 0, active: 0, completedToday: 0 };
       }
       
-      // Calculate totals
       const activeCount = activeTasks?.length || 0;
       const completedTodayCount = completedTodayTasks?.length || 0;
       const totalCount = activeCount + completedTodayCount;
@@ -207,7 +197,6 @@ export const useUnifiedRecurringTasksCheck = () => {
   };
   
   const checkRecurringTasks = useCallback(async (forceCheck = false) => {
-    // First check if cache needs to be reset for a new day
     resetGenerationCacheIfNewDay();
     
     if (isGlobalChecking || isChecking) {
@@ -220,7 +209,7 @@ export const useUnifiedRecurringTasksCheck = () => {
     today.setHours(0, 0, 0, 0);
     
     const timeSinceLastCheck = now.getTime() - lastGlobalCheck.getTime();
-    const minInterval = 5 * 60 * 1000; // 5 minutes
+    const minInterval = 5 * 60 * 1000;
     
     if (!forceCheck && timeSinceLastCheck < minInterval) {
       console.log(`Last recurring tasks check was ${Math.round(timeSinceLastCheck / 1000 / 60)} minutes ago, skipping`);
@@ -250,17 +239,14 @@ export const useUnifiedRecurringTasksCheck = () => {
         return;
       }
       
-      // Filter settings to only include those that should run today
       const relevantSettings = settings.filter(s => {
         if (!s.enabled || s.daily_task_count <= 0) return false;
         
-        // First check our in-memory and localStorage cache
         if (!forceCheck && hasTaskListBeenGeneratedToday(s.task_list_id)) {
           console.log(`Task list ${s.task_list_id} already generated today (from cache), skipping`);
           return false;
         }
         
-        // Use our improved day matching function
         const dayMatches = isDayMatch(currentDay, s.days_of_week);
         
         console.log(`List ${s.task_list_id} days: [${s.days_of_week.join(', ')}], current day: ${currentDay}, matches: ${dayMatches}`);
@@ -281,26 +267,22 @@ export const useUnifiedRecurringTasksCheck = () => {
           break;
         }
         
-        // Check database generation log as secondary validation
         const existingLog = await getGenerationLog(setting.task_list_id, setting.id);
         
         if (!forceCheck && existingLog) {
           console.log(`Already generated ${existingLog.tasks_generated} tasks for list ${setting.task_list_id} today (database), skipping`);
           
-          // Update in-memory cache
           setTaskListGenerated(setting.task_list_id, new Date(existingLog.generation_date));
           continue;
         }
         
-        // CRITICAL: Count both active AND completed tasks for today - KEY FIX
         const taskCounts = await countAllTasksForDaily(setting.task_list_id);
+        
         console.log(`Task list ${setting.task_list_id} has ${taskCounts.total} relevant tasks (${taskCounts.active} active, ${taskCounts.completedToday} completed today) of ${setting.daily_task_count} goal`);
         
-        // If we already have enough tasks (active + completed today), don't create more
         if (!forceCheck && taskCounts.total >= setting.daily_task_count) {
           console.log(`Task list ${setting.task_list_id} already has enough tasks (${taskCounts.total}) for today's goal (${setting.daily_task_count}), skipping`);
           
-          // Create a generation log entry to mark this list as processed
           await logGenerationActivity(
             setting.task_list_id,
             setting.id,
@@ -308,25 +290,20 @@ export const useUnifiedRecurringTasksCheck = () => {
             { status: 'skipped', reason: 'goal_already_met', activeCount: taskCounts.active, completedToday: taskCounts.completedToday }
           );
           
-          // Update in-memory and localStorage cache
           setTaskListGenerated(setting.task_list_id, new Date());
           
           continue;
         }
         
-        // Create a generation log entry even before checking for tasks
-        // This will serve as a marker that this list was processed today
         await logGenerationActivity(
           setting.task_list_id,
           setting.id,
-          0,  // Initial count 0, we'll update after creation if needed
+          0,
           { initialCheck: new Date().toISOString() }
         );
         
-        // Update in-memory and localStorage cache right away
         setTaskListGenerated(setting.task_list_id, new Date());
         
-        // Only create additional tasks if we have fewer relevant tasks than the daily goal
         const additionalTasksToCreate = Math.max(0, setting.daily_task_count - taskCounts.total);
         
         if (additionalTasksToCreate > 0) {
@@ -341,7 +318,8 @@ export const useUnifiedRecurringTasksCheck = () => {
                 currentTaskCount: taskCounts.total,
                 additionalTasksNeeded: additionalTasksToCreate,
                 currentDay: currentDay,
-                completedTodayCount: taskCounts.completedToday // Pass the completed count to the edge function
+                completedTodayCount: taskCounts.completedToday,
+                skipUniqueNameCheck: true
               }
             });
             
@@ -403,9 +381,7 @@ export const useUnifiedRecurringTasksCheck = () => {
     }
   }, [queryClient]);
   
-  // Run an initial check when the component mounts
   useEffect(() => {
-    // Reset generation cache if it's a new day first
     resetGenerationCacheIfNewDay();
     
     const timer = setTimeout(() => {
@@ -415,7 +391,6 @@ export const useUnifiedRecurringTasksCheck = () => {
     return () => clearTimeout(timer);
   }, [checkRecurringTasks]);
   
-  // Set up periodic checks
   useEffect(() => {
     const interval = setInterval(() => {
       try {

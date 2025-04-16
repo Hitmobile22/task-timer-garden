@@ -1,4 +1,3 @@
-
 // Update the edge function to handle day-of-week restrictions for projects.
 // This involves adding logic to check if a project should be processed based on the current day.
 
@@ -219,17 +218,6 @@ Deno.serve(async (req) => {
         
         console.log(`Creating ${tasksToCreate} tasks for project ${project.id}`);
         
-        // Get existing task names to avoid duplicates
-        const { data: existingTasks, error: namesError } = await supabaseClient
-          .from('Tasks')
-          .select('"Task Name"')
-          .eq('project_id', project.id);
-          
-        if (namesError) {
-          console.error(`Error fetching existing task names for project ${project.id}:`, namesError);
-        }
-        
-        const existingNames = new Set((existingTasks || []).map(t => t["Task Name"]));
         const newTasks = [];
         
         for (let i = 0; i < tasksToCreate; i++) {
@@ -241,14 +229,6 @@ Deno.serve(async (req) => {
           
           let taskNumber = activeTaskCount + i + 1;
           let taskName = `${project["Project Name"]} - Task ${taskNumber}`;
-          
-          // Ensure unique name
-          let uniqueCounter = 1;
-          while (existingNames.has(taskName)) {
-            taskName = `${project["Project Name"]} - Task ${taskNumber} (${uniqueCounter++})`;
-          }
-          
-          existingNames.add(taskName);
           
           newTasks.push({
             "Task Name": taskName,

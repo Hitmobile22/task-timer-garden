@@ -177,6 +177,7 @@ Deno.serve(async (req) => {
     let settings: RecurringTaskSetting[] = [];
     let specificListId: number | null = null;
     const forceCheck = !!body.forceCheck;
+    const skipUniqueNameCheck = !!body.skipUniqueNameCheck;
     
     // When processing a specific list
     if (body.specificListId) {
@@ -564,8 +565,10 @@ Deno.serve(async (req) => {
           
           console.log(`Creating ${projectTasksToCreate} new tasks for project ${project.id} (${project["Project Name"]})`);
           
-          // Get existing task names for this project
-          const existingProjectTaskNames = activeProjectTasks ? activeProjectTasks.map(t => t["Task Name"]) : [];
+          // Get existing task names for this project - only if we're not skipping unique name check
+          const existingProjectTaskNames = !skipUniqueNameCheck && activeProjectTasks 
+            ? activeProjectTasks.map(t => t["Task Name"]) 
+            : [];
           
           for (let i = 0; i < projectTasksToCreate; i++) {
             // Always start tasks at 9am (consistent time)
@@ -578,15 +581,18 @@ Deno.serve(async (req) => {
             let taskNumber = totalProjectTaskCount + i + 1;
             let taskName = `${project["Project Name"]} - Task ${taskNumber}`;
             
-            // Ensure we don't create duplicate task names
-            let uniqueNameCounter = 1;
-            while (existingProjectTaskNames.includes(taskName)) {
-              taskName = `${project["Project Name"]} - Task ${taskNumber} (${uniqueNameCounter})`;
-              uniqueNameCounter++;
+            // Only do uniqueness check if not skipping it
+            if (!skipUniqueNameCheck) {
+              // Ensure we don't create duplicate task names
+              let uniqueNameCounter = 1;
+              while (existingProjectTaskNames.includes(taskName)) {
+                taskName = `${project["Project Name"]} - Task ${taskNumber} (${uniqueNameCounter})`;
+                uniqueNameCounter++;
+              }
+              
+              // Add the task name to our tracking array to prevent duplicates in this batch
+              existingProjectTaskNames.push(taskName);
             }
-            
-            // Add the task name to our tracking array to prevent duplicates in this batch
-            existingProjectTaskNames.push(taskName);
               
             tasksToCreate.push({
               "Task Name": taskName,
@@ -641,8 +647,8 @@ Deno.serve(async (req) => {
         
         // Create remaining tasks directly for the task list (not assigned to any project)
         if (additionalListTasksToCreate > 0) {
-          // Check for existing task names to avoid duplicates
-          const existingTaskNames = nonProjectTasks 
+          // Check for existing task names to avoid duplicates - only if not skipping name check
+          const existingTaskNames = !skipUniqueNameCheck && nonProjectTasks 
             ? nonProjectTasks.map(task => task["Task Name"])
             : [];
           
@@ -657,15 +663,18 @@ Deno.serve(async (req) => {
             let taskNumber = totalNonProjectCount + i + 1;
             let taskName = `${listName} - Task ${taskNumber}`;
             
-            // Ensure we don't create duplicate task names
-            let uniqueNameCounter = 1;
-            while (existingTaskNames.includes(taskName)) {
-              taskName = `${listName} - Task ${taskNumber} (${uniqueNameCounter})`;
-              uniqueNameCounter++;
+            // Only do uniqueness check if not skipping it
+            if (!skipUniqueNameCheck) {
+              // Ensure we don't create duplicate task names
+              let uniqueNameCounter = 1;
+              while (existingTaskNames.includes(taskName)) {
+                taskName = `${listName} - Task ${taskNumber} (${uniqueNameCounter})`;
+                uniqueNameCounter++;
+              }
+              
+              // Add the task name to our tracking array to prevent duplicates in this batch
+              existingTaskNames.push(taskName);
             }
-            
-            // Add the task name to our tracking array to prevent duplicates in this batch
-            existingTaskNames.push(taskName);
               
             tasksToCreate.push({
               "Task Name": taskName,

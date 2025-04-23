@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -319,7 +320,7 @@ export const useUnifiedRecurringTasksCheck = () => {
                 additionalTasksNeeded: additionalTasksToCreate,
                 currentDay: currentDay,
                 completedTodayCount: taskCounts.completedToday,
-                skipUniqueNameCheck: true
+                skipUniqueNameCheck: true // Pass this flag to avoid adding (1), (2) to task names
               }
             });
             

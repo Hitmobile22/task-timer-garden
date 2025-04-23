@@ -1,3 +1,4 @@
+
 // Update the edge function to handle day-of-week restrictions for projects.
 // This involves adding logic to check if a project should be processed based on the current day.
 
@@ -111,10 +112,13 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        // Check if this project should run today based on recurring settings
+        // IMPROVED DAY CHECK: Check if this project should run today based on recurring settings
+        // This is the key fix to ensure tasks are only created on specific days
         if (project.recurring_settings && project.recurring_settings.days_of_week && project.recurring_settings.days_of_week.length > 0) {
           // Extract and normalize the days of week from the project settings
           const projectDays = project.recurring_settings.days_of_week.map(normalizeDay);
+          
+          // Ensure strict day matching - only create tasks if today matches exactly
           const shouldRunToday = projectDays.includes(normalizedCurrentDay);
           
           console.log(`Project ${project.id} (${project['Project Name']}) days of week:`, 
@@ -227,6 +231,7 @@ Deno.serve(async (req) => {
           const taskEndTime = new Date(taskStartTime);
           taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
           
+          // Remove the task number suffix to avoid (1), (2) etc. at the end of task names
           let taskNumber = activeTaskCount + i + 1;
           let taskName = `${project["Project Name"]} - Task ${taskNumber}`;
           

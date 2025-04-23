@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
@@ -32,15 +31,12 @@ export const useRecurringProjectsCheck = () => {
   const checkGenerationLog = useGenerationLogCheck();
   const checkAndResetDailyGoals = useDailyGoalsReset();
 
-  // Check recurring projects
   const checkRecurringProjects = useCallback(async (forceCheck = false) => {
-    // Prevent concurrent checks globally across instances
     if (getIsGlobalCheckInProgress() || getLastFullCheck().inProgress) {
       console.log('Global project check already in progress, skipping');
       return;
     }
     
-    // Implement rate limiting for the global check
     const now = new Date();
     const timeSinceLastCheck = now.getTime() - getLastFullCheck().timestamp.getTime();
     const rateLimitMs = 15 * 60 * 1000; // 15 minutes
@@ -51,22 +47,18 @@ export const useRecurringProjectsCheck = () => {
     }
     
     try {
-      // First check if daily goals need to be reset (new day)
       await checkAndResetDailyGoals();
       
-      // Set global check flags
       setIsGlobalCheckInProgress(true);
       getLastFullCheck().inProgress = true;
       getLastFullCheck().timestamp = now;
       setIsLocalChecking(true);
       
-      // Early morning check (before 7am don't generate tasks)
       if (isTooEarlyForTaskGeneration() && !forceCheck) {
         console.log('Before 7am, skipping project task generation check');
         return;
       }
       
-      // Get current day for debugging
       const currentDayOfWeek = getCurrentDayName();
       const normalizedCurrentDay = getCurrentNormalizedDay();
       console.log(`Running recurring projects check on ${currentDayOfWeek} (normalized: ${normalizedCurrentDay})`);
@@ -76,29 +68,25 @@ export const useRecurringProjectsCheck = () => {
         return;
       }
       
-      // Filter projects and check for generation logs
       const filteredProjects: RecurringProject[] = [];
       const lastGlobalCheck = getLastGlobalCheck();
       
       for (const project of projects) {
-        // Skip if already processing this project
         if (processingRef.current.has(project.id)) {
           console.log(`Already processing project ${project.id}, skipping`);
           continue;
         }
         
-        // Skip if rate-limited
         const lastCheck = lastGlobalCheck.get(project.id);
         if (!forceCheck && lastCheck && (now.getTime() - lastCheck.getTime()) < rateLimitMs) {
           console.log(`Rate limiting check for project ${project.id}, last checked ${Math.round((now.getTime() - lastCheck.getTime()) / 1000 / 60)} minutes ago`);
           continue;
         }
         
-        // Check if this project should run today based on recurring settings
         if (project.recurring_settings && project.recurring_settings.length > 0) {
-          // Extract and normalize the days of week from the project settings
           const settings = project.recurring_settings[0] as RecurringProjectSettings;
           const projectDays = settings.days_of_week?.map(normalizeDay) || [];
+          
           const shouldRunToday = isDayMatch(normalizedCurrentDay, projectDays);
           
           console.log(`Project ${project.id} (${project['Project Name']}) days of week:`, 
@@ -111,7 +99,6 @@ export const useRecurringProjectsCheck = () => {
           }
         }
         
-        // Verify project due date is in the future or today
         const dueDate = project.date_due ? new Date(project.date_due) : null;
         if (dueDate) {
           const today = new Date();
@@ -119,7 +106,6 @@ export const useRecurringProjectsCheck = () => {
           if (dueDate < today) {
             console.log(`Project ${project.id} (${project['Project Name']}) due date ${dueDate.toISOString()} is in the past, updating name if needed`);
             
-            // Only mark as overdue if not already marked
             if (!project['Project Name'].includes('(overdue)')) {
               try {
                 const { error } = await supabase
@@ -139,7 +125,6 @@ export const useRecurringProjectsCheck = () => {
           }
         }
         
-        // Check for existing generation log
         const generationLog = await checkGenerationLog(project.id);
         
         if (generationLog && !forceCheck) {
@@ -160,7 +145,6 @@ export const useRecurringProjectsCheck = () => {
       
       console.log(`Sending ${filteredProjects.length} projects to edge function for task generation`);
       
-      // Prepare projects for the edge function
       const projectsForEdgeFunction: ProjectForEdgeFunction[] = filteredProjects.map(p => ({
         id: p.id,
         "Project Name": p["Project Name"],
@@ -170,7 +154,6 @@ export const useRecurringProjectsCheck = () => {
         date_started: p.date_started,
         date_due: p.date_due,
         progress: p.progress,
-        // Include recurring settings if available
         recurring_settings: p.recurring_settings?.length > 0 
           ? { 
               days_of_week: (p.recurring_settings[0] as RecurringProjectSettings).days_of_week || [] 
@@ -178,7 +161,6 @@ export const useRecurringProjectsCheck = () => {
           : null
       }));
       
-      // Send projects to edge function
       const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
         body: {
           forceCheck: forceCheck,
@@ -187,7 +169,6 @@ export const useRecurringProjectsCheck = () => {
         }
       });
       
-      // Clear processing flags
       filteredProjects.forEach(p => {
         processingRef.current.delete(p.id);
       });
@@ -199,7 +180,6 @@ export const useRecurringProjectsCheck = () => {
       
       console.log('Recurring projects check result:', data);
       
-      // Refresh task queries if tasks were created
       const tasksCreated = data?.results?.some(result => result.status === 'created');
       if (tasksCreated) {
         console.log('Tasks were created, invalidating task queries');
@@ -208,9 +188,7 @@ export const useRecurringProjectsCheck = () => {
         
         toast.success('Created new recurring tasks');
         
-        // Since projects created tasks, also check if any task lists need to adjust their generation
         setTimeout(() => {
-          // Trigger task list check specifically for the task lists that had projects generate tasks
           const affectedTaskLists = new Set(
             filteredProjects
               .filter(p => p.task_list_id)
@@ -226,58 +204,47 @@ export const useRecurringProjectsCheck = () => {
         console.log('No tasks were created by the recurring projects check');
       }
       
-      // Update last checked time
       setLastChecked(now);
-      
     } catch (error) {
       console.error('Error in checkRecurringProjects:', error);
       toast.error('Error checking recurring projects');
     } finally {
-      // Reset flags
       setIsLocalChecking(false);
       setIsGlobalCheckInProgress(false);
       getLastFullCheck().inProgress = false;
     }
   }, [projects, queryClient, checkGenerationLog, checkAndResetDailyGoals]);
 
-  // Run initial check when component mounts
   useEffect(() => {
     if (projects?.length > 0 && !isLocalChecking && !getIsGlobalCheckInProgress() && !mountedRef.current) {
-      console.log('Initial recurring projects check starting');
       mountedRef.current = true;
-      // Delay initial check to allow task list checks to go first
       setTimeout(() => {
-        checkRecurringProjects(false); // Don't force check on initial load - respect day settings
+        checkRecurringProjects(false);
       }, 5000);
     }
   }, [projects, checkRecurringProjects, isLocalChecking]);
   
-  // Check for day change to reset daily goals
   useEffect(() => {
     if (dailyGoals && dailyGoals.length > 0) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      // Check if we need to reset daily goals (new day)
       checkAndResetDailyGoals();
     }
   }, [dailyGoals, checkAndResetDailyGoals]);
 
-  // Set up interval check
   useEffect(() => {
     const interval = setInterval(() => {
       try {
         const currentHour = new Date().getHours();
-        // Only check during daytime hours (7am-10pm) and if no check is already in progress
         if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !getIsGlobalCheckInProgress()) {
-          console.log('Running scheduled recurring projects check');
           checkRecurringProjects();
         }
       } catch (error) {
         console.error('Error in interval check:', error);
       }
-    }, 30 * 60 * 1000); // Check every 30 minutes (reduced from 62 minutes)
-
+    }, 30 * 60 * 1000);
+    
     return () => clearInterval(interval);
   }, [checkRecurringProjects, isLocalChecking]);
 

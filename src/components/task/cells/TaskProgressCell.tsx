@@ -6,6 +6,7 @@ import { Task } from '@/types/task.types';
 import { Badge } from "@/components/ui/badge";
 import { isTaskTimeBlock } from '@/utils/taskUtils';
 import { syncGoogleCalendar } from '../GoogleCalendarIntegration';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface TaskProgressCellProps {
   task: Task;
@@ -20,6 +21,7 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
 }) => {
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
   const isTimeBlock = isTaskTimeBlock(task);
+  const queryClient = useQueryClient();
 
   React.useEffect(() => {
     setTempProgress(task.Progress);
@@ -28,6 +30,15 @@ export const TaskProgressCell: React.FC<TaskProgressCellProps> = ({
   const handleProgressChange = (value: Task['Progress']) => {
     setTempProgress(value);
     onUpdateProgress(value);
+    
+    // When completing a task, refresh task queries to update counters
+    if (value === 'Completed') {
+      // Wait a moment for the database to update
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      }, 1000);
+    }
     
     // Sync with Google Calendar after progress changes
     // This is especially important for completed tasks

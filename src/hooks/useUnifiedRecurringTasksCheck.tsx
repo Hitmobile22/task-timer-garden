@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -172,8 +171,8 @@ export const useUnifiedRecurringTasksCheck = () => {
         .select('id')
         .eq('task_list_id', taskListId)
         .eq('Progress', 'Completed')
-        .gte('date_completed', today.toISOString())
-        .lt('date_completed', tomorrow.toISOString());
+        .gte('date_started', today.toISOString())
+        .lt('date_started', tomorrow.toISOString());
       
       if (completedError) {
         console.error(`Error counting completed tasks for list ${taskListId}:`, completedError);
@@ -287,8 +286,7 @@ export const useUnifiedRecurringTasksCheck = () => {
           await logGenerationActivity(
             setting.task_list_id,
             setting.id,
-            taskCounts.total,
-            { status: 'skipped', reason: 'goal_already_met', activeCount: taskCounts.active, completedToday: taskCounts.completedToday }
+            taskCounts.total
           );
           
           setTaskListGenerated(setting.task_list_id, new Date());
@@ -299,8 +297,7 @@ export const useUnifiedRecurringTasksCheck = () => {
         await logGenerationActivity(
           setting.task_list_id,
           setting.id,
-          0,
-          { initialCheck: new Date().toISOString() }
+          0
         );
         
         setTaskListGenerated(setting.task_list_id, new Date());
@@ -340,7 +337,7 @@ export const useUnifiedRecurringTasksCheck = () => {
                 .from('recurring_task_generation_logs')
                 .update({ 
                   tasks_generated: newTaskCount,
-                  details: { ...generationLog.details, lastCheck: new Date().toISOString() }
+                  details: { lastCheck: new Date().toISOString() }
                 })
                 .eq('id', generationLog.id);
               

@@ -174,7 +174,8 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        // IMPORTANT FIX: Count ONLY "Not started" and "In progress" tasks for proper active task calculation
+        // IMPROVED: Count both active AND completed tasks for today to avoid duplicate generation
+        // Get active tasks
         const { data: activeTasks, error: tasksError } = await supabaseClient
           .from('Tasks')
           .select('id')
@@ -191,24 +192,47 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        const activeTaskCount = activeTasks?.length || 0;
-        const taskGoal = project.recurringTaskCount || 1;
-        
-        console.log(`Project ${project.id} has ${activeTaskCount} active tasks of ${taskGoal} goal`);
-        
-        if (activeTaskCount >= taskGoal && !forceCheck) {
-          console.log(`Project ${project.id} already has enough active tasks, skipping`);
+        // CRITICAL FIX: Also get tasks completed today
+        const { data: completedTodayTasks, error: completedTasksError } = await supabaseClient
+          .from('Tasks')
+          .select('id')
+          .eq('project_id', project.id)
+          .eq('Progress', 'Completed')
+          .gte('date_started', today.toISOString())
+          .lt('date_started', tomorrow.toISOString());
+          
+        if (completedTasksError) {
+          console.error(`Error checking completed tasks for project ${project.id}:`, completedTasksError);
           results.push({
             project_id: project.id,
-            status: 'skipped',
-            reason: 'enough_tasks',
-            existing: activeTaskCount
+            status: 'error',
+            error: 'completed_task_check_failed'
           });
           continue;
         }
         
-        // Create tasks
-        const tasksToCreate = Math.max(0, taskGoal - activeTaskCount);
+        const activeTaskCount = activeTasks?.length || 0;
+        const completedTodayCount = completedTodayTasks?.length || 0;
+        const totalRelevantTaskCount = activeTaskCount + completedTodayCount;
+        const taskGoal = project.recurringTaskCount || 1;
+        
+        console.log(`Project ${project.id} has ${activeTaskCount} active tasks, ${completedTodayCount} completed today. Total: ${totalRelevantTaskCount} of ${taskGoal} goal`);
+        
+        if (totalRelevantTaskCount >= taskGoal && !forceCheck) {
+          console.log(`Project ${project.id} already has enough tasks (including completed ones), skipping`);
+          results.push({
+            project_id: project.id,
+            status: 'skipped',
+            reason: 'enough_tasks',
+            existing: activeTaskCount,
+            completed: completedTodayCount,
+            total: totalRelevantTaskCount
+          });
+          continue;
+        }
+        
+        // Create tasks - but only the difference needed
+        const tasksToCreate = Math.max(0, taskGoal - totalRelevantTaskCount);
         
         if (tasksToCreate <= 0) {
           console.log(`No tasks to create for project ${project.id}, skipping`);
@@ -232,8 +256,7 @@ Deno.serve(async (req) => {
           taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
           
           // Remove the task number suffix to avoid (1), (2) etc. at the end of task names
-          let taskNumber = activeTaskCount + i + 1;
-          let taskName = `${project["Project Name"]} - Task ${taskNumber}`;
+          let taskName = `${project["Project Name"]} - Task`;
           
           newTasks.push({
             "Task Name": taskName,

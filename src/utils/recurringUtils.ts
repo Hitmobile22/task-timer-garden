@@ -25,16 +25,63 @@ const globalState = {
   taskListGenerationCache: new Map<number, Date>()
 };
 
+// Initialize from localStorage on module load
+(() => {
+  try {
+    // Load last daily goal reset date
+    const storedDailyResetStr = localStorage.getItem('last_daily_goals_reset');
+    if (storedDailyResetStr) {
+      globalState.lastDailyGoalResetDay = new Date(storedDailyResetStr);
+    }
+    
+    // Load toast notification flag
+    const hasShownResetToast = localStorage.getItem('has_shown_daily_reset_toast');
+    if (hasShownResetToast === 'true') {
+      globalState.hasShownDailyResetToast = true;
+    }
+  } catch (err) {
+    console.error('Error initializing recurring utils from localStorage:', err);
+  }
+})();
+
 // Getters and setters for the global state
 export const getLastGlobalCheck = () => globalState.lastGlobalCheck;
 export const getIsGlobalCheckInProgress = () => globalState.isGlobalCheckInProgress;
 export const setIsGlobalCheckInProgress = (value: boolean) => { globalState.isGlobalCheckInProgress = value; };
 export const getLastFullCheck = () => globalState.lastFullCheck;
+
 export const getLastDailyGoalResetDay = () => globalState.lastDailyGoalResetDay;
-export const setLastDailyGoalResetDay = (date: Date) => { globalState.lastDailyGoalResetDay = date; };
+export const setLastDailyGoalResetDay = (date: Date) => { 
+  globalState.lastDailyGoalResetDay = date;
+  try {
+    localStorage.setItem('last_daily_goals_reset', date.toISOString());
+  } catch (err) {
+    console.error('Error saving last daily goal reset to localStorage:', err);
+  }
+};
+
 export const getHasShownDailyResetToast = () => globalState.hasShownDailyResetToast;
-export const setHasShownDailyResetToast = (value: boolean) => { globalState.hasShownDailyResetToast = value; };
+export const setHasShownDailyResetToast = (value: boolean) => { 
+  globalState.hasShownDailyResetToast = value;
+  try {
+    localStorage.setItem('has_shown_daily_reset_toast', value ? 'true' : 'false');
+  } catch (err) {
+    console.error('Error saving daily reset toast flag to localStorage:', err);
+  }
+};
+
 export const getTaskListGenerationCache = () => globalState.taskListGenerationCache;
+
+// Reset toast notification state at midnight
+export const resetToastStateAtMidnight = () => {
+  const now = new Date();
+  const resetDate = new Date(globalState.lastDailyGoalResetDay);
+  
+  // If the day has changed since last reset, clear the toast flag
+  if (now.toDateString() !== resetDate.toDateString()) {
+    setHasShownDailyResetToast(false);
+  }
+};
 
 // Improved cache system for task list generation
 export const setTaskListGenerated = (listId: number, date: Date = new Date()) => {
@@ -177,3 +224,4 @@ const initializeCache = () => {
 
 // Initialize cache on module load
 initializeCache();
+

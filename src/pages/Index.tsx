@@ -5,24 +5,38 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
 import { GoalNotificationsPanel } from '@/components/goals/GoalNotificationsPanel';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
+import { resetToastStateAtMidnight } from '@/utils/recurringUtils';
 
 const Index = () => {
   const { resetDailyGoals } = useRecurringProjectsCheck();
+  const [didInitialReset, setDidInitialReset] = useState(false);
+  const initialResetRef = useRef(false);
   
   const queryClient = useQueryClient();
   const { data: goalNotifications = [], isLoading: isLoadingNotifications } = useGoalNotifications();
   const recurringTasksChecker = useUnifiedRecurringTasksCheck();
   
-  // Check for day change to reset daily goals on page load
+  // Check for day change to reset daily goals on page load - just once
   useEffect(() => {
-    // Reset daily goals if needed
-    resetDailyGoals();
-    
-    // Check for recurring tasks on page load (without forcing)
-    recurringTasksChecker.checkRecurringTasks(false);
+    if (!initialResetRef.current) {
+      initialResetRef.current = true;
+      
+      // Reset daily goals if needed (only on first load)
+      resetDailyGoals().then(wasReset => {
+        setDidInitialReset(true);
+        
+        // Reset toast state for a new day
+        resetToastStateAtMidnight();
+        
+        // Check for recurring tasks on page load (without forcing)
+        if (!wasReset) {
+          recurringTasksChecker.checkRecurringTasks(false);
+        }
+      });
+    }
   }, [resetDailyGoals, recurringTasksChecker]);
   
   const handleShuffleTasks = async () => {

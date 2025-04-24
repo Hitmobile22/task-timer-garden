@@ -36,8 +36,37 @@ Deno.serve(async (req) => {
       try {
         console.log("Resetting daily project goals");
         
+        // Get the current date in server's timezone
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        
+        // First, check if we've already reset goals today using the log table
+        const { data: resetLog, error: resetLogError } = await supabaseClient
+          .from('recurring_task_generation_logs')
+          .select('*')
+          .eq('task_list_id', -1) // Special ID for daily goal resets
+          .eq('setting_id', -1)   // Special ID for daily goal resets 
+          .gte('generation_date', today.toISOString())
+          .lt('generation_date', new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString())
+          .maybeSingle();
+          
+        if (resetLogError) {
+          console.error('Error checking reset log:', resetLogError);
+          // Continue anyway since this is just an optimization
+        } else if (resetLog) {
+          console.log('Daily goals already reset today according to log table:', resetLog);
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              goalsReset: 0,
+              message: `Daily goals already reset today at ${resetLog.generation_date}` 
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 200
+            }
+          );
+        }
         
         // Get goals that need to be reset
         const { data: dailyGoals, error } = await supabaseClient
@@ -63,6 +92,19 @@ Deno.serve(async (req) => {
           } catch (err) {
             console.error(`Error resetting goal ${goal.id}:`, err);
           }
+        }
+        
+        // Log this reset in the recurring_task_generation_logs table
+        if (goalsReset > 0) {
+          await supabaseClient
+            .from('recurring_task_generation_logs')
+            .insert({
+              task_list_id: -1, // Special ID for daily goal resets
+              setting_id: -1,   // Special ID for daily goal resets
+              generation_date: new Date().toISOString(),
+              tasks_generated: goalsReset,
+              details: { reset_type: 'daily_goals' }
+            });
         }
         
         return new Response(

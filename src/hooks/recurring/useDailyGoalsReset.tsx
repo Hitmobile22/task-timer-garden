@@ -18,14 +18,16 @@ export const useDailyGoalsReset = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Only reset once per day
-    if (getLastDailyGoalResetDay().toDateString() === today.toDateString()) {
+    const lastReset = getLastDailyGoalResetDay();
+    
+    // Check if it was reset today by comparing date strings rather than just objects
+    if (lastReset.toDateString() === today.toDateString()) {
       console.log('Daily goals already reset today, skipping');
       return false;
     }
     
     try {
-      console.log('Checking if daily goals need to be reset');
+      console.log(`Last reset was on ${lastReset.toDateString()}, today is ${today.toDateString()}, checking if daily goals need to be reset`);
       
       // Call the edge function to reset daily goals
       const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
@@ -43,16 +45,20 @@ export const useDailyGoalsReset = () => {
       
       if (data && data.success) {
         console.log(`Reset ${data.goalsReset || 0} daily goals`);
+        
+        // Store the reset date more persistently
         setLastDailyGoalResetDay(today);
+        localStorage.setItem('last_daily_goals_reset', today.toISOString());
         
         // Invalidate relevant queries
         queryClient.invalidateQueries({ queryKey: ['daily-project-goals'] });
         queryClient.invalidateQueries({ queryKey: ['project-goals'] });
         
-        // Only show toast notification once per session per day
+        // Only show toast notification once per day
         if (data.goalsReset > 0 && !getHasShownDailyResetToast()) {
           toast.info(`Reset ${data.goalsReset} daily goals for a new day`);
           setHasShownDailyResetToast(true);
+          localStorage.setItem('has_shown_daily_reset_toast', 'true');
         }
         
         return true;

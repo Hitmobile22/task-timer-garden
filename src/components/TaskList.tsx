@@ -145,7 +145,7 @@ const EditTaskModal = ({
         const newSubtasks = editingSubtasks.map(subtask => ({
           "Task Name": subtask["Task Name"],
           "Parent Task ID": newTask.id,
-          Progress: "Not started"
+          Progress: "Not started" as const
         }));
 
         const { error: subtaskError } = await supabase

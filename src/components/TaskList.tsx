@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -123,6 +122,50 @@ const EditTaskModal = ({
     }
   };
   
+  const handleDuplicateTask = async () => {
+    try {
+      const { data: newTask, error: taskError } = await supabase
+        .from('Tasks')
+        .insert([{
+          "Task Name": task["Task Name"],
+          Progress: "Not started",
+          task_list_id: task.task_list_id,
+          project_id: task.project_id,
+          date_started: task.date_started,
+          date_due: task.date_due,
+          details: task.details,
+          IsTimeBlock: task.IsTimeBlock
+        }])
+        .select()
+        .single();
+
+      if (taskError) throw taskError;
+
+      if (editingSubtasks.length > 0) {
+        const newSubtasks = editingSubtasks.map(subtask => ({
+          "Task Name": subtask["Task Name"],
+          "Parent Task ID": newTask.id,
+          Progress: "Not started"
+        }));
+
+        const { error: subtaskError } = await supabase
+          .from('subtasks')
+          .insert(newSubtasks);
+
+        if (subtaskError) throw subtaskError;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
+      
+      toast.success('Task duplicated successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error duplicating task:', error);
+      toast.error('Failed to duplicate task');
+    }
+  };
+  
   return <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -162,7 +205,10 @@ const EditTaskModal = ({
           </div>
         </div>
         <DialogFooter className="flex justify-between sm:justify-between">
-          <Button variant="secondary" onClick={handlePushTask}>Push task</Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={handlePushTask}>Push task</Button>
+            <Button variant="secondary" onClick={handleDuplicateTask}>Duplicate</Button>
+          </div>
           <Button onClick={handleSave}>Save changes</Button>
         </DialogFooter>
       </DialogContent>
@@ -698,7 +744,6 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleTaskStart = async (taskId: number) => {
     try {
-      // Get all non-completed tasks for scheduling
       const { data: activeTasks, error } = await supabase
         .from('Tasks')
         .select('*')
@@ -727,7 +772,6 @@ export const TaskList: React.FC<TaskListProps> = ({
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
       
-      // Start the selected task and set it to current time
       const taskToUpdate: Task = {
         id: selectedTask.id,
         "Task Name": selectedTask["Task Name"] || "",
@@ -750,8 +794,6 @@ export const TaskList: React.FC<TaskListProps> = ({
       
       if (startError) throw startError;
       
-      // Filter and sort tasks to reschedule
-      // Include tasks that are from today or earlier, but not the task we just started
       const otherTasks = activeTasks
         .filter(t => {
           const taskDate = new Date(t.date_started);

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -124,7 +125,7 @@ const EditTaskModal = ({
   
   const handleDuplicateTask = async () => {
     try {
-      // Create a new task as a copy of the current task
+      // Create a new task as a copy of the current task, but only include fields that exist in the database
       const { data: newTask, error: taskError } = await supabase
         .from('Tasks')
         .insert([{
@@ -134,8 +135,8 @@ const EditTaskModal = ({
           project_id: task.project_id,
           date_started: task.date_started,
           date_due: task.date_due,
-          details: task.details,
-          IsTimeBlock: task.IsTimeBlock
+          details: task.details
+          // IsTimeBlock field is removed as it doesn't exist in the database
         }])
         .select()
         .single();

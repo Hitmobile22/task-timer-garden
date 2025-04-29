@@ -124,6 +124,7 @@ const EditTaskModal = ({
   
   const handleDuplicateTask = async () => {
     try {
+      // Create a new task as a copy of the current task
       const { data: newTask, error: taskError } = await supabase
         .from('Tasks')
         .insert([{
@@ -141,13 +142,16 @@ const EditTaskModal = ({
 
       if (taskError) throw taskError;
 
+      // If there are subtasks, duplicate them for the new task
       if (editingSubtasks.length > 0) {
+        // Create an array of new subtasks objects
         const newSubtasks = editingSubtasks.map(subtask => ({
           "Task Name": subtask["Task Name"],
           "Parent Task ID": newTask.id,
           Progress: "Not started" as const
         }));
 
+        // Insert all new subtasks at once
         const { error: subtaskError } = await supabase
           .from('subtasks')
           .insert(newSubtasks);
@@ -155,6 +159,7 @@ const EditTaskModal = ({
         if (subtaskError) throw subtaskError;
       }
 
+      // Invalidate queries to refresh the UI
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
       

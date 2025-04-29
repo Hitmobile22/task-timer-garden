@@ -203,7 +203,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
           { 
             'Task Name': newSubtask, 
             'Parent Task ID': editedTask.id,
-            'Progress': 'Not started'
+            'Progress': 'Not started' as const
           }
         ])
         .select();

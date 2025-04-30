@@ -64,7 +64,7 @@ const Index = () => {
       tomorrow3AM.setHours(3, 0, 0, 0);
       
       let todayTasks;
-      if (now.getHours() >= 21) {
+      if (now.getHours() >= 21 || now.getHours() < 3) {
         todayTasks = activeTasks.filter(task => {
           const taskDate = task.date_started ? new Date(task.date_started) : null;
           if (!taskDate) return false;

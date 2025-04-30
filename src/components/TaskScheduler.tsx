@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -454,14 +453,14 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    const tomorrow5AM = new Date(tomorrow);
-    tomorrow5AM.setHours(5, 0, 0, 0);
+    const tomorrow3AM = new Date(tomorrow);
+    tomorrow3AM.setHours(3, 0, 0, 0);
     
-    if (now.getHours() >= 21) {
+    if (now.getHours() >= 21 || now.getHours() < 3) {
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= today && taskDate <= tomorrow5AM;
+        return taskDate >= today && taskDate <= tomorrow3AM;
       });
     } else {
       return tasks.filter(task => {

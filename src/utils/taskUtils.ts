@@ -97,11 +97,11 @@ export const isTaskInFuture = (task: any): boolean => {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   
-  if (now.getHours() >= 21 || now.getHours() < 5) {
-    const tomorrow5AM = new Date(tomorrow);
-    tomorrow5AM.setHours(5, 0, 0, 0);
+  if (now.getHours() >= 21 || now.getHours() < 3) {
+    const tomorrow3AM = new Date(tomorrow);
+    tomorrow3AM.setHours(3, 0, 0, 0);
     
-    return taskStartDate > tomorrow5AM;
+    return taskStartDate > tomorrow3AM;
   }
   
   return taskStartDate >= tomorrow;

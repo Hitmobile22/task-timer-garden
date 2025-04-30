@@ -60,15 +60,15 @@ const Index = () => {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
-      const tomorrow5AM = new Date(tomorrow);
-      tomorrow5AM.setHours(5, 0, 0, 0);
+      const tomorrow3AM = new Date(tomorrow);
+      tomorrow3AM.setHours(3, 0, 0, 0);
       
       let todayTasks;
       if (now.getHours() >= 21) {
         todayTasks = activeTasks.filter(task => {
           const taskDate = task.date_started ? new Date(task.date_started) : null;
           if (!taskDate) return false;
-          return taskDate >= today && taskDate <= tomorrow5AM;
+          return taskDate >= today && taskDate <= tomorrow3AM;
         });
       } else {
         todayTasks = activeTasks.filter(task => {

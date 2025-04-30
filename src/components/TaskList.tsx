@@ -406,8 +406,8 @@ export const TaskList: React.FC<TaskListProps> = ({
     queryKey: ['tasks'],
     queryFn: async () => {
       const today = new Date();
-      const tomorrow5AM = addDays(today, 1);
-      tomorrow5AM.setHours(5, 0, 0, 0);
+      const tomorrow3AM = addDays(today, 1);
+      tomorrow3AM.setHours(3, 0, 0, 0);
       const {
         data,
         error
@@ -419,15 +419,15 @@ export const TaskList: React.FC<TaskListProps> = ({
         return data.filter(task => {
           const taskDate = task.date_started ? new Date(task.date_started) : null;
           if (!taskDate) return false;
-          if (today.getHours() < 5) {
+          if (today.getHours() >= 21 || today.getHours() < 3) {
             const yesterday9PM = new Date(today);
             yesterday9PM.setDate(yesterday9PM.getDate() - 1);
             yesterday9PM.setHours(21, 0, 0, 0);
-            return taskDate >= yesterday9PM && taskDate <= tomorrow5AM;
+            return taskDate >= yesterday9PM && taskDate <= tomorrow3AM;
           }
           const today9PM = new Date(today);
           today9PM.setHours(21, 0, 0, 0);
-          return taskDate <= tomorrow5AM;
+          return taskDate <= tomorrow3AM;
         });
       }
       return data;

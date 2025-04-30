@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -454,24 +453,31 @@ export const TaskList: React.FC<TaskListProps> = ({
   const getTodayTasks = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return [];
     
-    const today = new Date();
+    tasks = tasks.filter(task => task.Progress !== 'Backlog');
+    
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(5, 0, 0, 0);
     
-    const startTime = new Date(today);
-    if (today.getHours() < 5) {
-      startTime.setDate(startTime.getDate() - 1);
-      startTime.setHours(21, 0, 0, 0);
+    const tomorrow3AM = new Date(tomorrow);
+    tomorrow3AM.setHours(3, 0, 0, 0);
+    
+    if (now.getHours() >= 21 || now.getHours() < 3) {
+      return tasks.filter(task => {
+        const taskDate = task.date_started ? new Date(task.date_started) : null;
+        if (!taskDate) return false;
+        return taskDate >= today && taskDate <= tomorrow3AM;
+      });
     } else {
-      startTime.setHours(5, 0, 0, 0);
+      return tasks.filter(task => {
+        const taskDate = task.date_started ? new Date(task.date_started) : null;
+        if (!taskDate) return false;
+        return taskDate >= today && taskDate < tomorrow;
+      });
     }
-    
-    return tasks.filter(task => {
-      const taskDate = task.date_started ? new Date(task.date_started) : null;
-      if (!taskDate) return false;
-      return taskDate >= startTime && taskDate <= tomorrow;
-    });
   };
 
   const updateTaskOrder = useMutation({

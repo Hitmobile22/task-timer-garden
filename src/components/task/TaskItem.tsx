@@ -17,6 +17,7 @@ interface TaskItemProps {
   editingTaskId: number | null;
   editingTaskName: string;
   taskLists: any[];
+  dragHandleProps?: any; // Modified to accept dragHandleProps as a simple object
   onToggleExpand: (taskId: number) => void;
   onEditStart: (task: Task | Subtask) => void;
   onEditCancel: () => void;
@@ -35,6 +36,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   editingTaskId,
   editingTaskName,
   taskLists,
+  dragHandleProps, // Accept dragHandleProps as a simple prop
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -111,6 +113,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           editingTaskId={editingTaskId}
           editingTaskName={editingTaskName}
           taskLists={taskLists}
+          dragHandleProps={dragHandleProps} // Pass dragHandleProps as is
           onToggleExpand={onToggleExpand}
           onEditNameChange={onEditNameChange}
           onEditSave={onEditSave}

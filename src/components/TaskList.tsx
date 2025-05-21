@@ -462,13 +462,14 @@ const SortableTaskItem = ({
     }
   }
   
+  // Create a dragHandleProps object that always exists and is safe to spread
+  const dragHandleProps = {
+    ...attributes,
+    ...listeners
+  };
+  
   return <div ref={setNodeRef} style={style}>
-      {React.cloneElement(children, {
-        dragHandleProps: {
-          ...attributes,
-          ...listeners
-        }
-      })}
+      {React.cloneElement(children, { dragHandleProps })}
     </div>;
 };
 

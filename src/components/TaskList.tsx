@@ -39,6 +39,7 @@ interface TaskItemProps {
   onTaskStart?: (taskId: number) => void;
   isCurrentTask?: boolean;
   taskLists?: any[];
+  updateTaskOrderMutation?: any; // Add this prop to pass the mutation down
 }
 
 const EditTaskModal = ({
@@ -280,7 +281,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
   updateTaskProgress,
   onTaskStart,
   isCurrentTask,
-  taskLists
+  taskLists,
+  updateTaskOrderMutation // Add this prop here
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -355,7 +357,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         .select('*')
         .order('date_started', { ascending: true });
         
-      if (updatedTasks) {
+      if (updatedTasks && updateTaskOrderMutation) {
         // Now reschedule tasks based on the updated duration
         await updateTaskOrderMutation.mutate({
           tasks: updatedTasks,
@@ -450,7 +452,7 @@ const SortableTaskItem = ({
     id: task.id
   });
   
-  // Fix for error: Spread types may only be created from object types
+  // Fix for spread types error - create a proper style object without spreading undefined
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     transition: transition || undefined
@@ -812,6 +814,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                       onTaskStart={onTaskStart} 
                       isCurrentTask={task.id === activeTaskId}
                       taskLists={taskLists} 
+                      updateTaskOrderMutation={updateTaskOrderMutation} // Pass the mutation down
                     />
                   </SortableTaskItem>
                 ))}
@@ -1058,6 +1061,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                     onTaskStart={onTaskStart}
                     isCurrentTask={task.id === activeTaskId}
                     taskLists={taskLists}
+                    updateTaskOrderMutation={updateTaskOrderMutation} // Pass the mutation down
                   />
                 </SortableTaskItem>
               ))}

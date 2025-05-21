@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -455,7 +454,7 @@ const SortableTaskItem = ({
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     transition: transition || undefined
-  } : {};
+  } : undefined;
   
   return <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, {
@@ -797,7 +796,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   if (!isTaskView) {
     return (
-      <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn px-0">
+      <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn px-0" data-task-list>
         <h2 className="text-xl font-semibold">Today's Tasks</h2>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>

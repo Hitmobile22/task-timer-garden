@@ -282,7 +282,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onTaskStart,
   isCurrentTask,
   taskLists,
-  updateTaskOrderMutation // Add this prop here
+  updateTaskOrderMutation // Keep this prop here
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -452,11 +452,15 @@ const SortableTaskItem = ({
     id: task.id
   });
   
-  // Fix for spread types error - create a proper style object without spreading undefined
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    transition: transition || undefined
-  } : undefined;
+  // Create a proper style object without spreading undefined
+  const style: React.CSSProperties = {};
+  
+  if (transform) {
+    style.transform = `translate3d(${transform.x}px, ${transform.y}px, 0)`;
+    if (transition) {
+      style.transition = transition;
+    }
+  }
   
   return <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, {

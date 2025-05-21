@@ -11,7 +11,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
+import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X, Minus } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
 import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
@@ -52,15 +52,33 @@ const EditTaskModal = ({
   onClose: () => void;
   task: any;
   subtasks?: Subtask[];
-  onSave: (taskName: string, subtasks: Subtask[]) => void;
+  onSave: (taskName: string, subtasks: Subtask[], taskDuration: number) => void;
 }) => {
   const [taskName, setTaskName] = useState(task["Task Name"]);
   const [editingSubtasks, setEditingSubtasks] = useState<Subtask[]>(subtasks?.filter(st => st["Parent Task ID"] === task.id) || []);
   const [newSubtask, setNewSubtask] = useState("");
+  const [taskDuration, setTaskDuration] = useState(25); // Default task duration
   const queryClient = useQueryClient();
   
+  // Initialize task duration from details if available
+  React.useEffect(() => {
+    if (task.details) {
+      try {
+        const details = typeof task.details === 'string' 
+          ? JSON.parse(task.details) 
+          : task.details;
+        
+        if (details && details.taskDuration && typeof details.taskDuration === 'number') {
+          setTaskDuration(details.taskDuration);
+        }
+      } catch (error) {
+        console.error('Error parsing task details:', error);
+      }
+    }
+  }, [task]);
+  
   const handleSave = () => {
-    onSave(taskName, editingSubtasks);
+    onSave(taskName, editingSubtasks, taskDuration);
     onClose();
   };
   
@@ -77,6 +95,14 @@ const EditTaskModal = ({
   
   const removeSubtask = (subtaskId: number) => {
     setEditingSubtasks(editingSubtasks.filter(st => st.id !== subtaskId));
+  };
+  
+  const incrementTaskDuration = () => {
+    setTaskDuration(prev => prev + 5);
+  };
+  
+  const decrementTaskDuration = () => {
+    setTaskDuration(prev => prev > 5 ? prev - 5 : 5);
   };
   
   const handlePushTask = async () => {
@@ -181,6 +207,34 @@ const EditTaskModal = ({
             <Input id="task-name" value={taskName} onChange={e => setTaskName(e.target.value)} />
           </div>
           <div className="space-y-2">
+            <Label>Task Time (minutes)</Label>
+            <div className="flex items-center gap-2">
+              <Button 
+                type="button"
+                variant="outline" 
+                size="icon" 
+                onClick={decrementTaskDuration} 
+                disabled={taskDuration <= 5}
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Input 
+                type="number" 
+                value={taskDuration} 
+                onChange={e => setTaskDuration(Math.max(5, parseInt(e.target.value) || 5))}
+                className="text-center"
+              />
+              <Button 
+                type="button"
+                variant="outline" 
+                size="icon" 
+                onClick={incrementTaskDuration}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
             <Label>Subtasks</Label>
             <div className="space-y-2">
               {editingSubtasks.map(subtask => <div key={subtask.id} className="flex items-center gap-2">
@@ -244,17 +298,30 @@ const TaskItem: React.FC<TaskItemProps> = ({
   
   console.log(`Task ${task.id} (${task["Task Name"]}): list_id=${task.task_list_id}, color=${taskListColor}, border=${borderColor}`);
   
-  const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[]) => {
+  const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[], taskDuration: number) => {
     try {
-      if (newTaskName !== task["Task Name"]) {
+      const taskDetails = task.details ? 
+        (typeof task.details === 'string' ? JSON.parse(task.details) : {...task.details}) : 
+        {};
+        
+      // Update task details with new duration
+      const updatedDetails = {
+        ...taskDetails,
+        taskDuration: taskDuration
+      };
+      
+      if (newTaskName !== task["Task Name"] || updatedDetails.taskDuration !== taskDetails.taskDuration) {
         await supabase.from('Tasks').update({
-          "Task Name": newTaskName
+          "Task Name": newTaskName,
+          details: updatedDetails
         }).eq('id', task.id);
       }
+      
       const existingSubtasks = subtasks?.filter(st => st["Parent Task ID"] === task.id) || [];
       const subtasksToAdd = newSubtasks.filter(st => !st.id || st.id > Date.now() - 1000000);
       const subtasksToUpdate = newSubtasks.filter(st => st.id && st.id < Date.now() - 1000000);
       const subtasksToDelete = existingSubtasks.filter(est => !newSubtasks.some(nst => nst.id === est.id));
+      
       if (subtasksToAdd.length > 0) {
         const newSubtasksData = subtasksToAdd.map(st => ({
           "Task Name": st["Task Name"],
@@ -263,20 +330,32 @@ const TaskItem: React.FC<TaskItemProps> = ({
         }));
         await supabase.from('subtasks').insert(newSubtasksData);
       }
+      
       for (const subtask of subtasksToUpdate) {
         await supabase.from('subtasks').update({
           "Task Name": subtask["Task Name"]
         }).eq('id', subtask.id);
       }
+      
       if (subtasksToDelete.length > 0) {
         await supabase.from('subtasks').delete().in('id', subtasksToDelete.map(st => st.id));
       }
+      
+      // Invalidate queries to refresh task data including durations
       queryClient.invalidateQueries({
         queryKey: ['tasks']
       });
       queryClient.invalidateQueries({
         queryKey: ['today-subtasks']
       });
+      
+      // Now reschedule tasks based on the updated duration
+      await updateTaskOrder.mutate({
+        tasks: dbTasks || [],
+        shouldResetTimer: false,
+        movedTaskId: task.id
+      });
+      
       toast.success('Task updated successfully');
     } catch (error) {
       console.error('Error updating task:', error);

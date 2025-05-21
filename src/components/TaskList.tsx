@@ -282,7 +282,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onTaskStart,
   isCurrentTask,
   taskLists,
-  updateTaskOrderMutation // Keep this prop here
+  updateTaskOrderMutation
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -452,31 +452,33 @@ const SortableTaskItem = ({
     id: task.id
   });
   
-  // Create a proper style object without spreading undefined
-  const style: React.CSSProperties = {};
+  // Create a style object for transforms
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition: transition || undefined
+  };
   
-  if (transform) {
-    style.transform = `translate3d(${transform.x}px, ${transform.y}px, 0)`;
-    if (transition) {
-      style.transition = transition;
-    }
-  }
-  
-  // Fix the TypeScript error by ensuring we create a valid object without spreading undefined
+  // Create a proper dragHandleProps object that is guaranteed to be a valid object
   const dragHandleProps = {};
   
-  // Only add properties if they exist
+  // Only add properties if they exist and are not undefined
   if (attributes) {
-    Object.assign(dragHandleProps, attributes);
+    Object.keys(attributes).forEach(key => {
+      dragHandleProps[key] = attributes[key];
+    });
   }
   
   if (listeners) {
-    Object.assign(dragHandleProps, listeners);
+    Object.keys(listeners).forEach(key => {
+      dragHandleProps[key] = listeners[key];
+    });
   }
   
-  return <div ref={setNodeRef} style={style}>
+  return (
+    <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, { dragHandleProps })}
-    </div>;
+    </div>
+  );
 };
 
 export const TaskList: React.FC<TaskListProps> = ({

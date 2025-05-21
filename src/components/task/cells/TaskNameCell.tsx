@@ -14,7 +14,7 @@ interface TaskNameCellProps {
   editingTaskId: number | null;
   editingTaskName: string;
   taskLists: any[];
-  dragHandleProps?: any; // Added this prop to the interface
+  dragHandleProps?: Record<string, any>; // Define as Record<string, any> to ensure it's always an object type
   onToggleExpand: (taskId: number) => void;
   onEditNameChange: (value: string) => void;
   onEditSave: (taskId: number) => void;
@@ -31,7 +31,7 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
   editingTaskId,
   editingTaskName,
   taskLists,
-  dragHandleProps, // Add dragHandleProps to function parameters
+  dragHandleProps = {}, // Default to empty object to ensure it's always an object
   onToggleExpand,
   onEditNameChange,
   onEditSave,

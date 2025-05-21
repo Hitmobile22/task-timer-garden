@@ -462,11 +462,17 @@ const SortableTaskItem = ({
     }
   }
   
-  // Create a properly typed dragHandleProps object with only defined properties
-  const dragHandleProps = {
-    ...(attributes || {}),
-    ...(listeners || {})
-  };
+  // Fix the TypeScript error by ensuring we create a valid object without spreading undefined
+  const dragHandleProps = {};
+  
+  // Only add properties if they exist
+  if (attributes) {
+    Object.assign(dragHandleProps, attributes);
+  }
+  
+  if (listeners) {
+    Object.assign(dragHandleProps, listeners);
+  }
   
   return <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, { dragHandleProps })}

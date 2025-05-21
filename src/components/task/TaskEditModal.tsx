@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Clock } from 'lucide-react';
+import { CalendarIcon, Clock, Plus, Minus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -35,6 +36,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [descriptionContent, setDescriptionContent] = useState<any>(null);
+  const [taskDuration, setTaskDuration] = useState<number>(25);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -51,6 +53,16 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         setDueDate(new Date(task.date_due));
       } else {
         setDueDate(undefined);
+      }
+      
+      // Calculate task duration from start and due dates if available
+      if (task.date_started && task.date_due) {
+        const start = new Date(task.date_started);
+        const end = new Date(task.date_due);
+        const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+        setTaskDuration(durationMinutes || 25);
+      } else {
+        setTaskDuration(25);
       }
       
       try {
@@ -156,18 +168,27 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
   const handleSave = async () => {
     try {
       if (!editedTask) return;
+
+      // Calculate end time based on start time and task duration
+      let updatedDueDate = dueDate;
+      if (startDate) {
+        updatedDueDate = new Date(startDate.getTime() + taskDuration * 60 * 1000);
+      }
       
       const updatedTask = {
         ...editedTask,
         date_started: startDate ? startDate.toISOString() : null,
-        date_due: dueDate ? dueDate.toISOString() : null,
+        date_due: updatedDueDate ? updatedDueDate.toISOString() : null,
         details: {
           ...(typeof editedTask.details === 'object' && editedTask.details ? editedTask.details : {}),
-          description: descriptionContent || null
+          description: descriptionContent || null,
+          taskDuration: taskDuration // Store the task duration in the details JSON
         }
       };
 
-      console.log("Saving task with description:", updatedTask.details.description);
+      console.log("Saving task with duration:", taskDuration, "minutes");
+      console.log("Task start:", updatedTask.date_started);
+      console.log("Task end:", updatedTask.date_due);
       
       const { error } = await supabase
         .from('Tasks')
@@ -260,6 +281,14 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
     } catch (error) {
       console.error("Error handling description change:", error);
     }
+  };
+  
+  const incrementTaskDuration = () => {
+    setTaskDuration(prev => prev + 5);
+  };
+  
+  const decrementTaskDuration = () => {
+    setTaskDuration(prev => prev > 5 ? prev - 5 : 5);
   };
 
   if (!editedTask) return null;
@@ -377,60 +406,40 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
               </div>
               
               <div className="space-y-2">
-                <Label>Due Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dueDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <div className="p-4 space-y-4">
-                      <Calendar
-                        mode="single"
-                        selected={dueDate}
-                        onSelect={(date) => {
-                          if (date) {
-                            const newDate = new Date(date);
-                            if (dueDate) {
-                              newDate.setHours(dueDate.getHours());
-                              newDate.setMinutes(dueDate.getMinutes());
-                            } else {
-                              newDate.setHours(new Date().getHours());
-                              newDate.setMinutes(new Date().getMinutes());
-                            }
-                            setDueDate(newDate);
-                          }
-                        }}
-                        initialFocus
-                        className="pointer-events-auto"
-                      />
-                      <div className="flex gap-2 items-center">
-                        <Input 
-                          type="time" 
-                          value={dueDate ? format(dueDate, "HH:mm") : ""} 
-                          onChange={e => {
-                            if (dueDate && e.target.value) {
-                              const [hours, minutes] = e.target.value.split(':').map(Number);
-                              const newDate = new Date(dueDate);
-                              newDate.setHours(hours);
-                              newDate.setMinutes(minutes);
-                              setDueDate(newDate);
-                            }
-                          }}
-                          className="pointer-events-auto"
-                        />
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <Label>Task Time (minutes)</Label>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={decrementTaskDuration} 
+                    disabled={taskDuration <= 5}
+                    className="flex-shrink-0"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  
+                  <Input
+                    type="number"
+                    value={taskDuration}
+                    min={5}
+                    onChange={e => {
+                      const value = parseInt(e.target.value);
+                      if (!isNaN(value) && value >= 5) {
+                        setTaskDuration(value);
+                      }
+                    }}
+                    className="text-center"
+                  />
+                  
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={incrementTaskDuration}
+                    className="flex-shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
             

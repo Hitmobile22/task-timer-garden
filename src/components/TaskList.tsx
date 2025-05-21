@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,7 +12,6 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
 import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask } from '@/utils/taskUtils';
@@ -543,7 +543,23 @@ export const TaskList: React.FC<TaskListProps> = ({
               const blockStart = new Date(timeBlock.date_started);
               const blockEnd = new Date(timeBlock.date_due);
               
-              const candidateEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+              // Get task duration from details if available, default to 25 minutes
+              let taskDuration = 25; // Default duration
+              try {
+                if (task.details) {
+                  const details = typeof task.details === 'string' 
+                    ? JSON.parse(task.details) 
+                    : task.details;
+                  
+                  if (details && details.taskDuration && typeof details.taskDuration === 'number') {
+                    taskDuration = details.taskDuration;
+                  }
+                }
+              } catch (error) {
+                console.error('Error parsing task details:', error);
+              }
+              
+              const candidateEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
               
               if (
                 (taskStartTime >= blockStart && taskStartTime < blockEnd) ||
@@ -557,7 +573,23 @@ export const TaskList: React.FC<TaskListProps> = ({
             }
           }
           
-          taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+          // Get task duration from details if available, default to 25 minutes
+          let taskDuration = 25; // Default duration
+          try {
+            if (task.details) {
+              const details = typeof task.details === 'string' 
+                ? JSON.parse(task.details) 
+                : task.details;
+              
+              if (details && details.taskDuration && typeof details.taskDuration === 'number') {
+                taskDuration = details.taskDuration;
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing task details:', error);
+          }
+          
+          taskEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
           nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
         
@@ -784,6 +816,22 @@ export const TaskList: React.FC<TaskListProps> = ({
       tomorrow5AM.setDate(tomorrow5AM.getDate() + 1);
       tomorrow5AM.setHours(5, 0, 0, 0);
       
+      // Get task duration from details if available, default to 25 minutes
+      let taskDuration = 25; // Default duration
+      try {
+        if (selectedTask.details) {
+          const details = typeof selectedTask.details === 'string' 
+            ? JSON.parse(selectedTask.details) 
+            : selectedTask.details;
+          
+          if (details && details.taskDuration && typeof details.taskDuration === 'number') {
+            taskDuration = details.taskDuration;
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing task details:', error);
+      }
+      
       const taskToUpdate: Task = {
         id: selectedTask.id,
         "Task Name": selectedTask["Task Name"] || "",
@@ -791,7 +839,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         task_list_id: selectedTask.task_list_id,
         project_id: selectedTask.project_id || null,
         date_started: currentTime.toISOString(),
-        date_due: new Date(currentTime.getTime() + 25 * 60000).toISOString(),
+        date_due: new Date(currentTime.getTime() + taskDuration * 60000).toISOString(),
         details: selectedTask.details
       };
       
@@ -817,7 +865,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         })
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
         
-      let nextStartTime = new Date(currentTime.getTime() + 30 * 60000);
+      let nextStartTime = new Date(currentTime.getTime() + taskDuration * 60000 + 5 * 60000);
       
       for (const task of otherTasks) {
         if (currentTime.getHours() >= 21 && isAfter(nextStartTime, tomorrow5AM)) {
@@ -825,7 +873,24 @@ export const TaskList: React.FC<TaskListProps> = ({
         }
         
         const taskStartTime = new Date(nextStartTime);
-        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60000);
+        
+        // Get task duration from details if available, default to 25 minutes
+        let otherTaskDuration = 25; // Default duration
+        try {
+          if (task.details) {
+            const details = typeof task.details === 'string' 
+              ? JSON.parse(task.details) 
+              : task.details;
+            
+            if (details && details.taskDuration && typeof details.taskDuration === 'number') {
+              otherTaskDuration = details.taskDuration;
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing task details:', error);
+        }
+        
+        const taskEndTime = new Date(taskStartTime.getTime() + otherTaskDuration * 60000);
         
         const { error } = await supabase
           .from('Tasks')
@@ -838,7 +903,7 @@ export const TaskList: React.FC<TaskListProps> = ({
           
         if (error) throw error;
         
-        nextStartTime = new Date(taskStartTime.getTime() + 30 * 60000);
+        nextStartTime = new Date(taskEndTime.getTime() + 5 * 60000);
       }
       
       onTaskStart?.(taskId);

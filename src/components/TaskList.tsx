@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -363,17 +362,19 @@ const SortableTaskItem = ({
   } = useSortable({
     id: task.id
   });
-  const style = {
-    transform: CSS.Transform.toString(transform),
+  
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     transition
-  };
+  } : {};
+  
   return <div ref={setNodeRef} style={style}>
       {React.cloneElement(children, {
-      dragHandleProps: {
-        ...attributes,
-        ...listeners
-      }
-    })}
+        dragHandleProps: {
+          ...attributes,
+          ...listeners
+        }
+      })}
     </div>;
 };
 

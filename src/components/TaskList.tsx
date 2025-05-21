@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -349,12 +350,20 @@ const TaskItem: React.FC<TaskItemProps> = ({
         queryKey: ['today-subtasks']
       });
       
-      // Now reschedule tasks based on the updated duration
-      await updateTaskOrder.mutate({
-        tasks: dbTasks || [],
-        shouldResetTimer: false,
-        movedTaskId: task.id
-      });
+      // Fetch the updated tasks
+      const { data: updatedTasks } = await supabase
+        .from('Tasks')
+        .select('*')
+        .order('date_started', { ascending: true });
+        
+      if (updatedTasks) {
+        // Now reschedule tasks based on the updated duration
+        await updateTaskOrderMutation.mutate({
+          tasks: updatedTasks,
+          shouldResetTimer: false,
+          movedTaskId: task.id
+        });
+      }
       
       toast.success('Task updated successfully');
     } catch (error) {
@@ -442,9 +451,10 @@ const SortableTaskItem = ({
     id: task.id
   });
   
+  // Fix for error: Spread types may only be created from object types
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    transition
+    transition: transition || undefined
   } : {};
   
   return <div ref={setNodeRef} style={style}>
@@ -560,7 +570,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     }
   };
 
-  const updateTaskOrder = useMutation({
+  const updateTaskOrderMutation = useMutation({
     mutationFn: async ({
       tasks,
       shouldResetTimer,
@@ -749,7 +759,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     const isMovingToFirst = newIndex === 0;
     const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
     
-    await updateTaskOrder.mutate({
+    await updateTaskOrderMutation.mutate({
       tasks: allTasks,
       shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
       movedTaskId: movedTask.id

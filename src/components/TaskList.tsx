@@ -462,10 +462,10 @@ const SortableTaskItem = ({
     }
   }
   
-  // Create a dragHandleProps object that always exists and is safe to spread
+  // Create a properly typed dragHandleProps object with only defined properties
   const dragHandleProps = {
-    ...attributes,
-    ...listeners
+    ...(attributes || {}),
+    ...(listeners || {})
   };
   
   return <div ref={setNodeRef} style={style}>

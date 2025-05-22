@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -166,15 +167,23 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
       }
       
       // Make sure we properly handle the details object
-      let updatedDetails;
+      let updatedDetails: Record<string, any> = {};
       try {
         // Start with existing details or empty object
         if (editedTask.details) {
-          updatedDetails = typeof editedTask.details === 'string' 
-            ? JSON.parse(editedTask.details) 
-            : {...editedTask.details};
-        } else {
-          updatedDetails = {};
+          if (typeof editedTask.details === 'string') {
+            try {
+              const parsedDetails = JSON.parse(editedTask.details);
+              if (parsedDetails && typeof parsedDetails === 'object') {
+                updatedDetails = parsedDetails;
+              }
+            } catch (e) {
+              // If parsing fails, start with empty object
+              updatedDetails = {};
+            }
+          } else if (typeof editedTask.details === 'object' && editedTask.details !== null) {
+            updatedDetails = { ...editedTask.details };
+          }
         }
         
         // Update with new values

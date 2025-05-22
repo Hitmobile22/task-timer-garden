@@ -302,9 +302,26 @@ const TaskItem: React.FC<TaskItemProps> = ({
   
   const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[], taskDuration: number) => {
     try {
-      const taskDetails = task.details ? 
-        (typeof task.details === 'string' ? JSON.parse(task.details) : {...task.details}) : 
-        {};
+      // Initialize taskDetails as an empty object
+      let taskDetails: Record<string, any> = {};
+      
+      // Safely parse task.details if it exists
+      if (task.details) {
+        if (typeof task.details === 'string') {
+          try {
+            const parsed = JSON.parse(task.details);
+            if (parsed && typeof parsed === 'object') {
+              taskDetails = parsed;
+            }
+          } catch (e) {
+            console.error('Error parsing task details:', e);
+            // Keep taskDetails as empty object if parsing fails
+          }
+        } else if (typeof task.details === 'object' && task.details !== null) {
+          // If task.details is already an object, use it directly
+          taskDetails = { ...task.details };
+        }
+      }
         
       // Update task details with new duration
       const updatedDetails = {

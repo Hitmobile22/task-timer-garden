@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -55,48 +54,38 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         setDueDate(undefined);
       }
       
-      // Calculate task duration from start and due dates if available
-      if (task.date_started && task.date_due) {
-        const start = new Date(task.date_started);
-        const end = new Date(task.date_due);
-        const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
-        setTaskDuration(durationMinutes || 25);
-      } else {
-        setTaskDuration(25);
-      }
-      
+      // Parse details and extract taskDuration if available
       try {
-        console.log("Task details:", task.details);
-        
+        let details = null;
         if (task.details) {
-          const details = typeof task.details === 'string' 
+          // Handle both string and object formats
+          details = typeof task.details === 'string' 
             ? JSON.parse(task.details) 
             : task.details;
-          
-          console.log("Parsed details:", details);
-          
-          if (details?.description && isValidContent(details.description)) {
-            console.log("Setting valid description content:", details.description);
-            setDescriptionContent(details.description);
+            
+          if (details && typeof details === 'object' && 'taskDuration' in details) {
+            setTaskDuration(details.taskDuration || 25);
           } else {
-            console.log("Invalid or missing description in details, checking if we need to create empty description");
-            setDescriptionContent({
-              type: "doc",
-              content: [
-                {
-                  type: "paragraph",
-                  content: [
-                    {
-                      type: "text",
-                      text: " " // Non-empty space to prevent errors
-                    }
-                  ]
-                }
-              ]
-            });
+            // Calculate task duration from start and due dates if available
+            if (task.date_started && task.date_due) {
+              const start = new Date(task.date_started);
+              const end = new Date(task.date_due);
+              const durationMinutes = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+              setTaskDuration(durationMinutes > 0 ? durationMinutes : 25);
+            } else {
+              setTaskDuration(25);
+            }
           }
         } else {
-          console.log("No details found, setting empty content");
+          setTaskDuration(25);
+        }
+        
+        // Handle description content
+        if (details && details.description && isValidContent(details.description)) {
+          console.log("Setting valid description content:", details.description);
+          setDescriptionContent(details.description);
+        } else {
+          console.log("Setting empty description content");
           setDescriptionContent({
             type: "doc",
             content: [
@@ -113,7 +102,8 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
           });
         }
       } catch (error) {
-        console.error("Error initializing description content:", error);
+        console.error("Error initializing task details:", error);
+        setTaskDuration(25);
         setDescriptionContent({
           type: "doc",
           content: [
@@ -175,20 +165,43 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         updatedDueDate = new Date(startDate.getTime() + taskDuration * 60 * 1000);
       }
       
+      // Make sure we properly handle the details object
+      let updatedDetails;
+      try {
+        // Start with existing details or empty object
+        if (editedTask.details) {
+          updatedDetails = typeof editedTask.details === 'string' 
+            ? JSON.parse(editedTask.details) 
+            : {...editedTask.details};
+        } else {
+          updatedDetails = {};
+        }
+        
+        // Update with new values
+        updatedDetails = {
+          ...updatedDetails,
+          description: descriptionContent || null,
+          taskDuration: taskDuration // Store the task duration in the details JSON
+        };
+      } catch (error) {
+        console.error("Error processing task details:", error);
+        updatedDetails = {
+          description: descriptionContent || null,
+          taskDuration: taskDuration
+        };
+      }
+      
       const updatedTask = {
         ...editedTask,
         date_started: startDate ? startDate.toISOString() : null,
         date_due: updatedDueDate ? updatedDueDate.toISOString() : null,
-        details: {
-          ...(typeof editedTask.details === 'object' && editedTask.details ? editedTask.details : {}),
-          description: descriptionContent || null,
-          taskDuration: taskDuration // Store the task duration in the details JSON
-        }
+        details: updatedDetails
       };
 
       console.log("Saving task with duration:", taskDuration, "minutes");
       console.log("Task start:", updatedTask.date_started);
       console.log("Task end:", updatedTask.date_due);
+      console.log("Task details:", updatedDetails);
       
       const { error } = await supabase
         .from('Tasks')

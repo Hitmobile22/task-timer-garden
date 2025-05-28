@@ -225,9 +225,9 @@ export default function TaskView() {
 
   const filteredTasks = tasks.filter(task => {
     if (filters.showArchived) {
-      return task.archived;
+      return task.archived === true;
     } else {
-      return !task.archived;
+      return task.archived !== true;
     }
   });
 
@@ -286,7 +286,13 @@ export default function TaskView() {
         </div>
       )}
       
-      <RecurringTasksModal />
+      <RecurringTasksModal 
+        open={false}
+        onClose={() => {}}
+        onSubmit={() => {}}
+        listName=""
+        listId={0}
+      />
     </div>
   );
 }

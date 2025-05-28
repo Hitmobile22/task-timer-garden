@@ -24,6 +24,14 @@ export default function TaskView() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  // TaskFilters specific state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [progressFilter, setProgressFilter] = useState<Task['Progress'] | 'all'>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'list' | 'project'>('date');
+  const [showNewTaskListDialog, setShowNewTaskListDialog] = useState(false);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [newTaskListName, setNewTaskListName] = useState('');
+
   const fetchTasks = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -223,6 +231,23 @@ export default function TaskView() {
     fetchTasks();
   };
 
+  const handleCreateTaskList = async () => {
+    if (!newTaskListName.trim()) return;
+
+    const { error } = await supabase
+      .from('TaskLists')
+      .insert({ name: newTaskListName, order: taskLists.length });
+
+    if (error) {
+      console.error("Error creating task list:", error);
+      return;
+    }
+
+    setNewTaskListName('');
+    setShowNewTaskListDialog(false);
+    fetchTaskLists();
+  };
+
   const filteredTasks = tasks.filter(task => {
     if (filters.showArchived) {
       return task.archived === true;
@@ -251,14 +276,19 @@ export default function TaskView() {
       </div>
       
       <TaskFilters
-        showArchived={filters.showArchived}
-        taskListId={filters.taskListId}
-        projectId={filters.projectId}
-        onShowArchivedChange={(showArchived) => setFilters(prev => ({ ...prev, showArchived }))}
-        onTaskListChange={(taskListId) => setFilters(prev => ({ ...prev, taskListId }))}
-        onProjectChange={(projectId) => setFilters(prev => ({ ...prev, projectId }))}
-        taskLists={taskLists}
-        availableProjects={projects}
+        searchQuery={searchQuery}
+        progressFilter={progressFilter}
+        sortBy={sortBy}
+        showNewTaskListDialog={showNewTaskListDialog}
+        showProjectModal={showProjectModal}
+        newTaskListName={newTaskListName}
+        onSearchChange={setSearchQuery}
+        onProgressFilterChange={setProgressFilter}
+        onSortByChange={setSortBy}
+        onNewTaskListDialogChange={setShowNewTaskListDialog}
+        onProjectModalChange={setShowProjectModal}
+        onNewTaskListNameChange={setNewTaskListName}
+        onCreateTaskList={handleCreateTaskList}
       />
       
       {isLoading ? (
@@ -272,7 +302,6 @@ export default function TaskView() {
             editingTaskId={editingTaskId}
             editingTaskName={editingTaskName}
             taskLists={taskLists}
-            showArchived={filters.showArchived}
             onToggleExpand={toggleTaskExpansion}
             onEditStart={handleEditStart}
             onEditCancel={handleEditCancel}

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TableRow } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
@@ -17,7 +16,8 @@ interface TaskItemProps {
   editingTaskId: number | null;
   editingTaskName: string;
   taskLists: any[];
-  dragHandleProps?: Record<string, any>; // Changed to Record<string, any> to ensure it's always an object type
+  showArchived: boolean; // Add showArchived prop
+  dragHandleProps?: Record<string, any>;
   onToggleExpand: (taskId: number) => void;
   onEditStart: (task: Task | Subtask) => void;
   onEditCancel: () => void;
@@ -27,6 +27,7 @@ interface TaskItemProps {
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onUnarchiveTask?: (taskId: number) => void; // Add optional unarchive handler
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -36,7 +37,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   editingTaskId,
   editingTaskName,
   taskLists,
-  dragHandleProps = {}, // Default to empty object to ensure it's always an object
+  showArchived,
+  dragHandleProps = {},
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -46,6 +48,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onMoveTask,
   onDeleteTask,
   onTimelineEdit,
+  onUnarchiveTask,
 }) => {
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
@@ -113,7 +116,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           editingTaskId={editingTaskId}
           editingTaskName={editingTaskName}
           taskLists={taskLists}
-          dragHandleProps={dragHandleProps} // Pass dragHandleProps as is
+          dragHandleProps={dragHandleProps}
           onToggleExpand={onToggleExpand}
           onEditNameChange={onEditNameChange}
           onEditSave={onEditSave}
@@ -138,11 +141,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           task={task}
           isEditing={isEditing}
           taskLists={taskLists}
+          showArchived={showArchived}
           onMoveTask={onMoveTask}
           onEditStart={onEditStart}
           onEditCancel={onEditCancel}
           onEditSave={handleSave}
           onDeleteTask={onDeleteTask}
+          onUnarchiveTask={onUnarchiveTask}
         />
       </TableRow>
     </React.Fragment>

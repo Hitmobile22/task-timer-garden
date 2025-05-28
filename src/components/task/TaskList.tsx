@@ -12,6 +12,7 @@ interface TaskListProps {
   editingTaskId: number | null;
   editingTaskName: string;
   taskLists: any[];
+  showArchived: boolean; // Add showArchived prop
   onToggleExpand: (taskId: number) => void;
   onEditStart: (task: Task | Subtask) => void;
   onEditCancel: () => void;
@@ -21,6 +22,7 @@ interface TaskListProps {
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onUnarchiveTask?: (taskId: number) => void; // Add optional unarchive handler
 }
 
 export const TaskListComponent: React.FC<TaskListProps> = ({
@@ -30,6 +32,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   editingTaskId,
   editingTaskName,
   taskLists,
+  showArchived,
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -39,6 +42,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onMoveTask,
   onDeleteTask,
   onTimelineEdit,
+  onUnarchiveTask,
 }) => {
   console.log('TaskListComponent: Received onMoveTask function:', !!onMoveTask);
   console.log('TaskListComponent: Received tasks:', tasks.length, 'items');
@@ -63,6 +67,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               editingTaskId={editingTaskId}
               editingTaskName={editingTaskName}
               taskLists={taskLists}
+              showArchived={showArchived}
               onToggleExpand={onToggleExpand}
               onEditStart={onEditStart}
               onEditCancel={onEditCancel}
@@ -72,6 +77,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               onMoveTask={onMoveTask}
               onDeleteTask={onDeleteTask}
               onTimelineEdit={onTimelineEdit}
+              onUnarchiveTask={onUnarchiveTask}
             />
             {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
               <SubtaskItem

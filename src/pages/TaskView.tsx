@@ -113,6 +113,26 @@ export function TaskView() {
     },
   });
 
+  // Add unarchive mutation
+  const unarchiveTaskMutation = useMutation({
+    mutationFn: async (taskId: number) => {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ archived: false })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Task unarchived successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to unarchive task');
+      console.error('Unarchive error:', error);
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (taskId: number) => {
       const { error } = await supabase
@@ -552,6 +572,11 @@ export function TaskView() {
     updateTaskListMutation.mutate({ taskId, listId });
   };
 
+  // Add unarchive handler
+  const handleUnarchiveTask = (taskId: number) => {
+    unarchiveTaskMutation.mutate(taskId);
+  };
+
   const handleProjectSubmit = (projectData: any) => {
     console.log("Project data submitted:", projectData);
     if (projectData.id) {
@@ -866,6 +891,7 @@ export function TaskView() {
                               editingTaskId={editingTaskId}
                               editingTaskName={editingTaskName}
                               taskLists={taskLists}
+                              showArchived={showArchived}
                               onToggleExpand={toggleTaskExpansion}
                               onEditStart={handleEditStart}
                               onEditCancel={handleEditCancel}
@@ -883,6 +909,7 @@ export function TaskView() {
                                   end: new Date(end) 
                                 });
                               }}
+                              onUnarchiveTask={handleUnarchiveTask}
                             />
                           </SortableContext>
                         </div>
@@ -899,6 +926,7 @@ export function TaskView() {
                         editingTaskId={editingTaskId}
                         editingTaskName={editingTaskName}
                         taskLists={taskLists}
+                        showArchived={showArchived}
                         onToggleExpand={toggleTaskExpansion}
                         onEditStart={handleEditStart}
                         onEditCancel={handleEditCancel}
@@ -916,6 +944,7 @@ export function TaskView() {
                             end: new Date(end) 
                           });
                         }}
+                        onUnarchiveTask={handleUnarchiveTask}
                       />
                     </SortableContext>
                   )}

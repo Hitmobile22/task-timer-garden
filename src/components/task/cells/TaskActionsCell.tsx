@@ -3,7 +3,7 @@ import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ListFilter, PencilIcon, Trash2, Check, X, Lock, Archive } from "lucide-react";
+import { ListFilter, PencilIcon, Trash2, Check, X, Lock, Archive, ArchiveRestore } from "lucide-react";
 import { Task } from '@/types/task.types';
 import { isTaskTimeBlock } from '@/utils/taskUtils';
 import { useArchiveActions } from '@/hooks/useArchiveActions';
@@ -12,22 +12,26 @@ interface TaskActionsCellProps {
   task: Task;
   isEditing: boolean;
   taskLists: any[];
+  showArchived: boolean; // Add showArchived prop
   onMoveTask: (taskId: number, listId: number) => void;
   onEditStart: (task: Task) => void;
   onEditCancel: () => void;
   onEditSave: (taskId: number) => void;
   onDeleteTask: (taskId: number) => void;
+  onUnarchiveTask?: (taskId: number) => void; // Add optional unarchive handler
 }
 
 export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   task,
   isEditing,
   taskLists,
+  showArchived,
   onMoveTask,
   onEditStart,
   onEditCancel,
   onEditSave,
   onDeleteTask,
+  onUnarchiveTask,
 }) => {
   const currentList = taskLists?.find(list => list.id === task.task_list_id);
   const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
@@ -58,6 +62,12 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   
   const handleArchiveTask = () => {
     archiveTask.mutate(task.id);
+  };
+
+  const handleUnarchiveTask = () => {
+    if (onUnarchiveTask) {
+      onUnarchiveTask(task.id);
+    }
   };
 
   return (
@@ -148,14 +158,25 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
             >
               <Trash2 className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleArchiveTask}
-              title="Archive task"
-            >
-              <Archive className="h-4 w-4" />
-            </Button>
+            {showArchived ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleUnarchiveTask}
+                title="Unarchive task"
+              >
+                <ArchiveRestore className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleArchiveTask}
+                title="Archive task"
+              >
+                <Archive className="h-4 w-4" />
+              </Button>
+            )}
           </>
         )}
       </div>

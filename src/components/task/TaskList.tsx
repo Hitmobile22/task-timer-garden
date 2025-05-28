@@ -2,7 +2,7 @@ import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
 import { TaskActionsCell } from './cells/TaskActionsCell';
-import { Button } from './ui/button';
+import { Button } from '@/components/ui/button';
 
 interface TaskListComponentProps {
   tasks: Task[];

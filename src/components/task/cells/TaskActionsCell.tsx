@@ -3,19 +3,15 @@ import React from 'react';
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ListFilter, PencilIcon, Trash2, Check, X, Lock, Archive, ArchiveRestore } from "lucide-react";
+import { ListFilter, PencilIcon, Trash2, Check, X, Lock, Archive } from "lucide-react";
 import { Task } from '@/types/task.types';
 import { isTaskTimeBlock } from '@/utils/taskUtils';
 import { useArchiveActions } from '@/hooks/useArchiveActions';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from 'sonner';
 
 interface TaskActionsCellProps {
   task: Task;
   isEditing: boolean;
   taskLists: any[];
-  showArchived?: boolean;
   onMoveTask: (taskId: number, listId: number) => void;
   onEditStart: (task: Task) => void;
   onEditCancel: () => void;
@@ -27,7 +23,6 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   task,
   isEditing,
   taskLists,
-  showArchived = false,
   onMoveTask,
   onEditStart,
   onEditCancel,
@@ -38,29 +33,6 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
   const isTimeBlock = isTaskTimeBlock(task);
   const { archiveTask } = useArchiveActions();
-  const queryClient = useQueryClient();
-
-  // Unarchive mutation
-  const unarchiveTask = useMutation({
-    mutationFn: async (taskId: number) => {
-      const { error } = await supabase
-        .from('Tasks')
-        .update({ archived: false })
-        .eq('id', taskId);
-      
-      if (error) throw new Error(error.message);
-      return { success: true };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-      toast.success('Task unarchived successfully');
-    },
-    onError: (error: Error) => {
-      console.error('Unarchive task error:', error);
-      toast.error('Failed to unarchive task');
-    }
-  });
 
   React.useEffect(() => {
     console.log('TaskActionsCell: task_list_id changed:', task.task_list_id);
@@ -86,10 +58,6 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   
   const handleArchiveTask = () => {
     archiveTask.mutate(task.id);
-  };
-
-  const handleUnarchiveTask = () => {
-    unarchiveTask.mutate(task.id);
   };
 
   return (
@@ -180,25 +148,14 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
             >
               <Trash2 className="h-4 w-4" />
             </Button>
-            {showArchived ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleUnarchiveTask}
-                title="Unarchive task"
-              >
-                <ArchiveRestore className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleArchiveTask}
-                title="Archive task"
-              >
-                <Archive className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleArchiveTask}
+              title="Archive task"
+            >
+              <Archive className="h-4 w-4" />
+            </Button>
           </>
         )}
       </div>

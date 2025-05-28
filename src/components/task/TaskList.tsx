@@ -12,7 +12,6 @@ interface TaskListProps {
   editingTaskId: number | null;
   editingTaskName: string;
   taskLists: any[];
-  showArchived?: boolean;
   onToggleExpand: (taskId: number) => void;
   onEditStart: (task: Task | Subtask) => void;
   onEditCancel: () => void;
@@ -31,7 +30,6 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   editingTaskId,
   editingTaskName,
   taskLists,
-  showArchived = false,
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -65,7 +63,6 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               editingTaskId={editingTaskId}
               editingTaskName={editingTaskName}
               taskLists={taskLists}
-              showArchived={showArchived}
               onToggleExpand={onToggleExpand}
               onEditStart={onEditStart}
               onEditCancel={onEditCancel}

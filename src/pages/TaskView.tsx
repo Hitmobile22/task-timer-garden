@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskEditModal } from '@/components/task/TaskEditModal';
@@ -189,6 +188,21 @@ export default function TaskView() {
     fetchTasks();
   };
 
+  const handleUnarchiveTask = async (taskId: number) => {
+    const { error } = await supabase
+      .from('Tasks')
+      .update({ archived: false })
+      .eq('id', taskId);
+
+    if (error) {
+      console.error("Error unarchiving task:", error);
+      return;
+    }
+
+    setTasks(tasks.map(task => (task.id === taskId ? { ...task, archived: false } : task)));
+    fetchTasks();
+  };
+
   const handleTimelineEdit = async (taskId: number, start: Date, end: Date) => {
     const { error } = await supabase
       .from('Tasks')
@@ -211,7 +225,7 @@ export default function TaskView() {
 
   const filteredTasks = tasks.filter(task => {
     if (filters.showArchived) {
-      return true;
+      return task.archived;
     } else {
       return !task.archived;
     }

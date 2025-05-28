@@ -61,18 +61,29 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         expandedTasks={expandedTasks}
         editingTaskId={editingTaskId}
         editingTaskName={editingTaskName}
+        taskLists={taskLists}
         onToggleExpand={onToggleExpand}
         onEditNameChange={onEditNameChange}
+        onEditSave={onEditSave}
+        onEditCancel={onEditCancel}
+        onUpdateProgress={onUpdateProgress}
+        onMoveTask={onMoveTask}
+        onTimelineEdit={onTimelineEdit}
       />
       <TaskProgressCell
         task={task}
+        isEditing={editingTaskId === task.id}
         onUpdateProgress={(progress) => onUpdateProgress(task.id, progress)}
       />
       <TaskTimelineCell
-        taskId={task.id}
-        dateStarted={task.date_started}
-        dateDue={task.date_due}
-        onTimelineEdit={onTimelineEdit}
+        startDate={task.date_started ? new Date(task.date_started) : undefined}
+        endDate={task.date_due ? new Date(task.date_due) : undefined}
+        isEditing={editingTaskId === task.id}
+        onTimelineUpdate={(startDate, endDate) => {
+          if (startDate && endDate) {
+            onTimelineEdit(task.id, startDate, endDate);
+          }
+        }}
       />
       <TaskActionsCell
         task={task}

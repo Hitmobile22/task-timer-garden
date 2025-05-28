@@ -30,6 +30,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   editingTaskId,
   editingTaskName,
   taskLists,
+  showArchived = false,
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -63,6 +64,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               editingTaskId={editingTaskId}
               editingTaskName={editingTaskName}
               taskLists={taskLists}
+              showArchived={showArchived}
               onToggleExpand={onToggleExpand}
               onEditStart={onEditStart}
               onEditCancel={onEditCancel}

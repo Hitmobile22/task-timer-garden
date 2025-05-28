@@ -1,6 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { TaskListComponent } from '@/components/task/TaskList';
-import { TaskForm } from '@/components/task/TaskForm';
 import { TaskEditModal } from '@/components/task/TaskEditModal';
 import { TaskFilters } from '@/components/task/TaskFilters';
 import { Task, Subtask } from '@/types/task.types';
@@ -53,7 +53,7 @@ export default function TaskView() {
       }
 
       const { data: subtasksData, error: subtasksError } = await supabase
-        .from('Subtasks')
+        .from('subtasks')
         .select('*');
 
       if (subtasksError) {
@@ -115,7 +115,7 @@ export default function TaskView() {
   const handleEditStart = (task: Task) => {
     setEditingTask(task);
     setEditingTaskId(task.id);
-    setEditingTaskName(task.name);
+    setEditingTaskName(task["Task Name"] || '');
   };
 
   const handleEditCancel = () => {
@@ -129,7 +129,7 @@ export default function TaskView() {
 
     const { data, error } = await supabase
       .from('Tasks')
-      .update({ name: editingTaskName })
+      .update({ "Task Name": editingTaskName })
       .eq('id', taskId)
       .select()
       .single();
@@ -139,7 +139,7 @@ export default function TaskView() {
       return;
     }
 
-    setTasks(tasks.map(task => (task.id === taskId ? { ...task, name: editingTaskName } : task)));
+    setTasks(tasks.map(task => (task.id === taskId ? { ...task, "Task Name": editingTaskName } : task)));
     handleEditCancel();
     fetchTasks();
   };
@@ -236,15 +236,13 @@ export default function TaskView() {
         </div>
       </div>
       
-      {showForm && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <TaskForm onTaskCreated={handleTaskCreated} />
-        </div>
-      )}
-      
       <TaskFilters
-        filters={filters}
-        onFiltersChange={setFilters}
+        showArchived={filters.showArchived}
+        taskListId={filters.taskListId}
+        projectId={filters.projectId}
+        onShowArchivedChange={(showArchived) => setFilters(prev => ({ ...prev, showArchived }))}
+        onTaskListChange={(taskListId) => setFilters(prev => ({ ...prev, taskListId }))}
+        onProjectChange={(projectId) => setFilters(prev => ({ ...prev, projectId }))}
         taskLists={taskLists}
         availableProjects={projects}
       />

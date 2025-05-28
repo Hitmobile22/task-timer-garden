@@ -12,6 +12,7 @@ interface TaskListProps {
   editingTaskId: number | null;
   editingTaskName: string;
   taskLists: any[];
+  showArchived?: boolean;
   onToggleExpand: (taskId: number) => void;
   onEditStart: (task: Task | Subtask) => void;
   onEditCancel: () => void;

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { TableRow } from "@/components/ui/table";
 import { TaskNameCell } from './cells/TaskNameCell';
@@ -61,15 +62,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         editingTaskId={editingTaskId}
         editingTaskName={editingTaskName}
         onToggleExpand={onToggleExpand}
-        onEditStart={onEditStart}
         onEditNameChange={onEditNameChange}
       />
       <TaskProgressCell
         task={task}
-        onUpdateProgress={onUpdateProgress}
+        onUpdateProgress={(progress) => onUpdateProgress(task.id, progress)}
       />
       <TaskTimelineCell
-        task={task}
+        taskId={task.id}
+        dateStarted={task.date_started}
+        dateDue={task.date_due}
         onTimelineEdit={onTimelineEdit}
       />
       <TaskActionsCell

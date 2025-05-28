@@ -866,6 +866,7 @@ export function TaskView() {
                               editingTaskId={editingTaskId}
                               editingTaskName={editingTaskName}
                               taskLists={taskLists}
+                              showArchived={showArchived}
                               onToggleExpand={toggleTaskExpansion}
                               onEditStart={handleEditStart}
                               onEditCancel={handleEditCancel}
@@ -899,6 +900,7 @@ export function TaskView() {
                         editingTaskId={editingTaskId}
                         editingTaskName={editingTaskName}
                         taskLists={taskLists}
+                        showArchived={showArchived}
                         onToggleExpand={toggleTaskExpansion}
                         onEditStart={handleEditStart}
                         onEditCancel={handleEditCancel}

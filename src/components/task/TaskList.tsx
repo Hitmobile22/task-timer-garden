@@ -1,35 +1,36 @@
-
 import React from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableCell } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
-import { TaskItem } from './TaskItem';
-import { SubtaskItem } from './SubtaskItem';
+import { TaskActionsCell } from './cells/TaskActionsCell';
+import { Button } from './ui/button';
 
-interface TaskListProps {
+interface TaskListComponentProps {
   tasks: Task[];
   subtasks?: Subtask[];
   expandedTasks: number[];
   editingTaskId: number | null;
   editingTaskName: string;
-  taskLists: any[];
+  taskLists?: any[];
+  showArchived?: boolean;
   onToggleExpand: (taskId: number) => void;
-  onEditStart: (task: Task | Subtask) => void;
+  onEditStart: (task: Task) => void;
   onEditCancel: () => void;
-  onEditSave: (taskId: number, isSubtask?: boolean) => void;
-  onEditNameChange: (value: string) => void;
+  onEditSave: (taskId: number) => void;
+  onEditNameChange: (name: string) => void;
   onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
-  onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onTimelineEdit: (taskId: number, start: string, end: string) => void;
 }
 
-export const TaskListComponent: React.FC<TaskListProps> = ({
+export const TaskListComponent: React.FC<TaskListComponentProps> = ({
   tasks,
   subtasks,
   expandedTasks,
   editingTaskId,
   editingTaskName,
   taskLists,
+  showArchived = false,
   onToggleExpand,
   onEditStart,
   onEditCancel,
@@ -40,56 +41,41 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onDeleteTask,
   onTimelineEdit,
 }) => {
-  console.log('TaskListComponent: Received onMoveTask function:', !!onMoveTask);
-  console.log('TaskListComponent: Received tasks:', tasks.length, 'items');
-  
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Task Name</TableHead>
-          <TableHead>Progress</TableHead>
-          <TableHead>Timeline</TableHead>
-          <TableHead className="w-[200px]">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {tasks.map((task) => (
-          <React.Fragment key={task.id}>
-            <TaskItem
+    <div className="space-y-2">
+      {tasks.map(task => (
+        <div key={task.id} className="border rounded-lg p-4 bg-white/50">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <Button onClick={() => onToggleExpand(task.id)}>
+                {expandedTasks.includes(task.id) ? '-' : '+'}
+              </Button>
+              <span className="ml-2">{task["Task Name"]}</span>
+            </div>
+            <TaskActionsCell
               task={task}
-              subtasks={subtasks}
-              expandedTasks={expandedTasks}
-              editingTaskId={editingTaskId}
-              editingTaskName={editingTaskName}
-              taskLists={taskLists}
-              onToggleExpand={onToggleExpand}
+              isEditing={editingTaskId === task.id}
+              taskLists={taskLists || []}
+              showArchived={showArchived}
+              onMoveTask={onMoveTask}
               onEditStart={onEditStart}
               onEditCancel={onEditCancel}
               onEditSave={onEditSave}
-              onEditNameChange={onEditNameChange}
-              onUpdateProgress={onUpdateProgress}
-              onMoveTask={onMoveTask}
               onDeleteTask={onDeleteTask}
-              onTimelineEdit={onTimelineEdit}
             />
-            {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
-              <SubtaskItem
-                key={subtask.id}
-                subtask={subtask}
-                editingTaskId={editingTaskId}
-                editingTaskName={editingTaskName}
-                onEditStart={onEditStart}
-                onEditCancel={onEditCancel}
-                onEditSave={onEditSave}
-                onEditNameChange={onEditNameChange}
-                onUpdateProgress={onUpdateProgress}
-                onDeleteTask={onDeleteTask}
-              />
-            ))}
-          </React.Fragment>
-        ))}
-      </TableBody>
-    </Table>
+          </div>
+          {expandedTasks.includes(task.id) && subtasks && (
+            <div className="pl-4">
+              {subtasks.filter(subtask => subtask["Parent Task ID"] === task.id).map(subtask => (
+                <div key={subtask.id} className="flex justify-between items-center">
+                  <span>{subtask["Task Name"]}</span>
+                  <Button onClick={() => onUpdateProgress(subtask.id, 'Completed', true)}>Complete</Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 };

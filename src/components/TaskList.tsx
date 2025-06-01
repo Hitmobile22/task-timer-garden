@@ -14,7 +14,7 @@ interface TaskListProps {
   onTaskStart: (taskId: number) => void;
   taskLists?: any[];
   activeTaskId?: number;
-  onTaskDurationChange?: (taskId: number, newDurationMinutes: number) => void; // Add this prop
+  onTaskDurationChange?: (taskId: number, newDurationMinutes: number) => void;
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ 

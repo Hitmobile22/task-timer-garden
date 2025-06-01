@@ -111,6 +111,114 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     }
   }, [activeTasks, activeTaskId]);
   
+  // Add handler for task duration changes
+  const handleTaskDurationChange = async (taskId: number, newDurationMinutes: number) => {
+    try {
+      const changedTask = activeTasks?.find(t => t.id === taskId);
+      if (!changedTask) return;
+
+      // Get current time blocks to avoid conflicts
+      const timeBlocks = activeTasks
+        ?.filter(t => isTaskTimeBlock(t))
+        .map(t => ({
+          start: new Date(t.date_started || ''),
+          end: new Date(t.date_due || '')
+        }))
+        .sort((a, b) => a.start.getTime() - b.start.getTime()) || [];
+
+      // If it's the current active task, we need to reschedule everything
+      if (changedTask.Progress === 'In progress') {
+        const currentTime = new Date();
+        const newEndTime = new Date(currentTime.getTime() + newDurationMinutes * 60 * 1000);
+
+        // Update the current task's end time
+        await supabase
+          .from('Tasks')
+          .update({
+            date_due: newEndTime.toISOString()
+          })
+          .eq('id', taskId);
+
+        // Reschedule subsequent tasks
+        const subsequentTasks = activeTasks
+          ?.filter(t => 
+            t.id !== taskId && 
+            !isTaskTimeBlock(t) && 
+            t.Progress !== 'Completed' &&
+            new Date(t.date_started || '') > new Date(changedTask.date_started || '')
+          )
+          .sort((a, b) => new Date(a.date_started || '').getTime() - new Date(b.date_started || '').getTime()) || [];
+
+        let nextStartTime = new Date(newEndTime.getTime() + 5 * 60 * 1000);
+
+        for (const task of subsequentTasks) {
+          // Get task duration from details or default to 25 minutes
+          let taskDuration = 25;
+          try {
+            if (task.details) {
+              const details = typeof task.details === 'string' ? JSON.parse(task.details) : task.details;
+              taskDuration = details?.taskDuration || 25;
+            }
+          } catch {
+            taskDuration = 25;
+          }
+
+          // Check for time block conflicts and adjust if needed
+          let taskStartTime = new Date(nextStartTime);
+          let taskEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
+
+          for (const block of timeBlocks) {
+            if (
+              (taskStartTime >= block.start && taskStartTime < block.end) ||
+              (taskEndTime > block.start && taskEndTime <= block.end) ||
+              (taskStartTime <= block.start && taskEndTime >= block.end)
+            ) {
+              taskStartTime = new Date(block.end.getTime() + 5 * 60 * 1000);
+              taskEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
+            }
+          }
+
+          await supabase
+            .from('Tasks')
+            .update({
+              date_started: taskStartTime.toISOString(),
+              date_due: taskEndTime.toISOString()
+            })
+            .eq('id', task.id);
+
+          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        }
+
+        // Invalidate queries to refresh the UI
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+
+        toast.success(`Task duration updated to ${newDurationMinutes} minutes and schedule adjusted`);
+      } else {
+        // For non-active tasks, just update the end time based on start time
+        if (changedTask.date_started) {
+          const startTime = new Date(changedTask.date_started);
+          const newEndTime = new Date(startTime.getTime() + newDurationMinutes * 60 * 1000);
+
+          await supabase
+            .from('Tasks')
+            .update({
+              date_due: newEndTime.toISOString()
+            })
+            .eq('id', taskId);
+
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+
+          toast.success(`Task duration updated to ${newDurationMinutes} minutes`);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating task duration:', error);
+      toast.error('Failed to update task schedule');
+    }
+  };
+  
   const handleTasksCreate = async (newTasks: NewTask[]) => {
     try {
       setTasks(newTasks);
@@ -531,7 +639,14 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                 />
               </div>
               <div className="task-list">
-                <TaskList tasks={activeTasks || []} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
+                <TaskList 
+                  tasks={activeTasks || []} 
+                  onTaskStart={handleTaskStart} 
+                  subtasks={[]} 
+                  taskLists={taskLists} 
+                  activeTaskId={activeTaskId}
+                  onTaskDurationChange={handleTaskDurationChange}
+                />
               </div>
             </div>
           </div>

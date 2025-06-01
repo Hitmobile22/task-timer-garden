@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -156,9 +155,70 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
     }
   };
 
+  const rescheduleSubsequentTasks = async (updatedTask: Task, originalDuration: number, newDuration: number) => {
+    try {
+      if (!updatedTask.date_started || originalDuration === newDuration) return;
+
+      // Get all active tasks that come after this task
+      const { data: allTasks, error } = await supabase
+        .from('Tasks')
+        .select('*')
+        .in('Progress', ['Not started', 'In progress'])
+        .neq('Progress', 'Backlog')
+        .order('date_started', { ascending: true });
+
+      if (error) throw error;
+
+      const currentTaskStart = new Date(updatedTask.date_started);
+      const tasksToReschedule = allTasks.filter(t => 
+        t.id !== updatedTask.id && 
+        t.date_started &&
+        new Date(t.date_started) > currentTaskStart
+      );
+
+      if (tasksToReschedule.length === 0) return;
+
+      const timeDifference = (newDuration - originalDuration) * 60 * 1000; // Convert to milliseconds
+
+      // Update each subsequent task
+      for (const task of tasksToReschedule) {
+        const newStartTime = new Date(new Date(task.date_started).getTime() + timeDifference);
+        const newEndTime = new Date(new Date(task.date_due).getTime() + timeDifference);
+
+        await supabase
+          .from('Tasks')
+          .update({
+            date_started: newStartTime.toISOString(),
+            date_due: newEndTime.toISOString()
+          })
+          .eq('id', task.id);
+      }
+
+      console.log(`Rescheduled ${tasksToReschedule.length} subsequent tasks by ${timeDifference / 60000} minutes`);
+    } catch (error) {
+      console.error('Error rescheduling subsequent tasks:', error);
+      toast.error('Failed to reschedule subsequent tasks');
+    }
+  };
+
   const handleSave = async () => {
     try {
       if (!editedTask) return;
+
+      // Get original duration for rescheduling calculation
+      let originalDuration = 25;
+      try {
+        if (task?.details) {
+          const details = typeof task.details === 'string' ? JSON.parse(task.details) : task.details;
+          originalDuration = details?.taskDuration || 25;
+        } else if (task?.date_started && task?.date_due) {
+          const start = new Date(task.date_started);
+          const end = new Date(task.date_due);
+          originalDuration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+        }
+      } catch (error) {
+        console.error("Error getting original duration:", error);
+      }
 
       // Calculate end time based on start time and task duration
       let updatedDueDate = dueDate;
@@ -218,10 +278,18 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         .eq('id', updatedTask.id);
         
       if (error) throw error;
+
+      // Reschedule subsequent tasks if duration changed
+      if (originalDuration !== taskDuration) {
+        await rescheduleSubsequentTasks(updatedTask, originalDuration, taskDuration);
+      }
       
+      // Invalidate all relevant queries to refresh the UI
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', updatedTask.id] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task-lists'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
       
       if (onSave) {
         onSave(updatedTask);

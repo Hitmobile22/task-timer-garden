@@ -312,7 +312,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       <TaskFilters
         searchQuery={searchTerm}
         progressFilter={statusFilter as Task['Progress'] | 'all'}
-        sortBy={sortField === 'date_started' ? 'date' : sortField === 'task_list_id' ? 'list' : 'project'}
+        sortBy={sortField === 'date_started' ? 'date' : 'project'}
         showNewTaskListDialog={false}
         showProjectModal={false}
         newTaskListName={newTaskListName}
@@ -320,7 +320,6 @@ export const TaskList: React.FC<TaskListProps> = ({
         onProgressFilterChange={(filter) => setStatusFilter(filter)}
         onSortByChange={(sort) => {
           if (sort === 'date') setSortField('date_started');
-          else if (sort === 'list') setSortField('Task Name');
           else setSortField('Task Name');
         }}
         onNewTaskListDialogChange={() => {}}

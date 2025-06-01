@@ -7,7 +7,6 @@ import { TaskFilters } from './task/TaskFilters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
-import { TaskActionsProvider } from './task/TaskActionsContext';
 
 interface TaskListProps {
   tasks: Task[];
@@ -309,55 +308,54 @@ export const TaskList: React.FC<TaskListProps> = ({
   }, [tasks, searchTerm, statusFilter, taskListFilter, showArchived, sortField, sortOrder]);
 
   return (
-    <TaskActionsProvider>
-      <div className="space-y-4">
-        <TaskFilters
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
-          taskListFilter={taskListFilter}
-          onTaskListFilterChange={setTaskListFilter}
-          sortField={sortField}
-          onSortFieldChange={setSortField}
-          sortOrder={sortOrder}
-          onSortOrderChange={setSortOrder}
-          showArchived={showArchived}
-          onShowArchivedChange={setShowArchived}
-          taskLists={taskLists}
-          newTaskListName={newTaskListName}
-          onNewTaskListNameChange={setNewTaskListName}
-          onCreateTaskList={handleCreateTaskList}
-        />
-        
-        <TaskListComponent
-          tasks={filteredTasks}
-          subtasks={allSubtasks}
-          expandedTasks={expandedTasks}
-          editingTaskId={editingTaskId}
-          editingTaskName={editingTaskName}
-          taskLists={taskLists}
-          showArchived={showArchived}
-          onToggleExpand={handleToggleExpand}
-          onEditStart={handleEditStart}
-          onEditCancel={handleEditCancel}
-          onEditSave={handleEditSave}
-          onEditNameChange={handleEditNameChange}
-          onUpdateProgress={handleUpdateProgress}
-          onMoveTask={handleMoveTask}
-          onDeleteTask={handleDeleteTask}
-          onTimelineEdit={handleTimelineEdit}
-          onUnarchiveTask={handleUnarchiveTask}
-        />
+    <div className="space-y-4">
+      <TaskFilters
+        searchQuery={searchTerm}
+        progressFilter={statusFilter as Task['Progress'] | 'all'}
+        sortBy={sortField === 'date_started' ? 'date' : sortField === 'task_list_id' ? 'list' : 'project'}
+        showNewTaskListDialog={false}
+        showProjectModal={false}
+        newTaskListName={newTaskListName}
+        onSearchChange={setSearchTerm}
+        onProgressFilterChange={(filter) => setStatusFilter(filter)}
+        onSortByChange={(sort) => {
+          if (sort === 'date') setSortField('date_started');
+          else if (sort === 'list') setSortField('Task Name');
+          else setSortField('Task Name');
+        }}
+        onNewTaskListDialogChange={() => {}}
+        onProjectModalChange={() => {}}
+        onNewTaskListNameChange={setNewTaskListName}
+        onCreateTaskList={handleCreateTaskList}
+      />
+      
+      <TaskListComponent
+        tasks={filteredTasks}
+        subtasks={allSubtasks}
+        expandedTasks={expandedTasks}
+        editingTaskId={editingTaskId}
+        editingTaskName={editingTaskName}
+        taskLists={taskLists}
+        showArchived={showArchived}
+        onToggleExpand={handleToggleExpand}
+        onEditStart={handleEditStart}
+        onEditCancel={handleEditCancel}
+        onEditSave={handleEditSave}
+        onEditNameChange={handleEditNameChange}
+        onUpdateProgress={handleUpdateProgress}
+        onMoveTask={handleMoveTask}
+        onDeleteTask={handleDeleteTask}
+        onTimelineEdit={handleTimelineEdit}
+        onUnarchiveTask={handleUnarchiveTask}
+      />
 
-        <TaskEditModal
-          task={editModalTask}
-          open={!!editModalTask}
-          onOpenChange={(open) => !open && setEditModalTask(null)}
-          taskLists={taskLists}
-          onTaskDurationChange={onTaskDurationChange}
-        />
-      </div>
-    </TaskActionsProvider>
+      <TaskEditModal
+        task={editModalTask}
+        open={!!editModalTask}
+        onOpenChange={(open) => !open && setEditModalTask(null)}
+        taskLists={taskLists}
+        onTaskDurationChange={onTaskDurationChange}
+      />
+    </div>
   );
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,12 +24,11 @@ interface TaskEditModalProps {
   task: Task | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  taskLists?: any[];
+  taskLists?: any[]; // Make this prop optional
   onSave?: (task: Task) => void;
-  onTaskDurationChange?: (taskId: number, newDurationMinutes: number) => void; // Add callback for duration changes
 }
 
-export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave, onTaskDurationChange }: TaskEditModalProps) => {
+export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave }: TaskEditModalProps) => {
   const [editedTask, setEditedTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<any[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -160,18 +160,6 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
     try {
       if (!editedTask) return;
 
-      const originalDuration = (() => {
-        try {
-          if (task?.details) {
-            const details = typeof task.details === 'string' ? JSON.parse(task.details) : task.details;
-            return details?.taskDuration || 25;
-          }
-          return 25;
-        } catch {
-          return 25;
-        }
-      })();
-
       // Calculate end time based on start time and task duration
       let updatedDueDate = dueDate;
       if (startDate) {
@@ -234,11 +222,6 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task', updatedTask.id] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
-      
-      // If task duration changed, notify parent component
-      if (taskDuration !== originalDuration && onTaskDurationChange) {
-        onTaskDurationChange(updatedTask.id, taskDuration);
-      }
       
       if (onSave) {
         onSave(updatedTask);

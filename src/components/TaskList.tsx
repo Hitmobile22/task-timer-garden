@@ -571,6 +571,9 @@ export const TaskList: React.FC<TaskListProps> = ({
     }
   });
 
+  // Use the passed tasks prop for scheduler page, or dbTasks for task view
+  const tasksToDisplay = !isTaskView && initialTasks ? initialTasks : dbTasks;
+
   const getTodayTasks = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return [];
     
@@ -763,9 +766,9 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id || !dbTasks) return;
+    if (!over || active.id === over.id || !tasksToDisplay) return;
     
-    const todayTasks = getTodayTasks(dbTasks);
+    const todayTasks = getTodayTasks(tasksToDisplay);
     if (todayTasks.length === 0) return;
     
     const draggedTask = todayTasks.find(t => t.id === active.id);
@@ -831,9 +834,9 @@ export const TaskList: React.FC<TaskListProps> = ({
       <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn px-0" data-task-list>
         <h2 className="text-xl font-semibold">Today's Tasks</h2>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={dbTasks?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
+          <SortableContext items={tasksToDisplay?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
             <ul className="space-y-4">
-              {(dbTasks || [])
+              {(tasksToDisplay || [])
                 .filter(task => ['Not started', 'In progress'].includes(task.Progress))
                 .map(task => (
                   <SortableTaskItem key={task.id} task={task}>
@@ -883,7 +886,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const updateRemainingTaskTimes = async () => {
     try {
-      const notStartedTasks = dbTasks?.filter(t => t.Progress === 'Not started') || [];
+      const notStartedTasks = tasksToDisplay?.filter(t => t.Progress === 'Not started') || [];
       if (notStartedTasks.length === 0) return;
       const currentTime = new Date();
       currentTime.setMinutes(currentTime.getMinutes() + 30);
@@ -1042,9 +1045,9 @@ export const TaskList: React.FC<TaskListProps> = ({
     return format(new Date(date), 'M/d h:mm a');
   };
 
-  if (!dbTasks || dbTasks.length === 0) return null;
+  if (!tasksToDisplay || tasksToDisplay.length === 0) return null;
 
-  const filteredTasks = dbTasks.filter(task => {
+  const filteredTasks = tasksToDisplay.filter(task => {
     const matchesSearch = searchQuery ? task["Task Name"].toLowerCase().includes(searchQuery.toLowerCase()) : true;
     if (!isTaskView) {
       return task.Progress !== 'Completed' && matchesSearch;

@@ -71,7 +71,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    // Simple logic: show tasks scheduled for today
+    // Simple logic: show tasks scheduled for today - include ALL tasks from today
     const todayTasks = activeTasks.filter(task => {
       if (!task.date_started) return false;
       
@@ -129,14 +129,6 @@ export const TaskList: React.FC<TaskListProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Today's Tasks</h2>
-        <Button
-          variant="outline"
-          onClick={() => navigate('/tasks')}
-          className="flex items-center gap-2"
-        >
-          View All Tasks
-          <ChevronRight className="h-4 w-4" />
-        </Button>
       </div>
 
       {todayTasks.length === 0 ? (

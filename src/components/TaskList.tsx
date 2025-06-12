@@ -38,6 +38,20 @@ export const TaskList: React.FC<TaskListProps> = ({
     start: t.date_started 
   })));
 
+  // Query for all tasks to get today's tasks
+  const { data: dbTasks } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('Tasks')
+        .select('*')
+        .order('date_started', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Get subtasks for all tasks
   const { data: allSubtasks } = useQuery({
     queryKey: ['subtasks'],
@@ -71,17 +85,36 @@ export const TaskList: React.FC<TaskListProps> = ({
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    // Simple logic: show tasks scheduled for today - include ALL tasks from today
-    const todayTasks = activeTasks.filter(task => {
-      if (!task.date_started) return false;
-      
-      const taskDate = new Date(task.date_started);
-      const isToday = taskDate >= today && taskDate < tomorrow;
-      
-      console.log('TaskList getTodayTasks: Task', task["Task Name"], 'scheduled for', taskDate.toISOString(), 'isToday:', isToday);
-      
-      return isToday;
-    });
+    const tomorrow3AM = new Date(tomorrow);
+    tomorrow3AM.setHours(3, 0, 0, 0);
+    
+    // Filter for today's tasks using time zone logic
+    let todayTasks;
+    if (now.getHours() >= 21 || now.getHours() < 3) {
+      // Between 9 PM and 3 AM, show tasks until 3 AM tomorrow
+      todayTasks = activeTasks.filter(task => {
+        if (!task.date_started) return false;
+        
+        const taskDate = new Date(task.date_started);
+        const isInRange = taskDate >= today && taskDate <= tomorrow3AM;
+        
+        console.log('TaskList getTodayTasks (evening): Task', task["Task Name"], 'scheduled for', taskDate.toISOString(), 'isInRange:', isInRange);
+        
+        return isInRange;
+      });
+    } else {
+      // Regular hours: show tasks for today only
+      todayTasks = activeTasks.filter(task => {
+        if (!task.date_started) return false;
+        
+        const taskDate = new Date(task.date_started);
+        const isToday = taskDate >= today && taskDate < tomorrow;
+        
+        console.log('TaskList getTodayTasks (regular): Task', task["Task Name"], 'scheduled for', taskDate.toISOString(), 'isToday:', isToday);
+        
+        return isToday;
+      });
+    }
     
     console.log('TaskList getTodayTasks: Final today tasks:', todayTasks.length);
     
@@ -92,7 +125,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     });
   };
 
-  const todayTasks = getTodayTasks(tasks);
+  const todayTasks = getTodayTasks(dbTasks || []);
 
   const formatTime = (dateString: string | null) => {
     if (!dateString) return '';
@@ -129,6 +162,14 @@ export const TaskList: React.FC<TaskListProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Today's Tasks</h2>
+        <Button
+          variant="outline"
+          onClick={() => navigate('/tasks')}
+          className="flex items-center gap-2"
+        >
+          View All Tasks
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
 
       {todayTasks.length === 0 ? (

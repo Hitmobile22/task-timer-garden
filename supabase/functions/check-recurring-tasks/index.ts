@@ -571,9 +571,9 @@ Deno.serve(async (req) => {
             : [];
           
           for (let i = 0; i < projectTasksToCreate; i++) {
-            // Always start tasks at 9am (consistent time)
+            // Always start tasks at 1pm UTC (9am EST) - consistent time
             const taskStartTime = new Date(today);
-            taskStartTime.setHours(9, 0 + (i * 30), 0, 0); // All start at 9:00 with 30-min increments
+            taskStartTime.setHours(13, 0 + (i * 30), 0, 0); // Changed from 9 to 13 for EST (9am EST = 1pm UTC)
             
             const taskEndTime = new Date(taskStartTime);
             taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
@@ -653,13 +653,14 @@ Deno.serve(async (req) => {
             : [];
           
           for (let i = 0; i < additionalListTasksToCreate; i++) {
-            // Always start tasks exactly at 9am (consistent time)
+            // Always start tasks at 1pm UTC (9am EST) - consistent time
             const taskStartTime = new Date(today);
-            taskStartTime.setHours(9, 0 + ((projectTasksCreated + i) * 30), 0, 0); // All start at 9:00 with 30-min increments
+            taskStartTime.setHours(13, 0 + ((projectTasksCreated + i) * 30), 0, 0); // Changed from 9 to 13 for EST (9am EST = 1pm UTC)
             
             const taskEndTime = new Date(taskStartTime);
             taskEndTime.setMinutes(taskStartTime.getMinutes() + 25); // 25 min duration
             
+            // Ensure we don't create duplicate task names
             let taskNumber = totalNonProjectCount + i + 1;
             let taskName = `${listName} - Task ${taskNumber}`;
             

@@ -292,7 +292,7 @@ Deno.serve(async (req) => {
         
         for (let i = 0; i < tasksToCreate; i++) {
           const taskStartTime = new Date(today);
-          taskStartTime.setHours(9, 0 + (i * 30), 0, 0);
+          taskStartTime.setHours(13, 0 + (i * 30), 0, 0); // Changed from 9 to 13 for EST (9am EST = 1pm UTC)
           
           const taskEndTime = new Date(taskStartTime);
           taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);

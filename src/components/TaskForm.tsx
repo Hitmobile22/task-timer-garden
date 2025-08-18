@@ -7,6 +7,7 @@ import { Plus, Minus, Clock, Check } from "lucide-react";
 import { toast } from "sonner";
 import { fetchSubtasksFromAI } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 import { Calendar } from "@/components/ui/calendar";
 import { format, addDays, isBefore, startOfDay } from "date-fns";
@@ -41,6 +42,7 @@ export const TaskForm = ({
   onTasksCreate,
   onTimeBlockCreate
 }) => {
+  const { user } = useAuth();
   const {
     data: taskLists
   } = useQuery({
@@ -49,12 +51,13 @@ export const TaskForm = ({
       const {
         data,
         error
-      } = await supabase.from('TaskLists').select('*').order('order', {
+      } = await supabase.from('TaskLists').select('*').eq('user_id', user?.id).order('order', {
         ascending: true
       });
       if (error) throw error;
       return data;
-    }
+    },
+    enabled: !!user
   });
   
   const [numTasks, setNumTasks] = useState<string>("none");
@@ -193,7 +196,8 @@ export const TaskForm = ({
           "date_started": taskStartTime.toISOString(),
           "date_due": taskDueTime.toISOString(),
           "delay_type": delayType,
-          "delay_value": delayType === 'minutes' ? selectedMinutes : selectedDate?.toISOString()
+          "delay_value": delayType === 'minutes' ? selectedMinutes : selectedDate?.toISOString(),
+          "user_id": user?.id
         }]).select().single();
         if (taskError) throw taskError;
 
@@ -201,7 +205,8 @@ export const TaskForm = ({
           const subtasksToInsert = task.subtasks.map(subtask => ({
             "Task Name": subtask.name,
             "Progress": "Not started" as Status,
-            "Parent Task ID": taskData.id
+            "Parent Task ID": taskData.id,
+            "user_id": user?.id
           }));
           const {
             error: subtaskError
@@ -256,7 +261,8 @@ export const TaskForm = ({
             "Progress": "Not started",
             "date_started": startTime.toISOString(),
             "date_due": endTime.toISOString(),
-            "details": { isTimeBlock: true }
+            "details": { isTimeBlock: true },
+            "user_id": user?.id
           }])
           .select()
           .single();
@@ -339,7 +345,8 @@ export const TaskForm = ({
             "Progress": "Not started",
             "date_started": blockDate.toISOString(),
             "date_due": endTime.toISOString(),
-            "details": { isTimeBlock: true }
+            "details": { isTimeBlock: true },
+            "user_id": user?.id
           });
         }
         

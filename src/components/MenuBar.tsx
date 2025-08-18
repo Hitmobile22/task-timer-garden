@@ -8,6 +8,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
+import { UserMenu } from "@/components/UserMenu";
 import { Menu, Calendar, List, ClipboardList } from "lucide-react";
 import { useLocation } from "react-router-dom";
 
@@ -15,8 +16,9 @@ export const MenuBar = () => {
   const location = useLocation();
 
   return (
-    <NavigationMenu className="relative">
-      <NavigationMenuList>
+    <div className="flex items-center justify-between w-full">
+      <NavigationMenu className="relative">
+        <NavigationMenuList>
         <NavigationMenuItem>
           <NavigationMenuTrigger className="hover-lift flex items-center px-4 py-2 rounded-md text-white bg-gray-800 shadow-md hover:bg-gray-700 transition-all duration-200">
             <Menu className="h-5 w-5 mr-2" />
@@ -62,5 +64,7 @@ export const MenuBar = () => {
         </NavigationMenuItem>
       </NavigationMenuList>
     </NavigationMenu>
+    <UserMenu />
+    </div>
   );
 };

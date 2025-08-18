@@ -5,6 +5,8 @@ import Index from "./pages/Index";
 import Calendar from "./pages/Calendar";
 import TaskView from "./pages/TaskView";
 import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useCheckProjectDueDates } from './hooks/useCheckProjectDueDates';
 import { useUnifiedRecurringTasksCheck } from './hooks/useUnifiedRecurringTasksCheck';
 
@@ -36,16 +38,32 @@ const routes = [
     children: [
       {
         path: "/",
-        element: <Index />,
+        element: (
+          <ProtectedRoute>
+            <Index />
+          </ProtectedRoute>
+        ),
         errorElement: <NotFound />,
       },
       {
         path: "/calendar",
-        element: <Calendar />,
+        element: (
+          <ProtectedRoute>
+            <Calendar />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/tasks",
-        element: <TaskView />,
+        element: (
+          <ProtectedRoute>
+            <TaskView />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/auth",
+        element: <Auth />,
       },
       {
         path: "*",

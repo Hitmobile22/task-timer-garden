@@ -2,6 +2,7 @@
 import { TaskScheduler } from '@/components/TaskScheduler';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { GoalNotificationsPanel } from '@/components/goals/GoalNotificationsPanel';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
@@ -11,6 +12,7 @@ import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { resetToastStateAtMidnight } from '@/utils/recurringUtils';
 
 const Index = () => {
+  const { user } = useAuth();
   const { resetDailyGoals } = useRecurringProjectsCheck();
   const [didInitialReset, setDidInitialReset] = useState(false);
   const initialResetRef = useRef(false);
@@ -44,6 +46,7 @@ const Index = () => {
       const { data: activeTasks, error } = await supabase
         .from('Tasks')
         .select('*')
+        .eq('user_id', user?.id)
         .neq('Progress', 'Completed')
         .order('date_started', { ascending: true });
       

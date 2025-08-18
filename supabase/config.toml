@@ -32,13 +32,13 @@ enabled = true
 enabled = false
 
 [functions.check-recurring-tasks]
-verify_jwt = false
+verify_jwt = true
 
 [functions.google-calendar]
 verify_jwt = false
 
 [functions.check-recurring-projects]
-verify_jwt = false
+verify_jwt = true
 
 [functions.sync-google-calendar]
-verify_jwt = false
+verify_jwt = true

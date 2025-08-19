@@ -97,11 +97,16 @@ export const isTaskInFuture = (task: any): boolean => {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   
-  if (now.getHours() >= 21 || now.getHours() < 3) {
-    const tomorrow3AM = new Date(tomorrow);
-    tomorrow3AM.setHours(3, 0, 0, 0);
+  // Convert EST evening mode (9 PM - 3 AM) to UTC for proper comparison
+  // 9 PM EST = 2 AM UTC next day, 3 AM EST = 8 AM UTC
+  const nowUTC = new Date(now.toISOString());
+  const isEveningMode = nowUTC.getUTCHours() >= 2 || nowUTC.getUTCHours() < 8;
+  
+  if (isEveningMode) {
+    const tomorrow3AMUTC = new Date(tomorrow);
+    tomorrow3AMUTC.setUTCHours(8, 0, 0, 0);
     
-    return taskStartDate > tomorrow3AM;
+    return taskStartDate > tomorrow3AMUTC;
   }
   
   return taskStartDate >= tomorrow;

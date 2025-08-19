@@ -447,78 +447,66 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     tasks = tasks.filter(task => task.Progress !== 'Backlog');
     
     const now = new Date();
-    const today = new Date(now);
-    today.setUTCHours(0, 0, 0, 0);
     
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const tomorrow3AM = new Date(tomorrow);
-    tomorrow3AM.setHours(3, 0, 0, 0);
-    
-    // Convert EST evening mode (9 PM - 3 AM) to proper UTC comparison
-    // When it's 9 PM EST, that's 2 AM UTC next day
-    // When it's 3 AM EST, that's 8 AM UTC same day
+    // Get current time in EST/EDT
     const nowEST = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
     const estHour = nowEST.getHours();
     const isEveningMode = estHour >= 21 || estHour < 3;
     
-    console.log('DEBUG Evening Mode Check:', {
-      currentTime: now.toISOString(),
-      currentESTTime: nowEST.toISOString(),
-      currentESTHour: estHour,
-      isEveningMode,
-      todayBoundary: today.toISOString()
-    });
-    
     if (isEveningMode) {
-      // Evening mode: show tasks from 9 PM EST today until 3 AM EST tomorrow
-      // This means we need to show tasks from yesterday 9 PM until today 3 AM (if currently in evening mode)
-      const yesterdayEst = new Date(nowEST);
-      yesterdayEst.setDate(yesterdayEst.getDate() - 1);
-      yesterdayEst.setHours(21, 0, 0, 0); // 9 PM EST yesterday
+      // Evening mode: 9 PM EST - 3 AM EST (show current evening session tasks)
+      let startTime: Date, endTime: Date;
       
-      const tomorrowEst = new Date(nowEST);
       if (estHour >= 21) {
-        // If it's after 9 PM, show until 3 AM tomorrow
-        tomorrowEst.setDate(tomorrowEst.getDate() + 1);
+        // Currently after 9 PM - show from 9 PM today to 3 AM tomorrow
+        startTime = new Date(nowEST);
+        startTime.setHours(21, 0, 0, 0);
+        
+        endTime = new Date(nowEST);
+        endTime.setDate(endTime.getDate() + 1);
+        endTime.setHours(3, 0, 0, 0);
+      } else {
+        // Currently before 3 AM - show from 9 PM yesterday to 3 AM today
+        startTime = new Date(nowEST);
+        startTime.setDate(startTime.getDate() - 1);
+        startTime.setHours(21, 0, 0, 0);
+        
+        endTime = new Date(nowEST);
+        endTime.setHours(3, 0, 0, 0);
       }
-      tomorrowEst.setHours(3, 0, 0, 0); // 3 AM EST
       
-      // Convert EST boundaries to UTC for comparison with stored UTC task times
-      const startBoundaryUTC = new Date(yesterdayEst.toLocaleString("en-US", {timeZone: "UTC"}));
-      const endBoundaryUTC = new Date(tomorrowEst.toLocaleString("en-US", {timeZone: "UTC"}));
+      // Convert EST times to UTC by calculating offset manually
+      // EST is UTC-5, EDT is UTC-4
+      const isDST = nowEST.getTimezoneOffset() === 240; // 240 minutes = 4 hours (EDT)
+      const offsetHours = isDST ? 4 : 5;
       
-      console.log('DEBUG Evening Mode Boundaries:', {
-        startBoundaryEST: yesterdayEst.toISOString(),
-        endBoundaryEST: tomorrowEst.toISOString(),
-        startBoundaryUTC: startBoundaryUTC.toISOString(),
-        endBoundaryUTC: endBoundaryUTC.toISOString()
-      });
+      const startTimeUTC = new Date(startTime.getTime() + (offsetHours * 60 * 60 * 1000));
+      const endTimeUTC = new Date(endTime.getTime() + (offsetHours * 60 * 60 * 1000));
       
-      const filteredTasks = tasks.filter(task => {
-        const taskDate = task.date_started ? new Date(task.date_started) : null;
-        if (!taskDate) return false;
-        
-        const shouldInclude = taskDate >= startBoundaryUTC && taskDate <= endBoundaryUTC;
-        
-        console.log('DEBUG Task Filter:', {
-          taskName: task.name,
-          taskStartTime: taskDate.toISOString(),
-          shouldInclude,
-          afterStart: taskDate >= startBoundaryUTC,
-          beforeEnd: taskDate <= endBoundaryUTC
-        });
-        
-        return shouldInclude;
-      });
-      
-      return filteredTasks;
-    } else {
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= today && taskDate < tomorrow;
+        return taskDate >= startTimeUTC && taskDate < endTimeUTC;
+      });
+    } else {
+      // Normal mode: show only today's tasks (not tomorrow's)
+      const todayEST = new Date(nowEST);
+      todayEST.setHours(0, 0, 0, 0);
+      
+      const tomorrowEST = new Date(todayEST);
+      tomorrowEST.setDate(tomorrowEST.getDate() + 1);
+      
+      // Convert to UTC
+      const isDST = nowEST.getTimezoneOffset() === 240;
+      const offsetHours = isDST ? 4 : 5;
+      
+      const todayUTC = new Date(todayEST.getTime() + (offsetHours * 60 * 60 * 1000));
+      const tomorrowUTC = new Date(tomorrowEST.getTime() + (offsetHours * 60 * 60 * 1000));
+      
+      return tasks.filter(task => {
+        const taskDate = task.date_started ? new Date(task.date_started) : null;
+        if (!taskDate) return false;
+        return taskDate >= todayUTC && taskDate < tomorrowUTC;
       });
     }
   };

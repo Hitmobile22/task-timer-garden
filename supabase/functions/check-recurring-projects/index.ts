@@ -96,14 +96,15 @@ Deno.serve(async (req) => {
         
         // Log this reset in the recurring_task_generation_logs table
         if (goalsReset > 0) {
-          await supabaseClient
+            await supabaseClient
             .from('recurring_task_generation_logs')
             .insert({
               task_list_id: -1, // Special ID for daily goal resets
               setting_id: -1,   // Special ID for daily goal resets
               generation_date: new Date().toISOString(),
               tasks_generated: goalsReset,
-              details: { reset_type: 'daily_goals' }
+              details: { reset_type: 'daily_goals' },
+              user_id: (dailyGoals && dailyGoals.length > 0) ? dailyGoals[0].user_id : null // Add user_id to comply with RLS policy
             });
         }
         
@@ -306,7 +307,8 @@ Deno.serve(async (req) => {
             date_started: taskStartTime.toISOString(),
             date_due: taskEndTime.toISOString(),
             project_id: project.id,
-            task_list_id: project.task_list_id
+            task_list_id: project.task_list_id,
+            user_id: project.user_id  // Add user_id to comply with RLS policy
           });
         }
         
@@ -346,7 +348,8 @@ Deno.serve(async (req) => {
             .insert({
               project_id: project.id,
               tasks_generated: tasksCreated,
-              generation_date: new Date().toISOString()
+              generation_date: new Date().toISOString(),
+              user_id: project.user_id  // Add user_id to comply with RLS policy
             });
         }
         

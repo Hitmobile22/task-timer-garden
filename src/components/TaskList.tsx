@@ -15,6 +15,7 @@ import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circl
 import { Task, Subtask } from '@/types/task.types';
 import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
+import { useAuth } from '@/hooks/useAuth';
 
 interface SubtaskData {
   id: number;
@@ -150,6 +151,14 @@ const EditTaskModal = ({
   
   const handleDuplicateTask = async () => {
     try {
+      // Get current user for authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        toast.error('Authentication required to duplicate task');
+        return;
+      }
+
       // Create a new task as a copy of the current task, but only include fields that exist in the database
       const { data: newTask, error: taskError } = await supabase
         .from('Tasks')
@@ -160,7 +169,8 @@ const EditTaskModal = ({
           project_id: task.project_id,
           date_started: task.date_started,
           date_due: task.date_due,
-          details: task.details
+          details: task.details,
+          user_id: user.id  // Add user_id to comply with RLS policy
           // IsTimeBlock field is removed as it doesn't exist in the database
         }])
         .select()
@@ -174,7 +184,8 @@ const EditTaskModal = ({
         const newSubtasks = editingSubtasks.map(subtask => ({
           "Task Name": subtask["Task Name"],
           "Parent Task ID": newTask.id,
-          Progress: "Not started" as const
+          Progress: "Not started" as const,
+          user_id: user.id  // Add user_id to comply with RLS policy
         }));
 
         // Insert all new subtasks at once

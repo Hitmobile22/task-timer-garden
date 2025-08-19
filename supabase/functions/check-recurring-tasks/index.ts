@@ -10,7 +10,8 @@ async function updateGenerationLog(
   supabaseClient: any, 
   taskListId: number, 
   settingId: number, 
-  tasksGenerated: number
+  tasksGenerated: number,
+  userId?: string
 ) {
   try {
     // First try to update existing record for today
@@ -51,7 +52,8 @@ async function updateGenerationLog(
           task_list_id: taskListId,
           setting_id: settingId,
           tasks_generated: tasksGenerated,
-          generation_date: new Date().toISOString()
+          generation_date: new Date().toISOString(),
+          user_id: userId  // Add user_id to comply with RLS policy
         });
         
       if (insertError) {
@@ -454,10 +456,10 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        // Get the task list info for the task name
+        // Get the task list info for the task name and user_id
         const { data: taskList, error: taskListError } = await supabaseClient
           .from('TaskLists')
-          .select('name')
+          .select('name, user_id')
           .eq('id', setting.task_list_id)
           .single();
 
@@ -474,7 +476,7 @@ Deno.serve(async (req) => {
         // Get all recurring projects associated with this task list
         const { data: taskListProjects, error: projectsError } = await supabaseClient
           .from('Projects')
-          .select('id, "Project Name", isRecurring, recurringTaskCount, task_list_id')
+          .select('id, "Project Name", isRecurring, recurringTaskCount, task_list_id, user_id')
           .eq('task_list_id', setting.task_list_id)
           .eq('isRecurring', true)
           .neq('progress', 'Completed');
@@ -503,7 +505,7 @@ Deno.serve(async (req) => {
           });
           
           // Update generation log to reflect that we already have enough tasks
-          await updateGenerationLog(supabaseClient, setting.task_list_id, setting.id, taskCounts.total);
+          await updateGenerationLog(supabaseClient, setting.task_list_id, setting.id, taskCounts.total, taskList?.user_id);
           
           // Add to cache
           generationCache.set(cacheKey, true);
@@ -600,7 +602,8 @@ Deno.serve(async (req) => {
               date_started: taskStartTime.toISOString(),
               date_due: taskEndTime.toISOString(),
               task_list_id: setting.task_list_id,
-              project_id: project.id
+              project_id: project.id,
+              user_id: project.user_id  // Add user_id to comply with RLS policy
             });
             
             projectTasksCreated++;
@@ -683,7 +686,8 @@ Deno.serve(async (req) => {
               date_started: taskStartTime.toISOString(),
               date_due: taskEndTime.toISOString(),
               task_list_id: setting.task_list_id,
-              project_id: null // Not associated with any project
+              project_id: null, // Not associated with any project
+              user_id: taskList?.user_id  // Add user_id to comply with RLS policy
             });
           }
         }
@@ -712,7 +716,8 @@ Deno.serve(async (req) => {
             supabaseClient, 
             setting.task_list_id, 
             setting.id, 
-            totalTasksGenerated
+            totalTasksGenerated,
+            taskList?.user_id
           );
           
           // Add to cache to prevent duplicate processing

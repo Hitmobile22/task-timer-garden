@@ -197,9 +197,10 @@ export function TaskView() {
   const createTaskListMutation = useMutation({
     mutationFn: async (name: string) => {
       const color = generateRandomColor();
+      const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase
         .from('TaskLists')
-        .insert([{ name, color }]);
+        .insert([{ name, color, user_id: user?.id }]);
       
       if (error) throw error;
     },
@@ -321,6 +322,7 @@ export function TaskView() {
   const createProjectMutation = useMutation({
     mutationFn: async (projectData: any) => {
       const { name, notes, selectedTasks, startDate, dueDate, status, taskListId, isRecurring, recurringTaskCount } = projectData;
+      const { data: { user } } = await supabase.auth.getUser();
       
       const { data: newProject, error: projectError } = await supabase
         .from('Projects')
@@ -333,7 +335,8 @@ export function TaskView() {
           task_list_id: taskListId,
           sort_order: 0,
           isRecurring: isRecurring || false,
-          recurringTaskCount: recurringTaskCount || 1
+          recurringTaskCount: recurringTaskCount || 1,
+          user_id: user?.id
         }])
         .select()
         .single();

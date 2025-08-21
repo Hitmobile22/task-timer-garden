@@ -20,20 +20,41 @@ Deno.serve(async (req) => {
   }
   
   try {
+    // Get the authorization header first
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('Missing or invalid Authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Authentication required - missing bearer token' }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
     // Create a Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      { 
+        global: { 
+          headers: { 
+            Authorization: authHeader 
+          } 
+        } 
+      }
     )
     
-    // Get the authenticated user
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    // Get the authenticated user using the token
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
     
     if (userError || !user) {
       console.error('Authentication error:', userError);
       return new Response(
-        JSON.stringify({ error: 'Authentication required' }),
+        JSON.stringify({ error: 'Authentication failed' }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 401

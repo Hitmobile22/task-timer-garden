@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 import { format, addDays, isAfter, isBefore } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -16,7 +17,6 @@ import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circl
 import { Task, Subtask } from '@/types/task.types';
 import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
-import { useAuth } from '@/hooks/useAuth';
 
 interface SubtaskData {
   id: number;
@@ -520,6 +520,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 }) => {
   const location = useLocation();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const isTaskView = location.pathname === '/tasks';
@@ -781,7 +782,8 @@ export const TaskList: React.FC<TaskListProps> = ({
         const updateData: any = {
           id: task.id,
           date_started: taskStartTimeUTC.toISOString(),
-          date_due: taskEndTimeUTC.toISOString()
+          date_due: taskEndTimeUTC.toISOString(),
+          user_id: user?.id
         };
         
         if (shouldResetTimer && taskIsCurrentTask && !isFirst) {

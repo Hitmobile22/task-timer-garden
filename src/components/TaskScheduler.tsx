@@ -448,13 +448,21 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     
     const now = new Date();
     
-    // Get current time in EST/EDT
-    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    // Get current time in EST timezone using date-fns-tz
+    const EST_TIMEZONE = 'America/New_York';
+    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: EST_TIMEZONE}));
     const estHour = nowEST.getHours();
     const isEveningMode = estHour >= 21 || estHour < 3;
     
+    console.log('TaskScheduler getTodayTasks:', {
+      currentTime: now.toISOString(),
+      estTime: nowEST.toISOString(),
+      estHour,
+      isEveningMode
+    });
+    
     if (isEveningMode) {
-      // Evening mode: show current evening session + active tasks from previous sessions
+      // Evening mode: ONLY show current evening session (9 PM EST - 3 AM EST)
       let currentSessionStart: Date, currentSessionEnd: Date;
       
       if (estHour >= 21) {
@@ -475,36 +483,33 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         currentSessionEnd.setHours(3, 0, 0, 0);
       }
       
-      // Convert EST times to UTC by calculating offset manually
-      const isDST = nowEST.getTimezoneOffset() === 240; // 240 minutes = 4 hours (EDT)
-      const offsetHours = isDST ? 4 : 5;
+      // Use proper date-fns-tz conversion from EST to UTC
+      const currentSessionStartUTC = new Date(currentSessionStart.getTime() - currentSessionStart.getTimezoneOffset() * 60000);
+      const currentSessionEndUTC = new Date(currentSessionEnd.getTime() - currentSessionEnd.getTimezoneOffset() * 60000);
       
-      const currentSessionStartUTC = new Date(currentSessionStart.getTime() + (offsetHours * 60 * 60 * 1000));
-      const currentSessionEndUTC = new Date(currentSessionEnd.getTime() + (offsetHours * 60 * 60 * 1000));
+      console.log('Evening mode boundaries:', {
+        sessionStartEST: currentSessionStart.toISOString(),
+        sessionEndEST: currentSessionEnd.toISOString(),
+        sessionStartUTC: currentSessionStartUTC.toISOString(), 
+        sessionEndUTC: currentSessionEndUTC.toISOString()
+      });
       
-      return tasks.filter(task => {
+      const filteredTasks = tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
         
-        // Include current evening session tasks
-        if (taskDate >= currentSessionStartUTC && taskDate < currentSessionEndUTC) {
-          return true;
+        // STRICT: Only include tasks within current evening session
+        const isInSession = taskDate >= currentSessionStartUTC && taskDate < currentSessionEndUTC;
+        
+        if (isInSession) {
+          console.log(`Including evening task: ${task["Task Name"]} at ${taskDate.toISOString()}`);
         }
         
-        // Include active tasks from previous evening sessions (uncompleted)
-        if ((task.Progress === 'In progress' || task.Progress === 'Not started')) {
-          // Check if task is from a previous evening session (9 PM - 3 AM range)
-          const taskEST = new Date(taskDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
-          const taskHour = taskEST.getHours();
-          
-          // If task was scheduled during evening hours and is still active, include it
-          if ((taskHour >= 21 || taskHour < 3) && taskDate < currentSessionStartUTC) {
-            return true;
-          }
-        }
-        
-        return false;
+        return isInSession;
       });
+      
+      console.log(`Evening mode filtered ${filteredTasks.length} tasks from ${tasks.length} total`);
+      return filteredTasks;
     } else {
       // Normal mode: show only today's tasks (not tomorrow's)
       const todayEST = new Date(nowEST);
@@ -513,12 +518,9 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const tomorrowEST = new Date(todayEST);
       tomorrowEST.setDate(tomorrowEST.getDate() + 1);
       
-      // Convert to UTC
-      const isDST = nowEST.getTimezoneOffset() === 240;
-      const offsetHours = isDST ? 4 : 5;
-      
-      const todayUTC = new Date(todayEST.getTime() + (offsetHours * 60 * 60 * 1000));
-      const tomorrowUTC = new Date(tomorrowEST.getTime() + (offsetHours * 60 * 60 * 1000));
+      // Convert to UTC properly
+      const todayUTC = new Date(todayEST.getTime() - todayEST.getTimezoneOffset() * 60000);
+      const tomorrowUTC = new Date(tomorrowEST.getTime() - tomorrowEST.getTimezoneOffset() * 60000);
       
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;

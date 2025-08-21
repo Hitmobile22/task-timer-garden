@@ -595,13 +595,21 @@ export const TaskList: React.FC<TaskListProps> = ({
     
     const now = new Date();
     
-    // Get current time in EST/EDT
-    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    // Get current time in EST timezone using date-fns-tz
+    const EST_TIMEZONE = 'America/New_York';
+    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: EST_TIMEZONE}));
     const estHour = nowEST.getHours();
     const isEveningMode = estHour >= 21 || estHour < 3;
     
+    console.log('TaskList getTodayTasks:', {
+      currentTime: now.toISOString(),
+      estTime: nowEST.toISOString(),
+      estHour,
+      isEveningMode
+    });
+    
     if (isEveningMode) {
-      // Evening mode: 9 PM EST - 3 AM EST (show current evening session tasks)
+      // Evening mode: ONLY show current evening session (9 PM EST - 3 AM EST)
       let startTime: Date, endTime: Date;
       
       if (estHour >= 21) {
@@ -622,19 +630,33 @@ export const TaskList: React.FC<TaskListProps> = ({
         endTime.setHours(3, 0, 0, 0);
       }
       
-      // Convert EST times to UTC by calculating offset manually
-      // EST is UTC-5, EDT is UTC-4
-      const isDST = nowEST.getTimezoneOffset() === 240; // 240 minutes = 4 hours (EDT)
-      const offsetHours = isDST ? 4 : 5;
+      // Use proper timezone conversion from EST to UTC
+      const startTimeUTC = new Date(startTime.getTime() - startTime.getTimezoneOffset() * 60000);
+      const endTimeUTC = new Date(endTime.getTime() - endTime.getTimezoneOffset() * 60000);
       
-      const startTimeUTC = new Date(startTime.getTime() + (offsetHours * 60 * 60 * 1000));
-      const endTimeUTC = new Date(endTime.getTime() + (offsetHours * 60 * 60 * 1000));
+      console.log('Evening mode boundaries:', {
+        sessionStartEST: startTime.toISOString(),
+        sessionEndEST: endTime.toISOString(),
+        sessionStartUTC: startTimeUTC.toISOString(),
+        sessionEndUTC: endTimeUTC.toISOString()
+      });
       
-      return tasks.filter(task => {
+      const filteredTasks = tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= startTimeUTC && taskDate < endTimeUTC;
+        
+        // STRICT: Only include tasks within current evening session
+        const isInSession = taskDate >= startTimeUTC && taskDate < endTimeUTC;
+        
+        if (isInSession) {
+          console.log(`Including evening task: ${task["Task Name"]} at ${taskDate.toISOString()}`);
+        }
+        
+        return isInSession;
       });
+      
+      console.log(`Evening mode filtered ${filteredTasks.length} tasks from ${tasks.length} total`);
+      return filteredTasks;
     } else {
       // Normal mode: show only today's tasks (not tomorrow's)
       const todayEST = new Date(nowEST);
@@ -643,12 +665,9 @@ export const TaskList: React.FC<TaskListProps> = ({
       const tomorrowEST = new Date(todayEST);
       tomorrowEST.setDate(tomorrowEST.getDate() + 1);
       
-      // Convert to UTC
-      const isDST = nowEST.getTimezoneOffset() === 240;
-      const offsetHours = isDST ? 4 : 5;
-      
-      const todayUTC = new Date(todayEST.getTime() + (offsetHours * 60 * 60 * 1000));
-      const tomorrowUTC = new Date(tomorrowEST.getTime() + (offsetHours * 60 * 60 * 1000));
+      // Convert to UTC properly
+      const todayUTC = new Date(todayEST.getTime() - todayEST.getTimezoneOffset() * 60000);
+      const tomorrowUTC = new Date(tomorrowEST.getTime() - tomorrowEST.getTimezoneOffset() * 60000);
       
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
@@ -771,13 +790,39 @@ export const TaskList: React.FC<TaskListProps> = ({
           nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
         
-        // Convert dates to EST timezone, then to UTC for database storage
-        // This preserves the EST context and prevents tasks from disappearing during evening hours
-        const estTimezone = 'America/New_York';
-        const taskStartTimeEST = toZonedTime(taskStartTime, estTimezone);
-        const taskEndTimeEST = toZonedTime(taskEndTime, estTimezone);
-        const taskStartTimeUTC = fromZonedTime(taskStartTimeEST, estTimezone);
-        const taskEndTimeUTC = fromZonedTime(taskEndTimeEST, estTimezone);
+        // Evening mode boundary validation - ensure tasks don't exceed 3 AM EST
+        const EST_TIMEZONE = 'America/New_York';
+        const currentTimeEST = new Date(currentTime.toLocaleString("en-US", {timeZone: EST_TIMEZONE}));
+        const currentHourEST = currentTimeEST.getHours();
+        const isEveningMode = currentHourEST >= 21 || currentHourEST < 3;
+        
+        if (isEveningMode) {
+          // Calculate 3 AM EST boundary for current session
+          let sessionEndEST: Date;
+          if (currentHourEST >= 21) {
+            // After 9 PM - session ends at 3 AM tomorrow
+            sessionEndEST = new Date(currentTimeEST);
+            sessionEndEST.setDate(sessionEndEST.getDate() + 1);
+            sessionEndEST.setHours(3, 0, 0, 0);
+          } else {
+            // Before 3 AM - session ends at 3 AM today
+            sessionEndEST = new Date(currentTimeEST);
+            sessionEndEST.setHours(3, 0, 0, 0);
+          }
+          
+          // Convert EST boundary to UTC for comparison
+          const sessionEndUTC = new Date(sessionEndEST.getTime() - sessionEndEST.getTimezoneOffset() * 60000);
+          
+          // Skip tasks that would be scheduled beyond 3 AM EST
+          if (taskEndTime > sessionEndUTC) {
+            console.log(`Skipping task beyond 3 AM EST: ${task["Task Name"]} would end at ${taskEndTime.toISOString()}`);
+            continue;
+          }
+        }
+        
+        // Store times as-is since they're already in the correct timezone context
+        const taskStartTimeUTC = taskStartTime;
+        const taskEndTimeUTC = taskEndTime;
         
         const updateData: any = {
           id: task.id,

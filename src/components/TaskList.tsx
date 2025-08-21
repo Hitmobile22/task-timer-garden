@@ -594,51 +594,47 @@ export const TaskList: React.FC<TaskListProps> = ({
     tasks = tasks.filter(task => task.Progress !== 'Backlog');
     
     const now = new Date();
-    
-    // Get current time in EST timezone using date-fns-tz
-    const EST_TIMEZONE = 'America/New_York';
-    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: EST_TIMEZONE}));
-    const estHour = nowEST.getHours();
+    const estNow = toZonedTime(now, 'America/New_York');
+    const estHour = estNow.getHours();
     const isEveningMode = estHour >= 21 || estHour < 3;
     
     console.log('TaskList getTodayTasks:', {
       currentTime: now.toISOString(),
-      estTime: nowEST.toISOString(),
+      estTime: estNow.toISOString(),
       estHour,
       isEveningMode
     });
     
     if (isEveningMode) {
-      // Evening mode: ONLY show current evening session (9 PM EST - 3 AM EST)
-      let startTime: Date, endTime: Date;
+      // Create proper EST dates for session boundaries
+      let sessionStartEST: Date;
+      let sessionEndEST: Date;
       
       if (estHour >= 21) {
-        // Currently after 9 PM - show from 9 PM today to 3 AM tomorrow
-        startTime = new Date(nowEST);
-        startTime.setHours(21, 0, 0, 0);
-        
-        endTime = new Date(nowEST);
-        endTime.setDate(endTime.getDate() + 1);
-        endTime.setHours(3, 0, 0, 0);
+        // Currently between 9 PM and midnight - session started today at 9 PM
+        sessionStartEST = new Date(estNow);
+        sessionStartEST.setHours(21, 0, 0, 0);
+        sessionEndEST = new Date(estNow);
+        sessionEndEST.setDate(sessionEndEST.getDate() + 1);
+        sessionEndEST.setHours(3, 0, 0, 0);
       } else {
-        // Currently before 3 AM - show from 9 PM yesterday to 3 AM today
-        startTime = new Date(nowEST);
-        startTime.setDate(startTime.getDate() - 1);
-        startTime.setHours(21, 0, 0, 0);
-        
-        endTime = new Date(nowEST);
-        endTime.setHours(3, 0, 0, 0);
+        // Currently between midnight and 3 AM - session started yesterday at 9 PM
+        sessionStartEST = new Date(estNow);
+        sessionStartEST.setDate(sessionStartEST.getDate() - 1);
+        sessionStartEST.setHours(21, 0, 0, 0);
+        sessionEndEST = new Date(estNow);
+        sessionEndEST.setHours(3, 0, 0, 0);
       }
       
-      // Use proper timezone conversion from EST to UTC
-      const startTimeUTC = new Date(startTime.getTime() - startTime.getTimezoneOffset() * 60000);
-      const endTimeUTC = new Date(endTime.getTime() - endTime.getTimezoneOffset() * 60000);
+      // Convert EST boundaries to UTC for comparison with task times
+      const sessionStartUTC = fromZonedTime(sessionStartEST, 'America/New_York');
+      const sessionEndUTC = fromZonedTime(sessionEndEST, 'America/New_York');
       
       console.log('Evening mode boundaries:', {
-        sessionStartEST: startTime.toISOString(),
-        sessionEndEST: endTime.toISOString(),
-        sessionStartUTC: startTimeUTC.toISOString(),
-        sessionEndUTC: endTimeUTC.toISOString()
+        sessionStartEST: sessionStartEST.toISOString(),
+        sessionEndEST: sessionEndEST.toISOString(),
+        sessionStartUTC: sessionStartUTC.toISOString(),
+        sessionEndUTC: sessionEndUTC.toISOString()
       });
       
       const filteredTasks = tasks.filter(task => {
@@ -646,7 +642,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         if (!taskDate) return false;
         
         // STRICT: Only include tasks within current evening session
-        const isInSession = taskDate >= startTimeUTC && taskDate < endTimeUTC;
+        const isInSession = taskDate >= sessionStartUTC && taskDate < sessionEndUTC;
         
         if (isInSession) {
           console.log(`Including evening task: ${task["Task Name"]} at ${taskDate.toISOString()}`);
@@ -659,7 +655,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       return filteredTasks;
     } else {
       // Normal mode: show only today's tasks (not tomorrow's)
-      const todayEST = new Date(nowEST);
+      const todayEST = new Date(estNow);
       todayEST.setHours(0, 0, 0, 0);
       
       const tomorrowEST = new Date(todayEST);

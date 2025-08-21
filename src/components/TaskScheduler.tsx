@@ -16,6 +16,7 @@ import { NotificationBell } from './notifications/NotificationBell';
 import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 interface SubTask {
   name: string;
@@ -447,51 +448,47 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     tasks = tasks.filter(task => task.Progress !== 'Backlog');
     
     const now = new Date();
-    
-    // Get current time in EST timezone using date-fns-tz
-    const EST_TIMEZONE = 'America/New_York';
-    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: EST_TIMEZONE}));
-    const estHour = nowEST.getHours();
+    const estNow = toZonedTime(now, 'America/New_York');
+    const estHour = estNow.getHours();
     const isEveningMode = estHour >= 21 || estHour < 3;
     
     console.log('TaskScheduler getTodayTasks:', {
       currentTime: now.toISOString(),
-      estTime: nowEST.toISOString(),
+      estTime: estNow.toISOString(),
       estHour,
       isEveningMode
     });
     
     if (isEveningMode) {
-      // Evening mode: ONLY show current evening session (9 PM EST - 3 AM EST)
-      let currentSessionStart: Date, currentSessionEnd: Date;
+      // Create proper EST dates for session boundaries
+      let sessionStartEST: Date;
+      let sessionEndEST: Date;
       
       if (estHour >= 21) {
-        // Currently after 9 PM - current session is 9 PM today to 3 AM tomorrow
-        currentSessionStart = new Date(nowEST);
-        currentSessionStart.setHours(21, 0, 0, 0);
-        
-        currentSessionEnd = new Date(nowEST);
-        currentSessionEnd.setDate(currentSessionEnd.getDate() + 1);
-        currentSessionEnd.setHours(3, 0, 0, 0);
+        // Currently between 9 PM and midnight - session started today at 9 PM
+        sessionStartEST = new Date(estNow);
+        sessionStartEST.setHours(21, 0, 0, 0);
+        sessionEndEST = new Date(estNow);
+        sessionEndEST.setDate(sessionEndEST.getDate() + 1);
+        sessionEndEST.setHours(3, 0, 0, 0);
       } else {
-        // Currently before 3 AM - current session is 9 PM yesterday to 3 AM today
-        currentSessionStart = new Date(nowEST);
-        currentSessionStart.setDate(currentSessionStart.getDate() - 1);
-        currentSessionStart.setHours(21, 0, 0, 0);
-        
-        currentSessionEnd = new Date(nowEST);
-        currentSessionEnd.setHours(3, 0, 0, 0);
+        // Currently between midnight and 3 AM - session started yesterday at 9 PM
+        sessionStartEST = new Date(estNow);
+        sessionStartEST.setDate(sessionStartEST.getDate() - 1);
+        sessionStartEST.setHours(21, 0, 0, 0);
+        sessionEndEST = new Date(estNow);
+        sessionEndEST.setHours(3, 0, 0, 0);
       }
       
-      // Use proper date-fns-tz conversion from EST to UTC
-      const currentSessionStartUTC = new Date(currentSessionStart.getTime() - currentSessionStart.getTimezoneOffset() * 60000);
-      const currentSessionEndUTC = new Date(currentSessionEnd.getTime() - currentSessionEnd.getTimezoneOffset() * 60000);
+      // Convert EST boundaries to UTC for comparison with task times
+      const sessionStartUTC = fromZonedTime(sessionStartEST, 'America/New_York');
+      const sessionEndUTC = fromZonedTime(sessionEndEST, 'America/New_York');
       
       console.log('Evening mode boundaries:', {
-        sessionStartEST: currentSessionStart.toISOString(),
-        sessionEndEST: currentSessionEnd.toISOString(),
-        sessionStartUTC: currentSessionStartUTC.toISOString(), 
-        sessionEndUTC: currentSessionEndUTC.toISOString()
+        sessionStartEST: sessionStartEST.toISOString(),
+        sessionEndEST: sessionEndEST.toISOString(),
+        sessionStartUTC: sessionStartUTC.toISOString(), 
+        sessionEndUTC: sessionEndUTC.toISOString()
       });
       
       const filteredTasks = tasks.filter(task => {
@@ -499,11 +496,9 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         if (!taskDate) return false;
         
         // STRICT: Only include tasks within current evening session
-        const isInSession = taskDate >= currentSessionStartUTC && taskDate < currentSessionEndUTC;
+        const isInSession = taskDate >= sessionStartUTC && taskDate < sessionEndUTC;
         
-        if (isInSession) {
-          console.log(`Including evening task: ${task["Task Name"]} at ${taskDate.toISOString()}`);
-        }
+        console.log(`Task ${task["Task Name"]}: ${taskDate.toISOString()} -> ${isInSession ? 'INCLUDED' : 'EXCLUDED'}`);
         
         return isInSession;
       });
@@ -512,7 +507,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       return filteredTasks;
     } else {
       // Normal mode: show only today's tasks (not tomorrow's)
-      const todayEST = new Date(nowEST);
+      const todayEST = new Date(estNow);
       todayEST.setHours(0, 0, 0, 0);
       
       const tomorrowEST = new Date(todayEST);

@@ -825,7 +825,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       return;
     }
     
-    const todayTasks = getTodayTasks(tasksToDisplay);
+    const todayTasks = tasksToDisplay || [];
     if (todayTasks.length === 0) return;
     
     const draggedTask = todayTasks.find(t => t.id === active.id);

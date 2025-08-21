@@ -454,39 +454,56 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     const isEveningMode = estHour >= 21 || estHour < 3;
     
     if (isEveningMode) {
-      // Evening mode: 9 PM EST - 3 AM EST (show current evening session tasks)
-      let startTime: Date, endTime: Date;
+      // Evening mode: show current evening session + active tasks from previous sessions
+      let currentSessionStart: Date, currentSessionEnd: Date;
       
       if (estHour >= 21) {
-        // Currently after 9 PM - show from 9 PM today to 3 AM tomorrow
-        startTime = new Date(nowEST);
-        startTime.setHours(21, 0, 0, 0);
+        // Currently after 9 PM - current session is 9 PM today to 3 AM tomorrow
+        currentSessionStart = new Date(nowEST);
+        currentSessionStart.setHours(21, 0, 0, 0);
         
-        endTime = new Date(nowEST);
-        endTime.setDate(endTime.getDate() + 1);
-        endTime.setHours(3, 0, 0, 0);
+        currentSessionEnd = new Date(nowEST);
+        currentSessionEnd.setDate(currentSessionEnd.getDate() + 1);
+        currentSessionEnd.setHours(3, 0, 0, 0);
       } else {
-        // Currently before 3 AM - show from 9 PM yesterday to 3 AM today
-        startTime = new Date(nowEST);
-        startTime.setDate(startTime.getDate() - 1);
-        startTime.setHours(21, 0, 0, 0);
+        // Currently before 3 AM - current session is 9 PM yesterday to 3 AM today
+        currentSessionStart = new Date(nowEST);
+        currentSessionStart.setDate(currentSessionStart.getDate() - 1);
+        currentSessionStart.setHours(21, 0, 0, 0);
         
-        endTime = new Date(nowEST);
-        endTime.setHours(3, 0, 0, 0);
+        currentSessionEnd = new Date(nowEST);
+        currentSessionEnd.setHours(3, 0, 0, 0);
       }
       
       // Convert EST times to UTC by calculating offset manually
-      // EST is UTC-5, EDT is UTC-4
       const isDST = nowEST.getTimezoneOffset() === 240; // 240 minutes = 4 hours (EDT)
       const offsetHours = isDST ? 4 : 5;
       
-      const startTimeUTC = new Date(startTime.getTime() + (offsetHours * 60 * 60 * 1000));
-      const endTimeUTC = new Date(endTime.getTime() + (offsetHours * 60 * 60 * 1000));
+      const currentSessionStartUTC = new Date(currentSessionStart.getTime() + (offsetHours * 60 * 60 * 1000));
+      const currentSessionEndUTC = new Date(currentSessionEnd.getTime() + (offsetHours * 60 * 60 * 1000));
       
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= startTimeUTC && taskDate < endTimeUTC;
+        
+        // Include current evening session tasks
+        if (taskDate >= currentSessionStartUTC && taskDate < currentSessionEndUTC) {
+          return true;
+        }
+        
+        // Include active tasks from previous evening sessions (uncompleted)
+        if ((task.Progress === 'In progress' || task.Progress === 'Not started')) {
+          // Check if task is from a previous evening session (9 PM - 3 AM range)
+          const taskEST = new Date(taskDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
+          const taskHour = taskEST.getHours();
+          
+          // If task was scheduled during evening hours and is still active, include it
+          if ((taskHour >= 21 || taskHour < 3) && taskDate < currentSessionStartUTC) {
+            return true;
+          }
+        }
+        
+        return false;
       });
     } else {
       // Normal mode: show only today's tasks (not tomorrow's)

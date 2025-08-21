@@ -571,7 +571,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                 />
               </div>
               <div className="task-list">
-                <TaskList tasks={activeTasks || []} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
+                <TaskList tasks={getTodayTasks(activeTasks || [])} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
               </div>
             </div>
           </div>

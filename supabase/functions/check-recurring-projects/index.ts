@@ -27,6 +27,22 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
     
+    // Get the authenticated user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    
+    if (userError || !user) {
+      console.error('Authentication error:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      );
+    }
+    
+    console.log('Authenticated user:', user.id);
+    
     // Parse request body
     const body = await req.json();
     console.log("Received request body:", JSON.stringify(body));
@@ -104,7 +120,7 @@ Deno.serve(async (req) => {
               generation_date: new Date().toISOString(),
               tasks_generated: goalsReset,
               details: { reset_type: 'daily_goals' },
-              user_id: (dailyGoals && dailyGoals.length > 0) ? dailyGoals[0].user_id : null // Add user_id to comply with RLS policy
+              user_id: user.id // Add user_id to comply with RLS policy
             });
         }
         
@@ -308,7 +324,7 @@ Deno.serve(async (req) => {
             date_due: taskEndTime.toISOString(),
             project_id: project.id,
             task_list_id: project.task_list_id,
-            user_id: project.user_id  // Add user_id to comply with RLS policy
+            user_id: user.id  // Add user_id to comply with RLS policy
           });
         }
         
@@ -349,7 +365,7 @@ Deno.serve(async (req) => {
               project_id: project.id,
               tasks_generated: tasksCreated,
               generation_date: new Date().toISOString(),
-              user_id: project.user_id  // Add user_id to comply with RLS policy
+              user_id: user.id  // Add user_id to comply with RLS policy
             });
         }
         

@@ -2,6 +2,7 @@
 import { useCallback } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { 
   getLastDailyGoalResetDay, 
@@ -12,9 +13,15 @@ import {
 
 export const useDailyGoalsReset = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   // Function to check if daily goals need to be reset
   const checkAndResetDailyGoals = useCallback(async () => {
+    if (!user) {
+      console.log('User not authenticated, skipping daily goals reset');
+      return false;
+    }
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -67,9 +74,12 @@ export const useDailyGoalsReset = () => {
       return false;
     } catch (error) {
       console.error('Error in checkAndResetDailyGoals:', error);
+      if (error?.message?.includes('Authentication') || error?.message?.includes('401')) {
+        console.error('Authentication required for daily goals reset');
+      }
       return false;
     }
-  }, [queryClient]);
+  }, [queryClient, user]);
 
   return checkAndResetDailyGoals;
 };

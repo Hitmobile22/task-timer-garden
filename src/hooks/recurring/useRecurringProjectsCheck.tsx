@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useProjectsQuery, useDailyGoalsQuery } from './useProjectsQuery';
 import { useGenerationLogCheck } from './useGenerationLogCheck';
@@ -25,6 +26,7 @@ export const useRecurringProjectsCheck = () => {
   const queryClient = useQueryClient();
   const processingRef = useRef<Set<number>>(new Set());
   const mountedRef = useRef<boolean>(false);
+  const { user } = useAuth();
   
   const { data: projects } = useProjectsQuery();
   const { data: dailyGoals } = useDailyGoalsQuery();
@@ -32,6 +34,11 @@ export const useRecurringProjectsCheck = () => {
   const checkAndResetDailyGoals = useDailyGoalsReset();
 
   const checkRecurringProjects = useCallback(async (forceCheck = false) => {
+    if (!user) {
+      console.log('User not authenticated, skipping recurring projects check');
+      return;
+    }
+    
     if (getIsGlobalCheckInProgress() || getLastFullCheck().inProgress) {
       console.log('Global project check already in progress, skipping');
       return;
@@ -207,13 +214,17 @@ export const useRecurringProjectsCheck = () => {
       setLastChecked(now);
     } catch (error) {
       console.error('Error in checkRecurringProjects:', error);
-      toast.error('Error checking recurring projects');
+      if (error?.message?.includes('Authentication') || error?.message?.includes('401')) {
+        toast.error('Authentication required for recurring projects');
+      } else {
+        toast.error('Error checking recurring projects');
+      }
     } finally {
       setIsLocalChecking(false);
       setIsGlobalCheckInProgress(false);
       getLastFullCheck().inProgress = false;
     }
-  }, [projects, queryClient, checkGenerationLog, checkAndResetDailyGoals]);
+  }, [projects, queryClient, checkGenerationLog, checkAndResetDailyGoals, user]);
 
   useEffect(() => {
     if (projects?.length > 0 && !isLocalChecking && !getIsGlobalCheckInProgress() && !mountedRef.current) {

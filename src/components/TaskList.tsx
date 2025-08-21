@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 import { format, addDays, isAfter, isBefore } from 'date-fns';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { Button } from './ui/button';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -769,10 +770,18 @@ export const TaskList: React.FC<TaskListProps> = ({
           nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
         }
         
+        // Convert dates to EST timezone, then to UTC for database storage
+        // This preserves the EST context and prevents tasks from disappearing during evening hours
+        const estTimezone = 'America/New_York';
+        const taskStartTimeEST = toZonedTime(taskStartTime, estTimezone);
+        const taskEndTimeEST = toZonedTime(taskEndTime, estTimezone);
+        const taskStartTimeUTC = fromZonedTime(taskStartTimeEST, estTimezone);
+        const taskEndTimeUTC = fromZonedTime(taskEndTimeEST, estTimezone);
+        
         const updateData: any = {
           id: task.id,
-          date_started: taskStartTime.toISOString(),
-          date_due: taskEndTime.toISOString()
+          date_started: taskStartTimeUTC.toISOString(),
+          date_due: taskEndTimeUTC.toISOString()
         };
         
         if (shouldResetTimer && taskIsCurrentTask && !isFirst) {

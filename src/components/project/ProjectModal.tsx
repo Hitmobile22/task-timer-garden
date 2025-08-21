@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, Plus, Repeat, ListFilter, Check } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { ProjectGoalsList } from './ProjectGoalsList';
 import { GoalForm } from '../goals/GoalForm';
 import { Switch } from "@/components/ui/switch";
@@ -42,6 +43,7 @@ export const ProjectModal = ({
   open = false,
   taskLists = [] as TaskList[] // Explicitly type the default value
 }: ProjectModalProps) => {
+  const { user } = useAuth();
   const [editMode, setEditMode] = useState(projType === 'create');
   const [projectName, setProjectName] = useState('');
   const [projectNotes, setProjectNotes] = useState('');
@@ -269,7 +271,8 @@ export const ProjectModal = ({
         .insert([
           {
             ...newGoal,
-            project_id: project.id
+            project_id: project.id,
+            user_id: user?.id
           }
         ])
         .select()
@@ -373,7 +376,8 @@ export const ProjectModal = ({
             progress: progress,
             isRecurring: isRecurring,
             recurringTaskCount: recurringTaskCount,
-            task_list_id: taskListId
+            task_list_id: taskListId,
+            user_id: user?.id
           })
           .eq('id', project.id);
         
@@ -421,7 +425,8 @@ export const ProjectModal = ({
             isRecurring: isRecurring,
             recurringTaskCount: recurringTaskCount,
             task_list_id: taskListId,
-            sort_order: 0
+            sort_order: 0,
+            user_id: user?.id
           }])
           .select()
           .single();
@@ -447,6 +452,7 @@ export const ProjectModal = ({
         const goalsToCreate = goals.map(goal => ({
           ...goal,
           project_id: newProject.id,
+          user_id: user?.id,
           id: undefined
         }));
         

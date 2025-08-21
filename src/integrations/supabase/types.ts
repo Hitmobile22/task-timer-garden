@@ -137,7 +137,7 @@ export type Database = {
           reward: string | null
           start_date: string
           task_count_goal: number
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -150,7 +150,7 @@ export type Database = {
           reward?: string | null
           start_date: string
           task_count_goal?: number
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -163,7 +163,7 @@ export type Database = {
           reward?: string | null
           start_date?: string
           task_count_goal?: number
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -228,7 +228,7 @@ export type Database = {
           recurringTaskCount: number | null
           sort_order: number
           task_list_id: number | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           archived?: boolean | null
@@ -244,7 +244,7 @@ export type Database = {
           recurringTaskCount?: number | null
           sort_order?: number
           task_list_id?: number | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           archived?: boolean | null
@@ -260,7 +260,7 @@ export type Database = {
           recurringTaskCount?: number | null
           sort_order?: number
           task_list_id?: number | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -407,7 +407,7 @@ export type Database = {
           "Parent Task ID": number | null
           Progress: Database["public"]["Enums"]["status"] | null
           "Task Name": string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -415,7 +415,7 @@ export type Database = {
           "Parent Task ID"?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -423,7 +423,7 @@ export type Database = {
           "Parent Task ID"?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
           "Task Name"?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -483,7 +483,7 @@ export type Database = {
           name: string
           order: number
           position: number | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           archived?: boolean | null
@@ -494,7 +494,7 @@ export type Database = {
           name: string
           order?: number
           position?: number | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           archived?: boolean | null
@@ -505,7 +505,7 @@ export type Database = {
           name?: string
           order?: number
           position?: number | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -526,7 +526,7 @@ export type Database = {
           sort_order: number | null
           "Task Name": string | null
           task_list_id: number | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           archived?: boolean | null
@@ -544,7 +544,7 @@ export type Database = {
           sort_order?: number | null
           "Task Name"?: string | null
           task_list_id?: number | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           archived?: boolean | null
@@ -562,7 +562,7 @@ export type Database = {
           sort_order?: number | null
           "Task Name"?: string | null
           task_list_id?: number | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {

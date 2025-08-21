@@ -313,6 +313,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
   
   console.log(`Task ${task.id} (${task["Task Name"]}): list_id=${task.task_list_id}, color=${taskListColor}, border=${borderColor}`);
   
+  const { user } = useAuth();
+  
   const handleEditSave = async (newTaskName: string, newSubtasks: SubtaskData[], taskDuration: number) => {
     try {
       // Initialize taskDetails as an empty object
@@ -358,7 +360,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
         const newSubtasksData = subtasksToAdd.map(st => ({
           "Task Name": st["Task Name"],
           "Parent Task ID": task.id,
-          Progress: "Not started" as const
+          Progress: "Not started" as const,
+          user_id: user?.id
         }));
         await supabase.from('subtasks').insert(newSubtasksData);
       }

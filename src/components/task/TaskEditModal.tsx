@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { SubtaskItem } from './SubtaskItem';
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { RichTextEditor } from './editor/RichTextEditor';
@@ -28,6 +29,7 @@ interface TaskEditModalProps {
 }
 
 export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave }: TaskEditModalProps) => {
+  const { user } = useAuth();
   const [editedTask, setEditedTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<any[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -313,7 +315,8 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
           { 
             'Task Name': newSubtask, 
             'Parent Task ID': editedTask.id,
-            'Progress': 'Not started' as const
+            'Progress': 'Not started' as const,
+            'user_id': user?.id
           }
         ])
         .select();

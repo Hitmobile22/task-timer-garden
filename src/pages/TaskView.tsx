@@ -29,8 +29,10 @@ import { ProjectModal } from '@/components/project/ProjectModal';
 import { RecurringTasksModal, RecurringTaskSettings } from '@/components/task/RecurringTasksModal';
 import { syncGoogleCalendar } from '@/components/task/GoogleCalendarIntegration';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/hooks/useAuth';
 
 export function TaskView() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -627,6 +629,7 @@ export function TaskView() {
           date_due: new Date(new Date().setHours(new Date().getHours() + 1)).toISOString(),
           order: existingCount + i,
           archived: false,
+          user_id: user?.id
         }));
 
         const { error: insertError } = await supabase

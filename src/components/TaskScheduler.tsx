@@ -512,7 +512,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       
       const tomorrowESTExtended = new Date(todayEST);
       tomorrowESTExtended.setDate(tomorrowESTExtended.getDate() + 1);
-      tomorrowESTExtended.setHours(6, 0, 0, 0); // Extended to 6 AM EST next day
+      tomorrowESTExtended.setHours(3, 0, 0, 0); // Extended to 3 AM EST next day to align with evening mode
       
       // Convert EST boundaries to UTC using proper date-fns-tz function
       const todayUTC = fromZonedTime(todayEST, 'America/New_York');

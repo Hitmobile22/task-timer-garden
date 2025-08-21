@@ -30,6 +30,7 @@ interface TaskListProps {
   subtasks?: Subtask[];
   taskLists?: any[];
   activeTaskId?: number;
+  onMoveTask?: (taskId: number, listId: number) => void;
 }
 
 interface TaskItemProps {
@@ -817,7 +818,12 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id || !tasksToDisplay) return;
+    console.log('handleDragEnd triggered:', { activeId: active.id, overId: over?.id });
+    
+    if (!over || active.id === over.id || !tasksToDisplay) {
+      console.log('Drag end early return:', { hasOver: !!over, sameId: active.id === over?.id, hasTasksToDisplay: !!tasksToDisplay });
+      return;
+    }
     
     const todayTasks = getTodayTasks(tasksToDisplay);
     if (todayTasks.length === 0) return;
@@ -884,7 +890,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     return (
       <div className="w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6 animate-slideIn px-0" data-task-list>
         <h2 className="text-xl font-semibold">Today's Tasks</h2>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} onDragStart={(e) => console.log('Drag started:', e.active.id)}>
           <SortableContext items={tasksToDisplay?.map(t => t.id) || []} strategy={verticalListSortingStrategy}>
             <ul className="space-y-4">
               {(tasksToDisplay || [])

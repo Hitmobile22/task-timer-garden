@@ -528,6 +528,23 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
     }
   };
   
+  const handleMoveTask = async (taskId: number, listId: number) => {
+    try {
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ task_list_id: listId })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      toast.success('Task moved successfully');
+    } catch (error) {
+      console.error('Error moving task:', error);
+      toast.error('Failed to move task');
+    }
+  };
+
   const activeTaskListColor = activeTaskId && activeTasks && taskLists ? (() => {
     const activeTask = activeTasks.find(t => t.id === activeTaskId);
     if (!activeTask || activeTask.task_list_id === 1) return null;
@@ -588,7 +605,14 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                 />
               </div>
               <div className="task-list">
-                <TaskList tasks={getTodayTasks(activeTasks || [])} onTaskStart={handleTaskStart} subtasks={[]} taskLists={taskLists} activeTaskId={activeTaskId} />
+                <TaskList 
+                  tasks={getTodayTasks(activeTasks || [])} 
+                  onTaskStart={handleTaskStart} 
+                  subtasks={[]} 
+                  taskLists={taskLists} 
+                  activeTaskId={activeTaskId}
+                  onMoveTask={handleMoveTask}
+                />
               </div>
             </div>
           </div>

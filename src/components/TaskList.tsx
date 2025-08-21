@@ -687,6 +687,26 @@ export const TaskList: React.FC<TaskListProps> = ({
       const currentTime = new Date();
       let nextStartTime = new Date(currentTime);
       
+      // Check if we're in evening mode
+      const nowEST = new Date(currentTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+      const estHour = nowEST.getHours();
+      const isEveningMode = estHour >= 21 || estHour < 3;
+      
+      // Calculate evening mode session end time (3 AM)
+      let eveningSessionEnd: Date | null = null;
+      if (isEveningMode) {
+        eveningSessionEnd = new Date(nowEST);
+        if (estHour >= 21) {
+          // Currently after 9 PM - session ends at 3 AM tomorrow
+          eveningSessionEnd.setDate(eveningSessionEnd.getDate() + 1);
+        }
+        eveningSessionEnd.setHours(3, 0, 0, 0);
+        // Convert to UTC
+        const isDST = nowEST.getTimezoneOffset() === 240;
+        const offsetHours = isDST ? 4 : 5;
+        eveningSessionEnd = new Date(eveningSessionEnd.getTime() + (offsetHours * 60 * 60 * 1000));
+      }
+      
       if (currentTask) {
         nextStartTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
       }
@@ -769,6 +789,19 @@ export const TaskList: React.FC<TaskListProps> = ({
           
           taskEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
           nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        }
+        
+        // In evening mode, check if task would extend beyond the session boundary
+        if (isEveningMode && eveningSessionEnd && !taskIsCurrentTask) {
+          // Convert task end time to EST to check against session boundary
+          const taskEndEST = new Date(taskEndTime.toLocaleString("en-US", {timeZone: "America/New_York"}));
+          const sessionEndEST = new Date(eveningSessionEnd.toLocaleString("en-US", {timeZone: "America/New_York"}));
+          
+          // If task would end after 3 AM EST, skip updating it to keep it in place
+          if (taskEndEST > sessionEndEST) {
+            console.log(`Skipping task "${task["Task Name"]}" - would extend beyond evening session (ends at ${taskEndEST.toTimeString()}, session ends at ${sessionEndEST.toTimeString()})`);
+            continue; // Skip this task update to prevent it from moving outside evening hours
+          }
         }
         
         // Convert dates to EST timezone, then to UTC for database storage

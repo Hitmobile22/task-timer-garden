@@ -506,22 +506,33 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       console.log(`Evening mode filtered ${filteredTasks.length} tasks from ${tasks.length} total`);
       return filteredTasks;
     } else {
-      // Normal mode: show only today's tasks (not tomorrow's)
+      // Normal mode: show today's tasks with extended window for evening-scheduled tasks
       const todayEST = new Date(estNow);
       todayEST.setHours(0, 0, 0, 0);
       
-      const tomorrowEST = new Date(todayEST);
-      tomorrowEST.setDate(tomorrowEST.getDate() + 1);
+      const tomorrowESTExtended = new Date(todayEST);
+      tomorrowESTExtended.setDate(tomorrowESTExtended.getDate() + 1);
+      tomorrowESTExtended.setHours(6, 0, 0, 0); // Extended to 6 AM EST next day
       
-      // Convert to UTC properly
-      const todayUTC = new Date(todayEST.getTime() - todayEST.getTimezoneOffset() * 60000);
-      const tomorrowUTC = new Date(tomorrowEST.getTime() - tomorrowEST.getTimezoneOffset() * 60000);
+      // Convert EST boundaries to UTC using proper date-fns-tz function
+      const todayUTC = fromZonedTime(todayEST, 'America/New_York');
+      const tomorrowUTCExtended = fromZonedTime(tomorrowESTExtended, 'America/New_York');
       
-      return tasks.filter(task => {
+      console.log(`Normal mode boundaries - EST: ${todayEST.toISOString()} to ${tomorrowESTExtended.toISOString()}`);
+      console.log(`Normal mode boundaries - UTC: ${todayUTC.toISOString()} to ${tomorrowUTCExtended.toISOString()}`);
+      
+      const filteredTasks = tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= todayUTC && taskDate < tomorrowUTC;
+        
+        const isInToday = taskDate >= todayUTC && taskDate < tomorrowUTCExtended;
+        console.log(`Task ${task["Task Name"]}: ${taskDate.toISOString()} -> ${isInToday ? 'INCLUDED' : 'EXCLUDED'}`);
+        
+        return isInToday;
       });
+      
+      console.log(`Normal mode filtered ${filteredTasks.length} tasks from ${tasks.length} total`);
+      return filteredTasks;
     }
   };
   

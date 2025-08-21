@@ -194,39 +194,70 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
 
   const getTodayTasks = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return [];
-
+    
+    tasks = tasks.filter(task => task.Progress !== 'Backlog');
+    
     const now = new Date();
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const tomorrow5AM = new Date(tomorrow);
-    tomorrow5AM.setHours(5, 0, 0, 0);
-
-    const nonBacklogTasks = tasks.filter(task => task.Progress !== 'Backlog');
-
-    // Convert EST evening mode (9 PM - 3 AM) to UTC for proper comparison
-    // 9 PM EST = 2 AM UTC next day, 3 AM EST = 8 AM UTC
-    const nowUTC = new Date(now.toISOString());
-    const isEveningMode = nowUTC.getUTCHours() >= 2 || nowUTC.getUTCHours() < 8;
+    
+    // Get current time in EST/EDT
+    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    const estHour = nowEST.getHours();
+    const isEveningMode = estHour >= 21 || estHour < 3;
     
     if (isEveningMode) {
-      // Evening mode: show tasks from today until 3 AM EST (8 AM UTC)
-      const tomorrow3AMUTC = new Date(tomorrow);
-      tomorrow3AMUTC.setUTCHours(8, 0, 0, 0);
+      // Evening mode: 9 PM EST - 3 AM EST (show current evening session tasks)
+      let startTime: Date, endTime: Date;
       
-      return nonBacklogTasks.filter(task => {
+      if (estHour >= 21) {
+        // Currently after 9 PM - show from 9 PM today to 3 AM tomorrow
+        startTime = new Date(nowEST);
+        startTime.setHours(21, 0, 0, 0);
+        
+        endTime = new Date(nowEST);
+        endTime.setDate(endTime.getDate() + 1);
+        endTime.setHours(3, 0, 0, 0);
+      } else {
+        // Currently before 3 AM - show from 9 PM yesterday to 3 AM today
+        startTime = new Date(nowEST);
+        startTime.setDate(startTime.getDate() - 1);
+        startTime.setHours(21, 0, 0, 0);
+        
+        endTime = new Date(nowEST);
+        endTime.setHours(3, 0, 0, 0);
+      }
+      
+      // Convert EST times to UTC by calculating offset manually
+      // EST is UTC-5, EDT is UTC-4
+      const isDST = nowEST.getTimezoneOffset() === 240; // 240 minutes = 4 hours (EDT)
+      const offsetHours = isDST ? 4 : 5;
+      
+      const startTimeUTC = new Date(startTime.getTime() + (offsetHours * 60 * 60 * 1000));
+      const endTimeUTC = new Date(endTime.getTime() + (offsetHours * 60 * 60 * 1000));
+      
+      return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= today && taskDate <= tomorrow3AMUTC;
+        return taskDate >= startTimeUTC && taskDate < endTimeUTC;
       });
     } else {
-      return nonBacklogTasks.filter(task => {
+      // Normal mode: show only today's tasks (not tomorrow's)
+      const todayEST = new Date(nowEST);
+      todayEST.setHours(0, 0, 0, 0);
+      
+      const tomorrowEST = new Date(todayEST);
+      tomorrowEST.setDate(tomorrowEST.getDate() + 1);
+      
+      // Convert to UTC
+      const isDST = nowEST.getTimezoneOffset() === 240;
+      const offsetHours = isDST ? 4 : 5;
+      
+      const todayUTC = new Date(todayEST.getTime() + (offsetHours * 60 * 60 * 1000));
+      const tomorrowUTC = new Date(tomorrowEST.getTime() + (offsetHours * 60 * 60 * 1000));
+      
+      return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= today && taskDate < tomorrow;
+        return taskDate >= todayUTC && taskDate < tomorrowUTC;
       });
     }
   };

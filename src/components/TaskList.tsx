@@ -686,6 +686,12 @@ export const TaskList: React.FC<TaskListProps> = ({
       shouldResetTimer: boolean;
       movedTaskId: number;
     }) => {
+      console.log('updateTaskOrderMutation called with:', {
+        movedTaskId,
+        totalTasks: tasks.length,
+        shouldResetTimer
+      });
+
       // Only work with today's tasks to avoid affecting future scheduled tasks
       const todayTasks = getTodayTasks(tasks);
       if (todayTasks.length === 0) return;
@@ -695,12 +701,21 @@ export const TaskList: React.FC<TaskListProps> = ({
       
       const movedTask = regularTasks.find(t => t.id === movedTaskId);
       
-      if (!movedTask) return;
+      if (!movedTask) {
+        console.log('Moved task not found in regular tasks:', { movedTaskId, regularTaskIds: regularTasks.map(t => t.id) });
+        return;
+      }
+      
+      console.log('Processing moved task:', movedTask["Task Name"]);
       
       if (isTaskTimeBlock(movedTask)) {
         console.log('Skipping reordering for time block');
         return;
       }
+      
+      // Find any "In progress" task to preserve its start time
+      const activeTask = regularTasks.find(t => t.Progress === 'In progress');
+      console.log('Active task found:', activeTask ? activeTask["Task Name"] : 'none');
       
       // Sort time blocks by start time for conflict checking
       timeBlocks.sort((a, b) => {
@@ -735,38 +750,53 @@ export const TaskList: React.FC<TaskListProps> = ({
           console.error('Error parsing task details:', error);
         }
         
-        // Calculate start time based on position in reordered array
-        if (i === 0) {
-          // First task starts from current time
-          taskStartTime = new Date(currentTime);
+        // PRESERVE ACTIVE TASK START TIME: If this is the active "In progress" task, keep its current start time
+        if (activeTask && task.id === activeTask.id && task.Progress === 'In progress') {
+          taskStartTime = new Date(task.date_started);
+          console.log('Preserving active task start time:', taskStartTime);
         } else {
-          // Subsequent tasks start after the previous task ends (with 5min buffer)
-          const previousTaskUpdate = updates[updates.length - 1];
-          if (previousTaskUpdate) {
-            taskStartTime = new Date(new Date(previousTaskUpdate.date_due).getTime() + 5 * 60 * 1000);
+          // Calculate start time based on position in reordered array
+          if (i === 0 || (activeTask && i === 1 && regularTasks[0].id === activeTask.id)) {
+            // First task starts from current time, or second task if first is active
+            if (activeTask && regularTasks[0].id === activeTask.id && i === 1) {
+              // Start after active task ends
+              const activeTaskEnd = new Date(activeTask.date_due);
+              taskStartTime = new Date(activeTaskEnd.getTime() + 5 * 60 * 1000);
+            } else {
+              taskStartTime = new Date(currentTime);
+            }
           } else {
-            taskStartTime = new Date(currentTime);
+            // Subsequent tasks start after the previous task ends (with 5min buffer)
+            const previousTaskUpdate = updates[updates.length - 1];
+            if (previousTaskUpdate) {
+              taskStartTime = new Date(new Date(previousTaskUpdate.date_due).getTime() + 5 * 60 * 1000);
+            } else {
+              taskStartTime = new Date(currentTime);
+            }
           }
         }
         
         // Check for conflicts with time blocks and adjust if necessary
-        let needsRescheduling = true;
-        while (needsRescheduling) {
-          needsRescheduling = false;
-          const candidateEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
-          
-          for (const timeBlock of timeBlocks) {
-            const blockStart = new Date(timeBlock.date_started);
-            const blockEnd = new Date(timeBlock.date_due);
+        // (Skip this for active tasks to preserve their timing)
+        if (!activeTask || task.id !== activeTask.id) {
+          let needsRescheduling = true;
+          while (needsRescheduling) {
+            needsRescheduling = false;
+            const candidateEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
             
-            if (
-              (taskStartTime >= blockStart && taskStartTime < blockEnd) ||
-              (candidateEndTime > blockStart && candidateEndTime <= blockEnd) ||
-              (taskStartTime <= blockStart && candidateEndTime >= blockEnd)
-            ) {
-              taskStartTime = new Date(blockEnd.getTime() + 5 * 60 * 1000);
-              needsRescheduling = true;
-              break;
+            for (const timeBlock of timeBlocks) {
+              const blockStart = new Date(timeBlock.date_started);
+              const blockEnd = new Date(timeBlock.date_due);
+              
+              if (
+                (taskStartTime >= blockStart && taskStartTime < blockEnd) ||
+                (candidateEndTime > blockStart && candidateEndTime <= blockEnd) ||
+                (taskStartTime <= blockStart && candidateEndTime >= blockEnd)
+              ) {
+                taskStartTime = new Date(blockEnd.getTime() + 5 * 60 * 1000);
+                needsRescheduling = true;
+                break;
+              }
             }
           }
         }

@@ -686,13 +686,13 @@ export const TaskList: React.FC<TaskListProps> = ({
       shouldResetTimer: boolean;
       movedTaskId: number;
     }) => {
+      // Only work with today's tasks to avoid affecting future scheduled tasks
       const todayTasks = getTodayTasks(tasks);
       if (todayTasks.length === 0) return;
       
       const timeBlocks = todayTasks.filter(t => isTaskTimeBlock(t));
       const regularTasks = todayTasks.filter(t => !isTaskTimeBlock(t));
       
-      const currentTask = regularTasks.find(t => isCurrentTask(t));
       const movedTask = regularTasks.find(t => t.id === movedTaskId);
       
       if (!movedTask) return;
@@ -702,92 +702,76 @@ export const TaskList: React.FC<TaskListProps> = ({
         return;
       }
       
-      const currentTime = new Date();
-      let nextStartTime = new Date(currentTime);
-      
-      if (currentTask) {
-        nextStartTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
-      }
-      
+      // Sort time blocks by start time for conflict checking
       timeBlocks.sort((a, b) => {
         const aStart = new Date(a.date_started).getTime();
         const bStart = new Date(b.date_started).getTime();
         return aStart - bStart;
       });
       
+      const currentTime = new Date();
       const updates = [];
       
-      for (const task of regularTasks) {
+      // Process tasks in their new order (respecting drag-and-drop position)
+      for (let i = 0; i < regularTasks.length; i++) {
+        const task = regularTasks[i];
         if (task.Progress === 'Completed') continue;
         
-        const taskIsCurrentTask = currentTask && task.id === currentTask.id;
-        const isFirst = regularTasks.indexOf(task) === 0;
         let taskStartTime: Date;
-        let taskEndTime: Date;
+        let taskDuration = 25; // Default duration
         
-        if (taskIsCurrentTask) {
-          taskStartTime = new Date(currentTask.date_started);
-          taskEndTime = new Date(currentTask.date_due);
-          console.log('Preserving current task time:', taskStartTime);
-        } else {
-          taskStartTime = new Date(nextStartTime);
-          
-          let needsRescheduling = true;
-          while (needsRescheduling) {
-            needsRescheduling = false;
-            for (const timeBlock of timeBlocks) {
-              const blockStart = new Date(timeBlock.date_started);
-              const blockEnd = new Date(timeBlock.date_due);
-              
-              // Get task duration from details if available, default to 25 minutes
-              let taskDuration = 25; // Default duration
-              try {
-                if (task.details) {
-                  const details = typeof task.details === 'string' 
-                    ? JSON.parse(task.details) 
-                    : task.details;
-                  
-                  if (details && details.taskDuration && typeof details.taskDuration === 'number') {
-                    taskDuration = details.taskDuration;
-                  }
-                }
-              } catch (error) {
-                console.error('Error parsing task details:', error);
-              }
-              
-              const candidateEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
-              
-              if (
-                (taskStartTime >= blockStart && taskStartTime < blockEnd) ||
-                (candidateEndTime > blockStart && candidateEndTime <= blockEnd) ||
-                (taskStartTime <= blockStart && candidateEndTime >= blockEnd)
-              ) {
-                taskStartTime = new Date(blockEnd.getTime() + 5 * 60 * 1000);
-                needsRescheduling = true;
-                break;
-              }
+        // Get task duration from details
+        try {
+          if (task.details) {
+            const details = typeof task.details === 'string' 
+              ? JSON.parse(task.details) 
+              : task.details;
+            
+            if (details && details.taskDuration && typeof details.taskDuration === 'number') {
+              taskDuration = details.taskDuration;
             }
           }
-          
-          // Get task duration from details if available, default to 25 minutes
-          let taskDuration = 25; // Default duration
-          try {
-            if (task.details) {
-              const details = typeof task.details === 'string' 
-                ? JSON.parse(task.details) 
-                : task.details;
-              
-              if (details && details.taskDuration && typeof details.taskDuration === 'number') {
-                taskDuration = details.taskDuration;
-              }
-            }
-          } catch (error) {
-            console.error('Error parsing task details:', error);
-          }
-          
-          taskEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
-          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        } catch (error) {
+          console.error('Error parsing task details:', error);
         }
+        
+        // Calculate start time based on position in reordered array
+        if (i === 0) {
+          // First task starts from current time
+          taskStartTime = new Date(currentTime);
+        } else {
+          // Subsequent tasks start after the previous task ends (with 5min buffer)
+          const previousTaskUpdate = updates[updates.length - 1];
+          if (previousTaskUpdate) {
+            taskStartTime = new Date(new Date(previousTaskUpdate.date_due).getTime() + 5 * 60 * 1000);
+          } else {
+            taskStartTime = new Date(currentTime);
+          }
+        }
+        
+        // Check for conflicts with time blocks and adjust if necessary
+        let needsRescheduling = true;
+        while (needsRescheduling) {
+          needsRescheduling = false;
+          const candidateEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
+          
+          for (const timeBlock of timeBlocks) {
+            const blockStart = new Date(timeBlock.date_started);
+            const blockEnd = new Date(timeBlock.date_due);
+            
+            if (
+              (taskStartTime >= blockStart && taskStartTime < blockEnd) ||
+              (candidateEndTime > blockStart && candidateEndTime <= blockEnd) ||
+              (taskStartTime <= blockStart && candidateEndTime >= blockEnd)
+            ) {
+              taskStartTime = new Date(blockEnd.getTime() + 5 * 60 * 1000);
+              needsRescheduling = true;
+              break;
+            }
+          }
+        }
+        
+        const taskEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
         
         // Evening mode boundary validation - ensure tasks don't exceed 3 AM EST
         const EST_TIMEZONE = 'America/New_York';
@@ -830,17 +814,13 @@ export const TaskList: React.FC<TaskListProps> = ({
           user_id: user?.id
         };
         
-        if (shouldResetTimer && taskIsCurrentTask && !isFirst) {
-          updateData.Progress = 'Not started';
-        } else if (shouldResetTimer && isFirst && !taskIsCurrentTask) {
-          updateData.Progress = 'In progress';
-        }
+        // Remove special "In progress" handling for positioning as requested
+        // "In progress" tasks are now treated the same as "Not started" tasks for scheduling
         
         console.log('Updating task:', {
           taskName: task["Task Name"],
           startTime: taskStartTime,
           endTime: taskEndTime,
-          isCurrentTask: taskIsCurrentTask,
           progress: updateData.Progress || task.Progress
         });
         
@@ -880,7 +860,8 @@ export const TaskList: React.FC<TaskListProps> = ({
       return;
     }
     
-    const todayTasks = tasksToDisplay || [];
+    // Filter to only today's tasks to avoid affecting future scheduled tasks
+    const todayTasks = getTodayTasks(tasksToDisplay);
     if (todayTasks.length === 0) return;
     
     const draggedTask = todayTasks.find(t => t.id === active.id);
@@ -899,15 +880,12 @@ export const TaskList: React.FC<TaskListProps> = ({
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
     
-    const allTasks = [...reorderedTasks, ...timeBlocks];
-    
-    const currentTask = allTasks.find(t => t.Progress === 'In progress');
-    const isMovingToFirst = newIndex === 0;
-    const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
+    // Pass only today's tasks to maintain scope
+    const allTodayTasks = [...reorderedTasks, ...timeBlocks];
     
     await updateTaskOrderMutation.mutate({
-      tasks: allTasks,
-      shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
+      tasks: allTodayTasks,
+      shouldResetTimer: false, // Remove special "In progress" handling as requested
       movedTaskId: movedTask.id
     });
   };

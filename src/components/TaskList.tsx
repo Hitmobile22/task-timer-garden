@@ -886,17 +886,25 @@ export const TaskList: React.FC<TaskListProps> = ({
       return;
     }
     
-    const todayTasks = tasksToDisplay || [];
-    if (todayTasks.length === 0) return;
+    // Use the correct task array based on view mode
+    const tasksForDrag = isTaskView ? 
+      tasksToDisplay.filter(task => {
+        const matchesSearch = searchQuery ? task["Task Name"].toLowerCase().includes(searchQuery.toLowerCase()) : true;
+        const matchesFilter = filter === 'all' ? true : filter === 'active' ? task.Progress !== 'Completed' : task.Progress === 'Completed';
+        return matchesSearch && matchesFilter;
+      }) : 
+      tasksToDisplay || [];
+      
+    if (tasksForDrag.length === 0) return;
     
-    const draggedTask = todayTasks.find(t => t.id === active.id);
+    const draggedTask = tasksForDrag.find(t => t.id === active.id);
     if (isTaskTimeBlock(draggedTask)) {
       toast.info("Time blocks can't be reordered");
       return;
     }
     
-    const tasksWithoutTimeBlocks = todayTasks.filter(t => !isTaskTimeBlock(t));
-    const timeBlocks = todayTasks.filter(t => isTaskTimeBlock(t));
+    const tasksWithoutTimeBlocks = tasksForDrag.filter(t => !isTaskTimeBlock(t));
+    const timeBlocks = tasksForDrag.filter(t => isTaskTimeBlock(t));
     
     const oldIndex = tasksWithoutTimeBlocks.findIndex(t => t.id === active.id);
     const newIndex = tasksWithoutTimeBlocks.findIndex(t => t.id === over.id);
@@ -910,14 +918,36 @@ export const TaskList: React.FC<TaskListProps> = ({
     
     console.log('DRAG DEBUG - Reordered array:', reorderedTasks.map(t => ({ id: t.id, name: t["Task Name"] })));
     
-    const allTasks = [...reorderedTasks, ...timeBlocks];
+    // In TaskView mode, we need to reconstruct the full task array for the mutation
+    const allTasksForMutation = isTaskView ? 
+      // For TaskView: merge the reordered filtered tasks back into the original full task array
+      tasksToDisplay.map(task => {
+        const reorderedTask = reorderedTasks.find(rt => rt.id === task.id);
+        return reorderedTask || task;
+      }).sort((a, b) => {
+        // Apply the new order from reorderedTasks to the full array
+        const aIndex = reorderedTasks.findIndex(rt => rt.id === a.id);
+        const bIndex = reorderedTasks.findIndex(rt => rt.id === b.id);
+        
+        // If both tasks are in reorderedTasks, use their order
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex;
+        }
+        // If only one is in reorderedTasks, it comes first
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        // If neither is in reorderedTasks, maintain original order
+        return new Date(a.date_started).getTime() - new Date(b.date_started).getTime();
+      }) :
+      // For TaskScheduler: use the filtered tasks
+      [...reorderedTasks, ...timeBlocks];
     
-    const currentTask = allTasks.find(t => t.Progress === 'In progress');
+    const currentTask = allTasksForMutation.find(t => t.Progress === 'In progress');
     const isMovingToFirst = newIndex === 0;
     const isMovingCurrentTask = currentTask && movedTask.id === currentTask.id;
     
     await updateTaskOrderMutation.mutate({
-      tasks: allTasks,
+      tasks: allTasksForMutation,
       shouldResetTimer: isMovingToFirst || isMovingCurrentTask,
       movedTaskId: movedTask.id
     });

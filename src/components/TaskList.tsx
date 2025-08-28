@@ -686,11 +686,17 @@ export const TaskList: React.FC<TaskListProps> = ({
       shouldResetTimer: boolean;
       movedTaskId: number;
     }) => {
+      console.log('MUTATION DEBUG - Received tasks array:', tasks.map(t => ({ id: t.id, name: t["Task Name"], isTimeBlock: isTaskTimeBlock(t) })));
+      
       const todayTasks = getTodayTasks(tasks);
       if (todayTasks.length === 0) return;
       
+      console.log('MUTATION DEBUG - After getTodayTasks filter:', todayTasks.map(t => ({ id: t.id, name: t["Task Name"], isTimeBlock: isTaskTimeBlock(t) })));
+      
       const timeBlocks = todayTasks.filter(t => isTaskTimeBlock(t));
       const regularTasks = todayTasks.filter(t => !isTaskTimeBlock(t));
+      
+      console.log('MUTATION DEBUG - Regular tasks for scheduling:', regularTasks.map(t => ({ id: t.id, name: t["Task Name"] })));
       
       const currentTask = regularTasks.find(t => isCurrentTask(t));
       const movedTask = regularTasks.find(t => t.id === movedTaskId);
@@ -895,9 +901,14 @@ export const TaskList: React.FC<TaskListProps> = ({
     const oldIndex = tasksWithoutTimeBlocks.findIndex(t => t.id === active.id);
     const newIndex = tasksWithoutTimeBlocks.findIndex(t => t.id === over.id);
     
+    console.log('DRAG DEBUG - Original array order:', tasksWithoutTimeBlocks.map(t => ({ id: t.id, name: t["Task Name"] })));
+    console.log('DRAG DEBUG - Moving task:', { id: active.id, name: draggedTask["Task Name"], oldIndex, newIndex });
+    
     const reorderedTasks = [...tasksWithoutTimeBlocks];
     const [movedTask] = reorderedTasks.splice(oldIndex, 1);
     reorderedTasks.splice(newIndex, 0, movedTask);
+    
+    console.log('DRAG DEBUG - Reordered array:', reorderedTasks.map(t => ({ id: t.id, name: t["Task Name"] })));
     
     const allTasks = [...reorderedTasks, ...timeBlocks];
     

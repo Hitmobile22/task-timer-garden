@@ -237,7 +237,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= startTimeUTC && taskDate < endTimeUTC;
+        return taskDate < endTimeUTC;
       });
     } else {
       // Normal mode: show only today's tasks (not tomorrow's)

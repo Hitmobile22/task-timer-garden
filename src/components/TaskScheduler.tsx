@@ -495,8 +495,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
         
-        // STRICT: Only include tasks within current evening session
-        const isInSession = taskDate >= sessionStartUTC && taskDate < sessionEndUTC;
+        // Show all open tasks until 3 AM EST cutoff
+        const isInSession = taskDate < sessionEndUTC;
         
         console.log(`Task ${task["Task Name"]}: ${taskDate.toISOString()} -> ${isInSession ? 'INCLUDED' : 'EXCLUDED'}`);
         

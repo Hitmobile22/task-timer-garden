@@ -644,8 +644,8 @@ export const TaskList: React.FC<TaskListProps> = ({
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
         
-        // STRICT: Only include tasks within current evening session
-        const isInSession = taskDate >= sessionStartUTC && taskDate < sessionEndUTC;
+        // Show all open tasks until 3 AM EST cutoff
+        const isInSession = taskDate < sessionEndUTC;
         
         if (isInSession) {
           console.log(`Including evening task: ${task["Task Name"]} at ${taskDate.toISOString()}`);

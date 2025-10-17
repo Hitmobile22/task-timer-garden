@@ -686,11 +686,11 @@ export const TaskList: React.FC<TaskListProps> = ({
       shouldResetTimer: boolean;
       movedTaskId: number;
     }) => {
-      const todayTasks = getTodayTasks(tasks);
-      if (todayTasks.length === 0) return;
+      // Tasks are already filtered by TaskScheduler - use them directly
+      if (tasks.length === 0) return;
       
-      const timeBlocks = todayTasks.filter(t => isTaskTimeBlock(t));
-      const regularTasks = todayTasks.filter(t => !isTaskTimeBlock(t));
+      const timeBlocks = tasks.filter(t => isTaskTimeBlock(t));
+      const regularTasks = tasks.filter(t => !isTaskTimeBlock(t));
       
       const currentTask = regularTasks.find(t => isCurrentTask(t));
       const movedTask = regularTasks.find(t => t.id === movedTaskId);

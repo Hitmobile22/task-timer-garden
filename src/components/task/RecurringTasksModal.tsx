@@ -203,7 +203,20 @@ export const RecurringTasksModal = ({
         return;
       }
       
-      // Always create a new settings record for this list
+      // CRITICAL: First, disable all existing enabled settings for this task list
+      // This prevents the disconnect between UI (showing most recent) and backend (using any enabled setting)
+      const { error: disableError } = await supabase
+        .from('recurring_task_settings')
+        .update({ enabled: false, updated_at: new Date().toISOString() })
+        .eq('task_list_id', listId)
+        .eq('enabled', true);
+
+      if (disableError) {
+        console.error('Error disabling old settings:', disableError);
+        throw disableError;
+      }
+      
+      // Now create the new settings record
       // This ensures we have a clear history and the most recent settings are always used
       const { data, error } = await supabase
         .from('recurring_task_settings')

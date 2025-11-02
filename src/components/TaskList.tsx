@@ -671,7 +671,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       return tasks.filter(task => {
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
-        return taskDate >= todayUTC && taskDate < tomorrowUTC;
+        return taskDate < tomorrowUTC;
       });
     }
   };

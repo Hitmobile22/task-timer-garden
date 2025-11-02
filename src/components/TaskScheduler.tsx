@@ -525,7 +525,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         const taskDate = task.date_started ? new Date(task.date_started) : null;
         if (!taskDate) return false;
         
-        const isInToday = taskDate >= todayUTC && taskDate < tomorrowUTCExtended;
+        const isInToday = taskDate < tomorrowUTCExtended;
         console.log(`Task ${task["Task Name"]}: ${taskDate.toISOString()} -> ${isInToday ? 'INCLUDED' : 'EXCLUDED'}`);
         
         return isInToday;

@@ -421,7 +421,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
         await updateTaskOrderMutation.mutate({
           tasks: updatedTasks,
           shouldResetTimer: false,
-          movedTaskId: task.id
+          movedTaskId: task.id,
+          isDurationChange: durationChanged
         });
       }
       
@@ -706,11 +707,13 @@ export const TaskList: React.FC<TaskListProps> = ({
     mutationFn: async ({
       tasks,
       shouldResetTimer,
-      movedTaskId
+      movedTaskId,
+      isDurationChange = false
     }: {
       tasks: any[];
       shouldResetTimer: boolean;
       movedTaskId: number;
+      isDurationChange?: boolean;
     }) => {
       // Tasks are already filtered by TaskScheduler - use them directly
       if (tasks.length === 0) return;
@@ -748,10 +751,16 @@ export const TaskList: React.FC<TaskListProps> = ({
         
         const taskIsCurrentTask = currentTask && task.id === currentTask.id;
         const isFirst = regularTasks.indexOf(task) === 0;
+        const taskIndex = regularTasks.indexOf(task);
+        const movedTaskIndex = regularTasks.findIndex(t => t.id === movedTaskId);
+        
         let taskStartTime: Date;
         let taskEndTime: Date;
         
-        if (taskIsCurrentTask) {
+        // For duration changes, recalculate all tasks at or after the edited task
+        const shouldRecalculate = isDurationChange && taskIndex >= movedTaskIndex;
+        
+        if (taskIsCurrentTask && !shouldRecalculate) {
           taskStartTime = new Date(currentTask.date_started);
           taskEndTime = new Date(currentTask.date_due);
           console.log('Preserving current task time:', taskStartTime);

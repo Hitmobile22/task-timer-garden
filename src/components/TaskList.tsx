@@ -32,6 +32,7 @@ interface TaskListProps {
   taskLists?: any[];
   activeTaskId?: number;
   onMoveTask?: (taskId: number, listId: number) => void;
+  updateTaskOrderMutation?: any;
 }
 
 interface TaskItemProps {
@@ -410,10 +411,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
         queryKey: ['today-subtasks']
       });
       
-      // Fetch the updated tasks
+      // Fetch the updated active tasks (same query as TaskScheduler)
       const { data: updatedTasks } = await supabase
         .from('Tasks')
         .select('*')
+        .in('Progress', ['Not started', 'In progress'])
+        .neq('Progress', 'Backlog')
         .order('date_started', { ascending: true });
         
       if (updatedTasks && updateTaskOrderMutation) {
@@ -546,7 +549,8 @@ export const TaskList: React.FC<TaskListProps> = ({
   onTaskStart,
   subtasks,
   taskLists,
-  activeTaskId
+  activeTaskId,
+  updateTaskOrderMutation: externalMutation
 }) => {
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -703,7 +707,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     }
   };
 
-  const updateTaskOrderMutation = useMutation({
+  const internalMutation = useMutation({
     mutationFn: async ({
       tasks,
       shouldResetTimer,
@@ -905,6 +909,9 @@ export const TaskList: React.FC<TaskListProps> = ({
       toast.error('Failed to update task schedule');
     }
   });
+
+  // Use external mutation if provided, otherwise use internal one
+  const updateTaskOrderMutation = externalMutation || internalMutation;
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;

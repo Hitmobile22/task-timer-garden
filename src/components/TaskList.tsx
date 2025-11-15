@@ -344,11 +344,37 @@ const TaskItem: React.FC<TaskItemProps> = ({
         taskDuration: taskDuration
       };
       
-      if (newTaskName !== task["Task Name"] || updatedDetails.taskDuration !== taskDetails.taskDuration) {
-        await supabase.from('Tasks').update({
+      // Calculate original duration from timestamps
+      let originalDuration = 25;
+      if (task.date_started && task.date_due) {
+        const start = new Date(task.date_started);
+        const end = new Date(task.date_due);
+        originalDuration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+      }
+
+      // Calculate new end time if duration changed
+      let updatedDueDate = task.date_due;
+      if (task.date_started && originalDuration !== taskDuration) {
+        const startDate = new Date(task.date_started);
+        updatedDueDate = new Date(startDate.getTime() + taskDuration * 60 * 1000).toISOString();
+      }
+      
+      // Check if anything changed
+      const taskNameChanged = newTaskName !== task["Task Name"];
+      const durationChanged = updatedDetails.taskDuration !== taskDetails.taskDuration;
+
+      if (taskNameChanged || durationChanged) {
+        const updateData: any = {
           "Task Name": newTaskName,
           details: updatedDetails
-        }).eq('id', task.id);
+        };
+        
+        // If duration changed, update date_due as well
+        if (durationChanged && updatedDueDate) {
+          updateData.date_due = updatedDueDate;
+        }
+        
+        await supabase.from('Tasks').update(updateData).eq('id', task.id);
       }
       
       const existingSubtasks = subtasks?.filter(st => st["Parent Task ID"] === task.id) || [];

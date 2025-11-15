@@ -210,13 +210,15 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
       // Get original duration for rescheduling calculation
       let originalDuration = 25;
       try {
-        if (task?.details) {
-          const details = typeof task.details === 'string' ? JSON.parse(task.details) : task.details;
-          originalDuration = details?.taskDuration || 25;
-        } else if (task?.date_started && task?.date_due) {
+        if (task?.date_started && task?.date_due) {
+          // Calculate from actual timestamps (source of truth for ORIGINAL duration)
           const start = new Date(task.date_started);
           const end = new Date(task.date_due);
           originalDuration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
+        } else if (task?.details) {
+          // Fallback to details only if dates don't exist
+          const details = typeof task.details === 'string' ? JSON.parse(task.details) : task.details;
+          originalDuration = details?.taskDuration || 25;
         }
       } catch (error) {
         console.error("Error getting original duration:", error);

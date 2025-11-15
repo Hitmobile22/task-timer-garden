@@ -7,10 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
 import { TASK_LIST_COLORS } from '@/constants/taskColors';
 import { toast } from 'sonner';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Task } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { isTaskTimeBlock, isTaskInFuture } from '@/utils/taskUtils';
+import { isTaskTimeBlock, isTaskInFuture, isCurrentTask } from '@/utils/taskUtils';
 import { syncGoogleCalendar } from './task/GoogleCalendarIntegration';
 import { NotificationBell } from './notifications/NotificationBell';
 import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
@@ -93,6 +93,157 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       return (data || []).filter(task => {
         return task.Progress && task.Progress !== 'Backlog';
       }) as Task[];
+    }
+  });
+
+  const updateTaskOrderMutation = useMutation({
+    mutationFn: async ({
+      tasks,
+      shouldResetTimer,
+      movedTaskId,
+      isDurationChange = false
+    }: {
+      tasks: any[];
+      shouldResetTimer: boolean;
+      movedTaskId: number;
+      isDurationChange?: boolean;
+    }) => {
+      if (tasks.length === 0) return;
+      
+      const timeBlocks = tasks.filter(t => isTaskTimeBlock(t));
+      const regularTasks = tasks.filter(t => !isTaskTimeBlock(t));
+      
+      const currentTask = regularTasks.find(t => isCurrentTask(t));
+      const movedTask = regularTasks.find(t => t.id === movedTaskId);
+      
+      if (!movedTask) return;
+      
+      if (isTaskTimeBlock(movedTask)) {
+        console.log('Skipping reordering for time block');
+        return;
+      }
+      
+      const currentTime = new Date();
+      let nextStartTime = new Date(currentTime);
+      
+      if (currentTask) {
+        nextStartTime = new Date(new Date(currentTask.date_due).getTime() + 5 * 60 * 1000);
+      }
+      
+      timeBlocks.sort((a, b) => {
+        const aStart = new Date(a.date_started).getTime();
+        const bStart = new Date(b.date_started).getTime();
+        return aStart - bStart;
+      });
+      
+      const updates = [];
+      
+      for (const task of regularTasks) {
+        if (task.Progress === 'Completed') continue;
+        
+        const taskIsCurrentTask = currentTask && task.id === currentTask.id;
+        const isFirst = regularTasks.indexOf(task) === 0;
+        const taskIndex = regularTasks.indexOf(task);
+        const movedTaskIndex = regularTasks.findIndex(t => t.id === movedTaskId);
+        
+        let taskStartTime: Date;
+        let taskEndTime: Date;
+        
+        const shouldRecalculate = isDurationChange && taskIndex >= movedTaskIndex;
+        
+        if (taskIsCurrentTask && !shouldRecalculate) {
+          taskStartTime = new Date(currentTask.date_started);
+          taskEndTime = new Date(currentTask.date_due);
+        } else {
+          taskStartTime = new Date(nextStartTime);
+          
+          let needsRescheduling = true;
+          while (needsRescheduling) {
+            needsRescheduling = false;
+            for (const timeBlock of timeBlocks) {
+              const blockStart = new Date(timeBlock.date_started);
+              const blockEnd = new Date(timeBlock.date_due);
+              
+              let taskDuration = 25;
+              try {
+                if (task.details) {
+                  const details = typeof task.details === 'string' 
+                    ? JSON.parse(task.details) 
+                    : task.details;
+                  
+                  if (details && details.taskDuration && typeof details.taskDuration === 'number') {
+                    taskDuration = details.taskDuration;
+                  }
+                }
+              } catch (error) {
+                console.error('Error parsing task details:', error);
+              }
+              
+              const candidateEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
+              
+              if (
+                (taskStartTime >= blockStart && taskStartTime < blockEnd) ||
+                (candidateEndTime > blockStart && candidateEndTime <= blockEnd) ||
+                (taskStartTime <= blockStart && candidateEndTime >= blockEnd)
+              ) {
+                taskStartTime = new Date(blockEnd.getTime() + 5 * 60 * 1000);
+                needsRescheduling = true;
+                break;
+              }
+            }
+          }
+          
+          let taskDuration = 25;
+          try {
+            if (task.details) {
+              const details = typeof task.details === 'string' 
+                ? JSON.parse(task.details) 
+                : task.details;
+              
+              if (details && details.taskDuration && typeof details.taskDuration === 'number') {
+                taskDuration = details.taskDuration;
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing task details:', error);
+          }
+          
+          taskEndTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
+          nextStartTime = new Date(taskEndTime.getTime() + 5 * 60 * 1000);
+        }
+        
+        const updateData: any = {
+          id: task.id,
+          date_started: taskStartTime.toISOString(),
+          date_due: taskEndTime.toISOString()
+        };
+        
+        if (shouldResetTimer && taskIsCurrentTask && !isFirst) {
+          updateData.Progress = 'Not started';
+        } else if (shouldResetTimer && isFirst && !taskIsCurrentTask) {
+          updateData.Progress = 'In progress';
+        }
+        
+        updates.push(updateData);
+      }
+      
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('Tasks')
+          .update(update)
+          .eq('id', update.id);
+          
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      toast.success('Task schedule updated');
+    },
+    onError: (error) => {
+      console.error('Error updating task schedule:', error);
+      toast.error('Failed to update task schedule');
     }
   });
   
@@ -620,6 +771,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                   taskLists={taskLists} 
                   activeTaskId={activeTaskId}
                   onMoveTask={handleMoveTask}
+                  updateTaskOrderMutation={updateTaskOrderMutation}
                 />
               </div>
             </div>

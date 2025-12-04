@@ -13,7 +13,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { isTaskTimeBlock, isTaskInFuture, isCurrentTask } from '@/utils/taskUtils';
 import { syncGoogleCalendar } from './task/GoogleCalendarIntegration';
 import { NotificationBell } from './notifications/NotificationBell';
-import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
@@ -35,27 +34,66 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<number>();
-  const [isGeneratingTasks, setIsGeneratingTasks] = useState(false);
+  const [isClearingTasks, setIsClearingTasks] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   
-  // Use the unified recurring task checker
-  const recurringTasksChecker = useUnifiedRecurringTasksCheck();
-  
-  // Add button to manually trigger recurring task generation
-  const triggerRecurringTasksGeneration = async () => {
-    setIsGeneratingTasks(true);
-    toast.info('Checking for recurring tasks...');
+  // Clear past tasks function - marks visible past open tasks as completed
+  const clearPastTasks = async () => {
+    setIsClearingTasks(true);
     
     try {
-      await recurringTasksChecker.forceCheck();
-      toast.success('Recurring tasks updated');
+      // Get visible tasks using the same filtering as Today's Tasks
+      const visibleTasks = getTodayTasks(activeTasks || []);
+      
+      // Get today's date at midnight in EST
+      const now = new Date();
+      const estNow = toZonedTime(now, 'America/New_York');
+      const todayMidnightEST = new Date(estNow);
+      todayMidnightEST.setHours(0, 0, 0, 0);
+      
+      // Convert to UTC for comparison with database timestamps
+      const todayMidnightUTC = fromZonedTime(todayMidnightEST, 'America/New_York');
+      
+      // Filter for past tasks: visible + open/in-progress + before today midnight EST
+      const pastTasks = visibleTasks.filter(task => {
+        // Only open or in-progress tasks
+        if (task.Progress !== 'Not started' && task.Progress !== 'In progress') {
+          return false;
+        }
+        
+        // Must have a start date
+        if (!task.date_started) return false;
+        
+        // Task is from before today (yesterday and earlier)
+        const taskDate = new Date(task.date_started);
+        return taskDate < todayMidnightUTC;
+      });
+      
+      if (pastTasks.length === 0) {
+        toast.info('No past tasks to clear');
+        return;
+      }
+      
+      // Mark all past tasks as completed
+      for (const task of pastTasks) {
+        await supabase
+          .from('Tasks')
+          .update({ Progress: 'Completed' })
+          .eq('id', task.id);
+      }
+      
+      // Refresh the UI
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      
+      toast.success(`Cleared ${pastTasks.length} past task${pastTasks.length > 1 ? 's' : ''}`);
     } catch (error) {
-      console.error('Error triggering recurring tasks:', error);
-      toast.error('Failed to check recurring tasks');
+      console.error('Error clearing past tasks:', error);
+      toast.error('Failed to clear past tasks');
     } finally {
-      setIsGeneratingTasks(false);
+      setIsClearingTasks(false);
     }
   };
   
@@ -721,17 +759,17 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         <MenuBar />
         <div className="flex items-center gap-2">
           <Button
-            onClick={triggerRecurringTasksGeneration}
+            onClick={clearPastTasks}
             className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm"
-            disabled={isGeneratingTasks}
+            disabled={isClearingTasks}
             size="sm"
           >
-            {isGeneratingTasks ? (
+            {isClearingTasks ? (
               <>
-                <RefreshCw className="mr-1 h-3 w-3 animate-spin" /> Generating...
+                <RefreshCw className="mr-1 h-3 w-3 animate-spin" /> Clearing...
               </>
             ) : (
-              'Generate Recurring Tasks'
+              'Clear Past Tasks'
             )}
           </Button>
           <NotificationBell />

@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 export const MenuBar = () => {
   const location = useLocation();
   const recurringTasksChecker = useUnifiedRecurringTasksCheck();
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleGenerateRecurringTasks = async () => {
     toast.info('Checking for recurring tasks...');
@@ -34,15 +35,21 @@ export const MenuBar = () => {
 
   return (
     <div className="flex items-center justify-between w-full">
-      <DropdownMenu>
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
-          <button className="hover-lift flex items-center px-4 py-2 rounded-md text-white bg-gray-800 shadow-md hover:bg-gray-700 transition-all duration-200">
+          <button 
+            className="hover-lift flex items-center px-4 py-2 rounded-md text-white bg-gray-800 shadow-md hover:bg-gray-700 transition-all duration-200"
+            onMouseEnter={() => setIsOpen(true)}
+          >
             <Menu className="h-5 w-5 mr-2" />
             <span>Menu</span>
             <ChevronDown className="ml-1 h-3 w-3" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="bg-white/90 backdrop-blur-md rounded-md shadow-lg w-[220px]">
+        <DropdownMenuContent 
+          className="bg-white/90 backdrop-blur-md rounded-md shadow-lg w-[220px]"
+          onMouseLeave={() => setIsOpen(false)}
+        >
           {/* Actions Submenu */}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="flex items-center space-x-2 p-3 rounded-md text-gray-800 hover:bg-gray-200">

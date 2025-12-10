@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -56,18 +57,20 @@ export const MenuBar = () => {
               <Zap className="h-5 w-5 text-orange-500" />
               <span className="text-sm font-medium">Actions</span>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="bg-white/90 backdrop-blur-md">
-              <DropdownMenuItem 
-                onClick={handleGenerateRecurringTasks}
-                disabled={recurringTasksChecker.isChecking}
-                className="flex items-center space-x-2 p-3 rounded-md text-gray-800 hover:bg-gray-200 cursor-pointer"
-              >
-                <RefreshCw className={cn("h-5 w-5 text-blue-500", recurringTasksChecker.isChecking && "animate-spin")} />
-                <span className="text-sm font-medium">
-                  {recurringTasksChecker.isChecking ? 'Generating...' : 'Generate Recurring Tasks'}
-                </span>
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="bg-white backdrop-blur-md shadow-lg z-[100]">
+                <DropdownMenuItem 
+                  onClick={handleGenerateRecurringTasks}
+                  disabled={recurringTasksChecker.isChecking}
+                  className="flex items-center space-x-2 p-3 rounded-md text-gray-800 hover:bg-gray-200 cursor-pointer"
+                >
+                  <RefreshCw className={cn("h-5 w-5 text-blue-500", recurringTasksChecker.isChecking && "animate-spin")} />
+                  <span className="text-sm font-medium">
+                    {recurringTasksChecker.isChecking ? 'Generating...' : 'Generate Recurring Tasks'}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
           </DropdownMenuSub>
           
           <DropdownMenuSeparator />

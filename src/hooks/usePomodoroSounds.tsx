@@ -40,13 +40,13 @@ export const usePomodoroSounds = (isVisible: boolean) => {
     break: []
   });
 
-  // Initialize audio pools
-  useEffect(() => {
+  // Initialize audio pools - only when unmuted
+  const initializeAudioPools = useCallback(() => {
     if (soundsInitializedRef.current) {
       return; // Already initialized
     }
     
-    console.log("Initializing sound pools");
+    console.log("Initializing sound pools (unmuted)");
     
     // Create initial audio elements for the pool
     Object.keys(soundSettings).forEach((type) => {
@@ -69,7 +69,7 @@ export const usePomodoroSounds = (isVisible: boolean) => {
             audio.volume = 0.7;
           }
           
-          // Try to trigger audio context initialization
+          // Load without playing
           audio.load();
           
           pool.push(audio);
@@ -77,63 +77,12 @@ export const usePomodoroSounds = (isVisible: boolean) => {
       }
     });
     
-    // Prepare audio context early by playing a silent sound
-    const silentInitAudio = () => {
-      if (!soundsInitializedRef.current) {
-        console.log("Initializing audio context with user interaction");
-        
-        // Create a silent audio element for initialization
-        const silentAudio = new Audio();
-        silentAudio.volume = 0;
-        
-        // Try to play it to initialize audio context
-        const playPromise = silentAudio.play();
-        if (playPromise !== undefined) {
-          playPromise.then(() => {
-            console.log("Audio context successfully initialized");
-            soundsInitializedRef.current = true;
-            silentAudio.pause();
-            silentAudio.remove();
-          }).catch(error => {
-            console.error("Error initializing audio context:", error);
-          });
-        }
-        
-        // Also try to play one of each type silently to initialize them
-        Object.keys(audioPoolRefs.current).forEach(type => {
-          const soundType = type as SoundType;
-          const pool = audioPoolRefs.current[soundType];
-          if (pool.length > 0) {
-            const audio = pool[0];
-            const originalVolume = audio.volume;
-            audio.volume = 0;
-            
-            const initPlayPromise = audio.play();
-            if (initPlayPromise !== undefined) {
-              initPlayPromise.then(() => {
-                audio.pause();
-                audio.currentTime = 0;
-                audio.volume = originalVolume;
-              }).catch(() => {
-                audio.volume = originalVolume;
-              });
-            }
-          }
-        });
-      }
-    };
-    
-    // Initialize sounds with user interaction
-    document.addEventListener('click', silentInitAudio, { once: true });
-    document.addEventListener('keydown', silentInitAudio, { once: true });
-    document.addEventListener('touchstart', silentInitAudio, { once: true });
-    
-    // Cleanup function
+    soundsInitializedRef.current = true;
+  }, [soundSettings]);
+
+  // Cleanup audio pools on unmount
+  useEffect(() => {
     return () => {
-      document.removeEventListener('click', silentInitAudio);
-      document.removeEventListener('keydown', silentInitAudio);
-      document.removeEventListener('touchstart', silentInitAudio);
-      
       Object.values(audioPoolRefs.current).forEach(pool => {
         pool.forEach(audio => {
           audio.pause();
@@ -203,10 +152,16 @@ export const usePomodoroSounds = (isVisible: boolean) => {
   }, [soundSettings]);
 
   const playSound = useCallback((type: SoundType) => {
+    // Early return if muted or not visible - don't touch audio at all
     if (isMuted || !isVisible) return;
     
     if (type === 'tick' && soundSettings[type] === 'none') {
       return; // Don't play tick sound if 'none' is selected
+    }
+    
+    // Initialize audio pools on first actual play attempt (lazy init)
+    if (!soundsInitializedRef.current) {
+      initializeAudioPools();
     }
     
     // For tick sounds, ensure we're not playing too many too quickly
@@ -252,7 +207,7 @@ export const usePomodoroSounds = (isVisible: boolean) => {
         }
       });
     }
-  }, [isMuted, isVisible, soundSettings, getNextAudio]);
+  }, [isMuted, isVisible, soundSettings, getNextAudio, initializeAudioPools]);
 
   const previewSound = useCallback((type: SoundType, soundPath: string) => {
     if (isMuted || soundPath === 'none') return;
@@ -273,30 +228,13 @@ export const usePomodoroSounds = (isVisible: boolean) => {
     });
   }, [isMuted]);
 
-  // Special handler for when sound is unmuted
+  // Initialize audio pools when unmuted (lazy initialization)
   useEffect(() => {
-    if (!isMuted) {
-      console.log("Sound unmuted, initializing audio system");
-      
-      // Play a test sound to initialize audio system
-      const testAudio = new Audio(soundSettings.task);
-      testAudio.volume = 0.2; // Quieter test sound
-      
-      testAudio.play().then(() => {
-        console.log("Audio system initialized successfully");
-        soundsInitializedRef.current = true;
-        
-        // Immediately play a tick sound if tick is enabled
-        if (soundSettings.tick !== 'none') {
-          setTimeout(() => {
-            playSound('tick');
-          }, 100);
-        }
-      }).catch(error => {
-        console.error("Error initializing audio system:", error);
-      });
+    if (!isMuted && !soundsInitializedRef.current) {
+      console.log("Sound unmuted, initializing audio pools");
+      initializeAudioPools();
     }
-  }, [isMuted]);
+  }, [isMuted, initializeAudioPools]);
 
   return {
     isMuted,

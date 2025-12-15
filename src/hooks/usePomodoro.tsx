@@ -346,9 +346,33 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
 
   useEffect(() => {
     if (currentTask && !isBreak) {
-      setIsCountdownToNextTask(false);
-      const remaining = calculateTimeLeft(currentTask);
-      setTimeLeft(remaining);
+      // Check if the task has actually started
+      const now = new Date();
+      const taskStartTime = currentTask.date_started ? new Date(currentTask.date_started) : null;
+      const hasTaskStarted = taskStartTime ? now >= taskStartTime : true;
+      
+      if (hasTaskStarted) {
+        // Task has started - show work timer
+        setIsCountdownToNextTask(false);
+        const remaining = calculateTimeLeft(currentTask);
+        setTimeLeft(remaining);
+      } else {
+        // Task hasn't started yet - check if we should show countdown or break
+        const shouldShowCountdown = shouldShowCountdownForTask(currentTask.date_started);
+        if (shouldShowCountdown) {
+          const timeToStart = calculateTimeUntilTaskStart(currentTask.date_started);
+          if (timeToStart !== null) {
+            setIsCountdownToNextTask(true);
+            setIsBreak(true);
+            setTimeLeft(timeToStart);
+          }
+        } else {
+          // More than 10 minutes until task - show standard break
+          setIsBreak(true);
+          setIsCountdownToNextTask(false);
+          setTimeLeft(5 * 60);
+        }
+      }
     } else if (isBreak) {
       if (isCountdownToNextTask) {
         const nextTask = getNextTask();

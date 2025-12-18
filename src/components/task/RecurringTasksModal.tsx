@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { 
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { Plus, Minus } from "lucide-react";
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
@@ -37,6 +39,7 @@ export interface RecurringTaskSettings {
   enabled: boolean;
   dailyTaskCount: number;
   daysOfWeek: string[];
+  subtaskNames: string[];
 }
 
 const DAYS_OF_WEEK = [
@@ -89,6 +92,7 @@ export const RecurringTasksModal = ({
     enabled: false,
     dailyTaskCount: 1,
     daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+    subtaskNames: [],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -153,6 +157,7 @@ export const RecurringTasksModal = ({
             enabled: mostRecentSetting.enabled ?? false,
             dailyTaskCount: mostRecentSetting.daily_task_count ?? 1,
             daysOfWeek: mostRecentSetting.days_of_week ?? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            subtaskNames: mostRecentSetting.subtask_names ?? [],
           });
         } else {
           // Reset to defaults if no settings found
@@ -162,6 +167,7 @@ export const RecurringTasksModal = ({
             enabled: false,
             dailyTaskCount: 1,
             daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            subtaskNames: [],
           });
         }
         
@@ -225,6 +231,7 @@ export const RecurringTasksModal = ({
           enabled: settings.enabled,
           daily_task_count: settings.dailyTaskCount,
           days_of_week: settings.daysOfWeek,
+          subtask_names: settings.subtaskNames.filter(name => name.trim() !== ''),
         })
         .select();
 
@@ -401,6 +408,53 @@ export const RecurringTasksModal = ({
               )}
               <p className="text-xs text-muted-foreground">
                 New tasks will only be created if you have fewer active tasks than your daily target.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Subtasks</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => updateSettings({ subtaskNames: [...settings.subtaskNames, ''] })}
+                  disabled={!settings.enabled || isSaving}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {settings.subtaskNames.length > 0 && (
+                <div className="space-y-2 border-l-2 border-primary/20 pl-3">
+                  {settings.subtaskNames.map((subtaskName, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        value={subtaskName}
+                        onChange={(e) => {
+                          const newSubtaskNames = [...settings.subtaskNames];
+                          newSubtaskNames[index] = e.target.value;
+                          updateSettings({ subtaskNames: newSubtaskNames });
+                        }}
+                        placeholder={`Subtask ${index + 1}`}
+                        disabled={!settings.enabled || isSaving}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const newSubtaskNames = settings.subtaskNames.filter((_, i) => i !== index);
+                          updateSettings({ subtaskNames: newSubtaskNames });
+                        }}
+                        disabled={!settings.enabled || isSaving}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                These subtasks will be automatically added to each recurring task created.
               </p>
             </div>
             <DialogFooter>

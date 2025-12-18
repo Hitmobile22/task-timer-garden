@@ -81,6 +81,7 @@ interface RecurringTaskSetting {
   enabled: boolean;
   daily_task_count: number;
   days_of_week: string[];
+  subtask_names?: string[];
   created_at?: string;
 }
 
@@ -709,6 +710,36 @@ Deno.serve(async (req) => {
           }
 
           console.log(`Successfully created ${newTasks?.length || 0} tasks for list ${setting.task_list_id} (${projectTasksCreated} for projects, ${additionalListTasksToCreate} for the list itself)`);
+          
+          // Create subtasks for each new task if subtask_names are configured
+          if (newTasks && newTasks.length > 0 && setting.subtask_names && setting.subtask_names.length > 0) {
+            const subtasksToInsert = [];
+            
+            for (const newTask of newTasks) {
+              for (const subtaskName of setting.subtask_names) {
+                if (subtaskName && subtaskName.trim() !== '') {
+                  subtasksToInsert.push({
+                    "Task Name": subtaskName.trim(),
+                    "Progress": "Not started",
+                    "Parent Task ID": newTask.id,
+                    "user_id": newTask.user_id
+                  });
+                }
+              }
+            }
+            
+            if (subtasksToInsert.length > 0) {
+              const { error: subtaskError } = await supabaseClient
+                .from('subtasks')
+                .insert(subtasksToInsert);
+                
+              if (subtaskError) {
+                console.error(`Error creating subtasks for list ${setting.task_list_id}:`, subtaskError);
+              } else {
+                console.log(`Successfully created ${subtasksToInsert.length} subtasks for ${newTasks.length} tasks in list ${setting.task_list_id}`);
+              }
+            }
+          }
           
           // Record the successful generation
           const totalTasksGenerated = (existingLogs?.[0]?.tasks_generated || 0) + (newTasks?.length || 0);

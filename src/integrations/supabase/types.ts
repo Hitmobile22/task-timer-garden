@@ -367,6 +367,7 @@ export type Database = {
           days_of_week: string[] | null
           enabled: boolean | null
           id: number
+          subtask_names: string[] | null
           task_list_id: number | null
           updated_at: string | null
         }
@@ -377,6 +378,7 @@ export type Database = {
           days_of_week?: string[] | null
           enabled?: boolean | null
           id?: number
+          subtask_names?: string[] | null
           task_list_id?: number | null
           updated_at?: string | null
         }
@@ -387,6 +389,7 @@ export type Database = {
           days_of_week?: string[] | null
           enabled?: boolean | null
           id?: number
+          subtask_names?: string[] | null
           task_list_id?: number | null
           updated_at?: string | null
         }

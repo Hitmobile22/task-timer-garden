@@ -367,6 +367,43 @@ Deno.serve(async (req) => {
         
         console.log(`Created ${createdTasks?.length || 0} tasks for project ${project.id}`);
         
+        // Create subtasks for each task created
+        if (createdTasks && createdTasks.length > 0) {
+          const { data: projectSettings } = await supabaseClient
+            .from('recurring_project_settings')
+            .select('subtask_names')
+            .eq('project_id', project.id)
+            .maybeSingle();
+            
+          if (projectSettings?.subtask_names && projectSettings.subtask_names.length > 0) {
+            const subtasksToInsert = [];
+            for (const task of createdTasks) {
+              for (const subtaskName of projectSettings.subtask_names) {
+                if (subtaskName.trim()) {
+                  subtasksToInsert.push({
+                    "Task Name": subtaskName,
+                    "Progress": "Not started",
+                    "Parent Task ID": task.id,
+                    "user_id": user.id
+                  });
+                }
+              }
+            }
+            
+            if (subtasksToInsert.length > 0) {
+              const { error: subtaskError } = await supabaseClient
+                .from('subtasks')
+                .insert(subtasksToInsert);
+                
+              if (subtaskError) {
+                console.error(`Error creating subtasks for project ${project.id}:`, subtaskError);
+              } else {
+                console.log(`Created ${subtasksToInsert.length} subtasks for project ${project.id}`);
+              }
+            }
+          }
+        }
+        
         // Log the generation
         const tasksCreated = createdTasks?.length || 0;
         

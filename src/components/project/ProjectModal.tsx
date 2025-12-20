@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Plus, Repeat, ListFilter, Check } from "lucide-react";
+import { CalendarIcon, Plus, Minus, Repeat, ListFilter, Check } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -61,6 +61,7 @@ export const ProjectModal = ({
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<'details' | 'tasks' | 'goals'>('details');
+  const [subtaskNames, setSubtaskNames] = useState<string[]>([]);
   
   useEffect(() => {
     if (taskLists.length > 0 && !taskListId) {
@@ -82,6 +83,22 @@ export const ProjectModal = ({
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
       setTaskListId(project.task_list_id || taskLists[0]?.id);
+      
+      // Load subtask names from recurring_project_settings
+      if (project.id) {
+        supabase
+          .from('recurring_project_settings')
+          .select('subtask_names')
+          .eq('project_id', project.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data?.subtask_names) {
+              setSubtaskNames(data.subtask_names);
+            } else {
+              setSubtaskNames([]);
+            }
+          });
+      }
       
       if (project.date_started) {
         setDateStarted(new Date(project.date_started));
@@ -126,6 +143,7 @@ export const ProjectModal = ({
       setTaskListId(taskLists[0]?.id || null);
       setSelectedTasks([]);
       setGoals([]);
+      setSubtaskNames([]);
     }
   }, [project, taskLists]);
   
@@ -408,6 +426,33 @@ export const ProjectModal = ({
           }
         }
         
+        // Save subtask names to recurring_project_settings
+        if (isRecurring) {
+          const filteredSubtaskNames = subtaskNames.filter(name => name.trim() !== '');
+          
+          // Check if settings exist
+          const { data: existingSettings } = await supabase
+            .from('recurring_project_settings')
+            .select('id')
+            .eq('project_id', project.id)
+            .maybeSingle();
+          
+          if (existingSettings) {
+            await supabase
+              .from('recurring_project_settings')
+              .update({ subtask_names: filteredSubtaskNames })
+              .eq('project_id', project.id);
+          } else {
+            await supabase
+              .from('recurring_project_settings')
+              .insert({
+                project_id: project.id,
+                user_id: user?.id,
+                subtask_names: filteredSubtaskNames
+              });
+          }
+        }
+        
         onUpdateProject({
           ...project,
           ...projectData
@@ -462,6 +507,19 @@ export const ProjectModal = ({
         
         if (goalsError) {
           console.error("Error creating project goals:", goalsError);
+        }
+        
+        // Save subtask names to recurring_project_settings for new project
+        if (isRecurring) {
+          const filteredSubtaskNames = subtaskNames.filter(name => name.trim() !== '');
+          
+          await supabase
+            .from('recurring_project_settings')
+            .insert({
+              project_id: newProject.id,
+              user_id: user?.id,
+              subtask_names: filteredSubtaskNames
+            });
         }
         
         onUpdateProject({
@@ -667,20 +725,71 @@ export const ProjectModal = ({
                 </div>
 
                 {isRecurring && (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="recurringTaskCount" className="text-right">
-                      Daily Task Count
-                    </Label>
-                    <Input
-                      id="recurringTaskCount"
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={recurringTaskCount}
-                      onChange={(e) => setRecurringTaskCount(Number(e.target.value))}
-                      className="w-20"
-                    />
-                  </div>
+                  <>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="recurringTaskCount" className="text-right">
+                        Daily Task Count
+                      </Label>
+                      <Input
+                        id="recurringTaskCount"
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={recurringTaskCount}
+                        onChange={(e) => setRecurringTaskCount(Number(e.target.value))}
+                        className="w-20"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-4 items-start gap-4">
+                      <Label className="text-right pt-2">Subtasks</Label>
+                      <div className="col-span-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSubtaskNames([...subtaskNames, ''])}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Subtask
+                          </Button>
+                        </div>
+                        
+                        {subtaskNames.length > 0 && (
+                          <div className="border-l-2 border-primary/20 pl-3 space-y-2">
+                            {subtaskNames.map((name, index) => (
+                              <div key={index} className="flex items-center gap-2">
+                                <Input
+                                  placeholder={`Subtask ${index + 1}`}
+                                  value={name}
+                                  onChange={(e) => {
+                                    const newNames = [...subtaskNames];
+                                    newNames[index] = e.target.value;
+                                    setSubtaskNames(newNames);
+                                  }}
+                                  className="flex-1"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setSubtaskNames(subtaskNames.filter((_, i) => i !== index));
+                                  }}
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                            <p className="text-xs text-muted-foreground">
+                              These subtasks will be added to each recurring task created
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             ) : (

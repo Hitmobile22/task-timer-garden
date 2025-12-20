@@ -278,6 +278,7 @@ export type Database = {
           days_of_week: string[]
           id: number
           project_id: number
+          subtask_names: string[] | null
           updated_at: string
           user_id: string | null
         }
@@ -286,6 +287,7 @@ export type Database = {
           days_of_week?: string[]
           id?: number
           project_id: number
+          subtask_names?: string[] | null
           updated_at?: string
           user_id?: string | null
         }
@@ -294,6 +296,7 @@ export type Database = {
           days_of_week?: string[]
           id?: number
           project_id?: number
+          subtask_names?: string[] | null
           updated_at?: string
           user_id?: string | null
         }

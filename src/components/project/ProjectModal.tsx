@@ -62,6 +62,7 @@ export const ProjectModal = ({
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<'details' | 'tasks' | 'goals'>('details');
   const [subtaskNames, setSubtaskNames] = useState<string[]>([]);
+  const [progressiveMode, setProgressiveMode] = useState(false);
   
   useEffect(() => {
     if (taskLists.length > 0 && !taskListId) {
@@ -84,11 +85,11 @@ export const ProjectModal = ({
       setRecurringTaskCount(project.recurringTaskCount || 1);
       setTaskListId(project.task_list_id || taskLists[0]?.id);
       
-      // Load subtask names from recurring_project_settings
+      // Load subtask names and progressive mode from recurring_project_settings
       if (project.id) {
         supabase
           .from('recurring_project_settings')
-          .select('subtask_names')
+          .select('subtask_names, progressive_mode')
           .eq('project_id', project.id)
           .maybeSingle()
           .then(({ data }) => {
@@ -97,6 +98,7 @@ export const ProjectModal = ({
             } else {
               setSubtaskNames([]);
             }
+            setProgressiveMode(data?.progressive_mode || false);
           });
       }
       
@@ -144,6 +146,7 @@ export const ProjectModal = ({
       setSelectedTasks([]);
       setGoals([]);
       setSubtaskNames([]);
+      setProgressiveMode(false);
     }
   }, [project, taskLists]);
   
@@ -426,7 +429,7 @@ export const ProjectModal = ({
           }
         }
         
-        // Save subtask names to recurring_project_settings
+        // Save subtask names and progressive mode to recurring_project_settings
         if (isRecurring) {
           const filteredSubtaskNames = subtaskNames.filter(name => name.trim() !== '');
           
@@ -440,7 +443,10 @@ export const ProjectModal = ({
           if (existingSettings) {
             await supabase
               .from('recurring_project_settings')
-              .update({ subtask_names: filteredSubtaskNames })
+              .update({ 
+                subtask_names: filteredSubtaskNames,
+                progressive_mode: progressiveMode 
+              })
               .eq('project_id', project.id);
           } else {
             await supabase
@@ -448,7 +454,8 @@ export const ProjectModal = ({
               .insert({
                 project_id: project.id,
                 user_id: user?.id,
-                subtask_names: filteredSubtaskNames
+                subtask_names: filteredSubtaskNames,
+                progressive_mode: progressiveMode
               });
           }
         }
@@ -509,7 +516,7 @@ export const ProjectModal = ({
           console.error("Error creating project goals:", goalsError);
         }
         
-        // Save subtask names to recurring_project_settings for new project
+        // Save subtask names and progressive mode to recurring_project_settings for new project
         if (isRecurring) {
           const filteredSubtaskNames = subtaskNames.filter(name => name.trim() !== '');
           
@@ -518,7 +525,8 @@ export const ProjectModal = ({
             .insert({
               project_id: newProject.id,
               user_id: user?.id,
-              subtask_names: filteredSubtaskNames
+              subtask_names: filteredSubtaskNames,
+              progressive_mode: progressiveMode
             });
         }
         
@@ -784,6 +792,20 @@ export const ProjectModal = ({
                             ))}
                             <p className="text-xs text-muted-foreground">
                               These subtasks will be added to each recurring task created
+                            </p>
+                            
+                            <div className="flex items-center gap-2 pt-2 border-t border-primary/10">
+                              <Switch
+                                id="progressiveMode"
+                                checked={progressiveMode}
+                                onCheckedChange={setProgressiveMode}
+                              />
+                              <Label htmlFor="progressiveMode" className="text-sm font-normal cursor-pointer">
+                                Progressive Mode
+                              </Label>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              When enabled, completed subtasks are permanently removed and won't appear in future tasks
                             </p>
                           </div>
                         )}

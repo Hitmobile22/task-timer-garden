@@ -962,6 +962,51 @@ export const TaskList: React.FC<TaskListProps> = ({
       id: number;
       isSubtask?: boolean;
     }) => {
+      // If it's a subtask, check if progressive mode is enabled for the parent project
+      if (isSubtask) {
+        // Get the subtask details first
+        const { data: subtask, error: subtaskError } = await supabase
+          .from('subtasks')
+          .select('*, "Task Name", "Parent Task ID"')
+          .eq('id', id)
+          .single();
+          
+        if (subtaskError) throw subtaskError;
+        
+        // Get the parent task to find the project
+        const { data: parentTask, error: taskError } = await supabase
+          .from('Tasks')
+          .select('project_id')
+          .eq('id', subtask["Parent Task ID"])
+          .single();
+          
+        if (taskError) throw taskError;
+        
+        // If the task belongs to a project, check progressive mode
+        if (parentTask?.project_id) {
+          const { data: projectSettings } = await supabase
+            .from('recurring_project_settings')
+            .select('subtask_names, progressive_mode')
+            .eq('project_id', parentTask.project_id)
+            .maybeSingle();
+            
+          // If progressive mode is enabled, remove the subtask from the template
+          if (projectSettings?.progressive_mode && projectSettings?.subtask_names) {
+            const subtaskName = subtask["Task Name"];
+            const updatedSubtaskNames = projectSettings.subtask_names.filter(
+              (name: string) => name !== subtaskName
+            );
+            
+            await supabase
+              .from('recurring_project_settings')
+              .update({ subtask_names: updatedSubtaskNames })
+              .eq('project_id', parentTask.project_id);
+              
+            console.log(`Progressive Mode: Removed "${subtaskName}" from project ${parentTask.project_id} template`);
+          }
+        }
+      }
+      
       const {
         error
       } = await supabase.from(isSubtask ? 'subtasks' : 'Tasks').update({

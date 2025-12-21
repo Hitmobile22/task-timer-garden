@@ -277,6 +277,7 @@ export type Database = {
           created_at: string
           days_of_week: string[]
           id: number
+          progressive_mode: boolean | null
           project_id: number
           subtask_names: string[] | null
           updated_at: string
@@ -286,6 +287,7 @@ export type Database = {
           created_at?: string
           days_of_week?: string[]
           id?: number
+          progressive_mode?: boolean | null
           project_id: number
           subtask_names?: string[] | null
           updated_at?: string
@@ -295,6 +297,7 @@ export type Database = {
           created_at?: string
           days_of_week?: string[]
           id?: number
+          progressive_mode?: boolean | null
           project_id?: number
           subtask_names?: string[] | null
           updated_at?: string

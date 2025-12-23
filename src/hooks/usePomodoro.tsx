@@ -47,6 +47,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
         .select('*')
         .eq('Parent Task ID', currentTask.id)
         .neq('Progress', 'Completed')
+        .order('sort_order', { ascending: true })
         .order('id', { ascending: true });
 
       if (error) throw error;

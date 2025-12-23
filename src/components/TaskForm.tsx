@@ -202,11 +202,12 @@ export const TaskForm = ({
         if (taskError) throw taskError;
 
         if (task.subtasks.length > 0) {
-          const subtasksToInsert = task.subtasks.map(subtask => ({
+          const subtasksToInsert = task.subtasks.map((subtask, index) => ({
             "Task Name": subtask.name,
             "Progress": "Not started" as Status,
             "Parent Task ID": taskData.id,
-            "user_id": user?.id
+            "user_id": user?.id,
+            "sort_order": index
           }));
           const {
             error: subtaskError

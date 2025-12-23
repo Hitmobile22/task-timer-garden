@@ -94,7 +94,8 @@ export function TaskView() {
       const { data, error } = await supabase
         .from('subtasks')
         .select('*')
-        .order('created_at', { ascending: true });
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
       
       if (error) throw error;
       return data as Subtask[];

@@ -18,6 +18,7 @@ export type Subtask = {
   "Task Name": string;
   Progress: "Not started" | "In progress" | "Completed" | "Backlog";
   "Parent Task ID": number;
+  sort_order?: number;
 };
 
 export type SortField = "Task Name" | "Progress" | "date_started" | "date_due";

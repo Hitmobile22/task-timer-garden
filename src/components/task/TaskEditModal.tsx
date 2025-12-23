@@ -147,6 +147,7 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
         .from('subtasks')
         .select('*')
         .eq('Parent Task ID', taskId)
+        .order('sort_order', { ascending: true })
         .order('id', { ascending: true });
         
       if (error) throw error;
@@ -311,6 +312,11 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
     try {
       if (!newSubtask.trim() || !editedTask) return;
       
+      // Calculate next sort_order based on existing subtasks
+      const nextSortOrder = subtasks.length > 0 
+        ? Math.max(...subtasks.map(s => s.sort_order || 0)) + 1 
+        : 0;
+      
       const { data, error } = await supabase
         .from('subtasks')
         .insert([
@@ -318,7 +324,8 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
             'Task Name': newSubtask, 
             'Parent Task ID': editedTask.id,
             'Progress': 'Not started' as const,
-            'user_id': user?.id
+            'user_id': user?.id,
+            'sort_order': nextSortOrder
           }
         ])
         .select();

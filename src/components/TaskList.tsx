@@ -183,12 +183,13 @@ const EditTaskModal = ({
 
       // If there are subtasks, duplicate them for the new task
       if (editingSubtasks.length > 0) {
-        // Create an array of new subtasks objects
-        const newSubtasks = editingSubtasks.map(subtask => ({
+        // Create an array of new subtasks objects, preserving their order
+        const newSubtasks = editingSubtasks.map((subtask, index) => ({
           "Task Name": subtask["Task Name"],
           "Parent Task ID": newTask.id,
           Progress: "Not started" as const,
-          user_id: user.id  // Add user_id to comply with RLS policy
+          user_id: user.id,  // Add user_id to comply with RLS policy
+          sort_order: subtask.sort_order ?? index  // Preserve original sort_order or use index
         }));
 
         // Insert all new subtasks at once
@@ -384,11 +385,17 @@ const TaskItem: React.FC<TaskItemProps> = ({
       const subtasksToDelete = existingSubtasks.filter(est => !newSubtasks.some(nst => nst.id === est.id));
       
       if (subtasksToAdd.length > 0) {
-        const newSubtasksData = subtasksToAdd.map(st => ({
+        // Calculate starting sort_order based on existing subtasks
+        const maxSortOrder = existingSubtasks.length > 0 
+          ? Math.max(...existingSubtasks.map(s => s.sort_order || 0)) 
+          : -1;
+        
+        const newSubtasksData = subtasksToAdd.map((st, index) => ({
           "Task Name": st["Task Name"],
           "Parent Task ID": task.id,
           Progress: "Not started" as const,
-          user_id: user?.id
+          user_id: user?.id,
+          sort_order: maxSortOrder + 1 + index
         }));
         await supabase.from('subtasks').insert(newSubtasksData);
       }
@@ -611,9 +618,9 @@ export const TaskList: React.FC<TaskListProps> = ({
       const {
         data,
         error
-      } = await supabase.from('subtasks').select('*').order('created_at', {
-        ascending: true
-      });
+      } = await supabase.from('subtasks').select('*')
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true });
       if (error) throw error;
       return data;
     }

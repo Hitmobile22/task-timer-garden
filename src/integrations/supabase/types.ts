@@ -415,6 +415,7 @@ export type Database = {
           id: number
           "Parent Task ID": number | null
           Progress: Database["public"]["Enums"]["status"] | null
+          sort_order: number
           "Task Name": string | null
           user_id: string
         }
@@ -423,6 +424,7 @@ export type Database = {
           id?: never
           "Parent Task ID"?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
+          sort_order?: number
           "Task Name"?: string | null
           user_id: string
         }
@@ -431,6 +433,7 @@ export type Database = {
           id?: never
           "Parent Task ID"?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
+          sort_order?: number
           "Task Name"?: string | null
           user_id?: string
         }

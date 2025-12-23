@@ -378,16 +378,18 @@ Deno.serve(async (req) => {
           if (projectSettings?.subtask_names && projectSettings.subtask_names.length > 0) {
             const subtasksToInsert = [];
             for (const task of createdTasks) {
-              for (const subtaskName of projectSettings.subtask_names) {
+              // Use index as sort_order to preserve array order
+              projectSettings.subtask_names.forEach((subtaskName: string, index: number) => {
                 if (subtaskName.trim()) {
                   subtasksToInsert.push({
                     "Task Name": subtaskName,
                     "Progress": "Not started",
                     "Parent Task ID": task.id,
-                    "user_id": user.id
+                    "user_id": user.id,
+                    "sort_order": index
                   });
                 }
-              }
+              });
             }
             
             if (subtasksToInsert.length > 0) {

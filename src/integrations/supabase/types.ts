@@ -409,6 +409,33 @@ export type Database = {
           },
         ]
       }
+      subtask_presets: {
+        Row: {
+          created_at: string
+          id: number
+          name: string
+          subtask_names: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          name: string
+          subtask_names?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          name?: string
+          subtask_names?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       subtasks: {
         Row: {
           created_at: string

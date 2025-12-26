@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -12,22 +11,14 @@ import { DayView } from '@/components/calendar/DayView';
 import { WeekView } from '@/components/calendar/WeekView';
 import { MonthView } from '@/components/calendar/MonthView';
 import { CalendarHeader } from '@/components/calendar/CalendarHeader';
-import { getTasksForDay, getTaskColor } from '@/components/calendar/CalendarUtils';
+import { getEventsForDay } from '@/components/calendar/CalendarUtils';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-
-export type Task = {
-  id: number;
-  "Task Name": string;
-  Progress: "Not started" | "In progress" | "Completed" | "Backlog";
-  date_started: string;
-  date_due: string;
-};
+import { Task, Project, CalendarEvent } from '@/types/calendar.types';
 
 const Calendar = () => {
   const [date, setDate] = React.useState<Date>(new Date());
   const [view, setView] = React.useState<'day' | 'week' | 'month'>('day');
   const isMobile = useIsMobile();
-  const scrollRef = React.useRef<HTMLDivElement>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCalendarConnected, setIsCalendarConnected] = useState(false);
   
@@ -50,19 +41,38 @@ const Calendar = () => {
     checkCalendarConnection();
   }, []);
 
-  const { data: tasks, refetch } = useQuery({
-    queryKey: ['tasks'],
+  // Fetch tasks with dates
+  const { data: tasks, refetch: refetchTasks } = useQuery({
+    queryKey: ['calendar-tasks'],
     queryFn: async () => {
       console.log("Fetching tasks for calendar view...");
       const { data, error } = await supabase
         .from('Tasks')
-        .select('*')
+        .select('id, "Task Name", Progress, date_started, date_due')
         .not('date_started', 'is', null)
         .not('date_due', 'is', null)
+        .eq('archived', false)
         .order('date_started', { ascending: true });
       
       if (error) throw error;
       return data as Task[];
+    },
+  });
+
+  // Fetch projects with due dates
+  const { data: projects, refetch: refetchProjects } = useQuery({
+    queryKey: ['calendar-projects'],
+    queryFn: async () => {
+      console.log("Fetching projects for calendar view...");
+      const { data, error } = await supabase
+        .from('Projects')
+        .select('id, "Project Name", progress, date_started, date_due, archived')
+        .not('date_due', 'is', null)
+        .eq('archived', false)
+        .order('date_due', { ascending: true });
+      
+      if (error) throw error;
+      return data as Project[];
     },
   });
 
@@ -85,17 +95,17 @@ const Calendar = () => {
         return;
       }
       
-      toast.info("Syncing tasks with Google Calendar...");
+      toast.info("Syncing tasks and projects with Google Calendar...");
       
       console.log("Calendar sync initiated from Calendar page");
       const success = await syncGoogleCalendar();
       
       if (success) {
-        toast.success("All tasks synced to Google Calendar successfully");
-        console.log("Google Calendar sync successful, refreshing task data");
-        await refetch();
+        toast.success("All tasks and projects synced to Google Calendar");
+        console.log("Google Calendar sync successful, refreshing data");
+        await Promise.all([refetchTasks(), refetchProjects()]);
       } else {
-        console.log("Google Calendar sync returned false, check if calendar is connected");
+        console.log("Google Calendar sync returned false");
         toast.error("Failed to sync with Google Calendar. Make sure your calendar is connected.");
       }
     } catch (error) {
@@ -106,8 +116,10 @@ const Calendar = () => {
     }
   };
 
-  // Wrapper functions to pass the tasks to the utility functions
-  const getTasksForCurrentDay = (date: Date) => getTasksForDay(tasks, date);
+  // Get events for a specific day (combining tasks and projects)
+  const getEventsForCurrentDay = (targetDate: Date): CalendarEvent[] => {
+    return getEventsForDay(tasks, projects, targetDate);
+  };
 
   return (
     <div 
@@ -124,7 +136,7 @@ const Calendar = () => {
       <main className="container mx-auto max-w-4xl space-y-8">
         <header className="text-center space-y-2">
           <h1 className="text-4xl font-bold tracking-tight text-white">Calendar</h1>
-          <p className="text-white/80">View your tasks in calendar format</p>
+          <p className="text-white/80">View your tasks and project deadlines</p>
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg max-w-[1400px] mx-auto">
@@ -152,9 +164,7 @@ const Calendar = () => {
               <TabsContent value="day" className="m-0">
                 <DayView 
                   date={date}
-                  tasks={tasks}
-                  getTasksForDay={getTasksForCurrentDay}
-                  getTaskColor={getTaskColor}
+                  events={getEventsForCurrentDay(date)}
                 />
               </TabsContent>
 
@@ -162,8 +172,7 @@ const Calendar = () => {
                 <WeekView 
                   date={date}
                   isMobile={isMobile}
-                  getTasksForDay={getTasksForCurrentDay}
-                  getTaskColor={getTaskColor}
+                  getEventsForDay={getEventsForCurrentDay}
                 />
               </TabsContent>
 
@@ -171,8 +180,7 @@ const Calendar = () => {
                 <MonthView 
                   date={date}
                   isMobile={isMobile}
-                  getTasksForDay={getTasksForCurrentDay}
-                  getTaskColor={getTaskColor}
+                  getEventsForDay={getEventsForCurrentDay}
                 />
               </TabsContent>
             </div>

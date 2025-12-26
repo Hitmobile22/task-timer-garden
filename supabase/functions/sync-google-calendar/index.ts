@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
@@ -18,12 +17,11 @@ const supabase = createClient(
   SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Converts a task to a Google Calendar event
-function taskToGoogleEvent(task) {
+// Converts a task to a Google Calendar event (timed event)
+function taskToGoogleEvent(task: any) {
   const startDateTime = task.date_started || task.created_at;
-  const endDateTime = task.date_due || new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString(); // Default 1 hour duration
+  const endDateTime = task.date_due || new Date(new Date(startDateTime).getTime() + 60 * 60 * 1000).toISOString();
 
-  // Set color based on task status
   // Color IDs: https://developers.google.com/calendar/api/v3/reference/colors/get
   // 1: Blue (In Progress), 2: Green (Completed), 10: Red (Not Started), 8: Gray (Backlog)
   let colorId;
@@ -32,7 +30,7 @@ function taskToGoogleEvent(task) {
     case 'Not started': colorId = '10'; break;
     case 'Completed': colorId = '2'; break;
     case 'Backlog': colorId = '8'; break;
-    default: colorId = '0'; // Default
+    default: colorId = '0';
   }
 
   return {
@@ -48,6 +46,41 @@ function taskToGoogleEvent(task) {
     },
     colorId: colorId,
     transparency: task.Progress === 'Completed' ? 'transparent' : 'opaque',
+  };
+}
+
+// Converts a project to a Google Calendar all-day event
+function projectToGoogleEvent(project: any) {
+  // Extract just the date part (YYYY-MM-DD) for all-day events
+  const dueDate = new Date(project.date_due);
+  const dueDateStr = dueDate.toISOString().split('T')[0];
+  
+  // For all-day events, end date is exclusive (must be next day)
+  const endDate = new Date(dueDate);
+  endDate.setDate(endDate.getDate() + 1);
+  const endDateStr = endDate.toISOString().split('T')[0];
+
+  // Color based on project status
+  // 3: Purple/Grape for projects, 2: Green (Completed), 6: Orange (Not Started)
+  let colorId;
+  switch(project.progress) {
+    case 'In progress': colorId = '3'; break; // Purple/Grape
+    case 'Not started': colorId = '6'; break; // Orange
+    case 'Completed': colorId = '2'; break; // Green
+    default: colorId = '5'; // Yellow
+  }
+
+  return {
+    summary: `📁 ${project["Project Name"]} - Due`,
+    description: `Project due date`,
+    start: {
+      date: dueDateStr, // All-day format (no time component)
+    },
+    end: {
+      date: endDateStr, // All-day format (exclusive end date)
+    },
+    colorId: colorId,
+    transparency: 'opaque',
   };
 }
 
@@ -89,7 +122,6 @@ async function refreshAccessToken() {
       const errorText = await response.text();
       console.error('Token refresh failed:', errorText);
       
-      // If the refresh token is invalid, we should clear it from the database
       if (response.status === 400 || response.status === 401) {
         console.log("Invalid refresh token, clearing from database");
         await supabase
@@ -112,37 +144,10 @@ async function refreshAccessToken() {
   }
 }
 
-// Get all previously synced events from Google Calendar
-async function getAllCalendarEvents(calendarId, accessToken) {
-  try {
-    console.log(`Getting events from calendar: ${calendarId}`);
-    const endpoint = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`;
-    
-    const response = await fetch(endpoint, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get calendar events: ${await response.text()}`);
-    }
-
-    const data = await response.json();
-    console.log(`Retrieved ${data.items?.length || 0} events from Google Calendar`);
-    return data.items || [];
-  } catch (error) {
-    console.error('Error fetching calendar events:', error);
-    throw error;
-  }
-}
-
 // Delete all events created by this app
-async function deleteAllSyncedEvents(calendarId, accessToken) {
+async function deleteAllSyncedEvents(calendarId: string, accessToken: string) {
   try {
     console.log("Starting deletion of previously synced events");
-    // Get all events we've previously synced
     const { data: syncedEvents } = await supabase
       .from('synced_calendar_events')
       .select('google_event_id');
@@ -154,7 +159,6 @@ async function deleteAllSyncedEvents(calendarId, accessToken) {
 
     console.log(`Deleting ${syncedEvents.length} previously synced events`);
     
-    // Delete each event from Google Calendar
     for (const event of syncedEvents) {
       try {
         const deleteEndpoint = `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${event.google_event_id}`;
@@ -167,16 +171,13 @@ async function deleteAllSyncedEvents(calendarId, accessToken) {
         });
         
         if (!deleteResponse.ok && deleteResponse.status !== 410) {
-          // 410 Gone is ok - means event was already deleted
           console.warn(`Failed to delete event ${event.google_event_id}: ${await deleteResponse.text()}`);
         }
       } catch (err) {
         console.warn(`Error deleting event ${event.google_event_id}:`, err);
-        // Continue with other deletions even if one fails
       }
     }
     
-    // Clear the synced_calendar_events table
     const { error: deleteError } = await supabase
       .from('synced_calendar_events')
       .delete()
@@ -193,92 +194,147 @@ async function deleteAllSyncedEvents(calendarId, accessToken) {
   }
 }
 
-// Main function to sync tasks to Google Calendar
-async function syncTasksToGoogleCalendar() {
+// Main function to sync tasks and projects to Google Calendar
+async function syncToGoogleCalendar() {
   try {
     console.log('Starting Google Calendar sync with clear-and-resync approach');
     
-    // Get the access token
     const { access_token, calendar_id } = await refreshAccessToken();
-    
-    // Use the primary calendar if no specific calendar ID is set
     const targetCalendarId = calendar_id || 'primary';
     console.log(`Using calendar ID: ${targetCalendarId}`);
     
     // Step 1: Delete all previously synced events
     await deleteAllSyncedEvents(targetCalendarId, access_token);
     
-    // Step 2: Get all tasks that are not completed or in backlog
-    const { data: tasks, error } = await supabase
+    const calendarEndpoint = `https://www.googleapis.com/calendar/v3/calendars/${targetCalendarId}/events`;
+    const syncedEvents: any[] = [];
+    
+    // Step 2: Sync Tasks (as timed events)
+    const { data: tasks, error: tasksError } = await supabase
       .from('Tasks')
       .select('*, project_id, task_list_id')
-      .in('Progress', ['Not started', 'In progress']);
+      .in('Progress', ['Not started', 'In progress'])
+      .eq('archived', false);
     
-    if (error) {
-      console.error('Error fetching tasks:', error);
-      throw error;
-    }
-    
-    if (!tasks || tasks.length === 0) {
-      console.log('No active tasks found to sync');
-      return { success: true, message: 'No active tasks to sync' };
-    }
-    
-    console.log(`Found ${tasks.length} active tasks to sync to Google Calendar`);
-    
-    // Step 3: Create new events for all active tasks
-    const calendarEndpoint = `https://www.googleapis.com/calendar/v3/calendars/${targetCalendarId}/events`;
-    const syncedEvents = [];
-    
-    for (const task of tasks) {
-      try {
-        if (!task.date_started || !task.date_due) {
-          console.log(`Skipping task ${task.id} (${task["Task Name"]}) - missing start or due date`);
-          continue;
-        }
-        
-        const event = taskToGoogleEvent(task);
-        console.log(`Creating event for task: ${task["Task Name"]}`);
-        
-        const createResponse = await fetch(calendarEndpoint, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(event),
-        });
-        
-        if (!createResponse.ok) {
-          const errorText = await createResponse.text();
-          console.error(`Failed to create event for task ${task.id}:`, errorText);
-          continue;
-        }
-        
-        const createdEvent = await createResponse.json();
-        console.log(`Successfully created event with ID: ${createdEvent.id}`);
-        
-        // Store the mapping between task and Google Calendar event
-        const { error: insertError } = await supabase
-          .from('synced_calendar_events')
-          .insert({
-            task_id: task.id,
-            google_event_id: createdEvent.id,
-            last_sync_time: new Date().toISOString(),
+    if (tasksError) {
+      console.error('Error fetching tasks:', tasksError);
+    } else if (tasks && tasks.length > 0) {
+      console.log(`Found ${tasks.length} active tasks to sync`);
+      
+      for (const task of tasks) {
+        try {
+          if (!task.date_started || !task.date_due) {
+            console.log(`Skipping task ${task.id} (${task["Task Name"]}) - missing dates`);
+            continue;
+          }
+          
+          const event = taskToGoogleEvent(task);
+          console.log(`Creating event for task: ${task["Task Name"]}`);
+          
+          const createResponse = await fetch(calendarEndpoint, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(event),
           });
-        
-        if (insertError) {
-          console.error(`Failed to store mapping for task ${task.id}:`, insertError);
-        } else {
-          syncedEvents.push({
-            taskId: task.id,
-            taskName: task["Task Name"],
-            eventId: createdEvent.id
-          });
+          
+          if (!createResponse.ok) {
+            const errorText = await createResponse.text();
+            console.error(`Failed to create event for task ${task.id}:`, errorText);
+            continue;
+          }
+          
+          const createdEvent = await createResponse.json();
+          console.log(`Created task event with ID: ${createdEvent.id}`);
+          
+          const { error: insertError } = await supabase
+            .from('synced_calendar_events')
+            .insert({
+              task_id: task.id,
+              google_event_id: createdEvent.id,
+              last_sync_time: new Date().toISOString(),
+            });
+          
+          if (insertError) {
+            console.error(`Failed to store mapping for task ${task.id}:`, insertError);
+          } else {
+            syncedEvents.push({
+              type: 'task',
+              id: task.id,
+              name: task["Task Name"],
+              eventId: createdEvent.id
+            });
+          }
+        } catch (err) {
+          console.error(`Error processing task ${task.id}:`, err);
         }
-      } catch (err) {
-        console.error(`Error processing task ${task.id}:`, err);
       }
+    } else {
+      console.log('No active tasks found to sync');
+    }
+    
+    // Step 3: Sync Projects with due dates (as all-day events)
+    const { data: projects, error: projectsError } = await supabase
+      .from('Projects')
+      .select('*')
+      .not('date_due', 'is', null)
+      .eq('archived', false)
+      .in('progress', ['Not started', 'In progress']);
+    
+    if (projectsError) {
+      console.error('Error fetching projects:', projectsError);
+    } else if (projects && projects.length > 0) {
+      console.log(`Found ${projects.length} projects with due dates to sync`);
+      
+      for (const project of projects) {
+        try {
+          const event = projectToGoogleEvent(project);
+          console.log(`Creating all-day event for project: ${project["Project Name"]}`);
+          
+          const createResponse = await fetch(calendarEndpoint, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(event),
+          });
+          
+          if (!createResponse.ok) {
+            const errorText = await createResponse.text();
+            console.error(`Failed to create event for project ${project.id}:`, errorText);
+            continue;
+          }
+          
+          const createdEvent = await createResponse.json();
+          console.log(`Created project all-day event with ID: ${createdEvent.id}`);
+          
+          const { error: insertError } = await supabase
+            .from('synced_calendar_events')
+            .insert({
+              project_id: project.id,
+              google_event_id: createdEvent.id,
+              last_sync_time: new Date().toISOString(),
+            });
+          
+          if (insertError) {
+            console.error(`Failed to store mapping for project ${project.id}:`, insertError);
+          } else {
+            syncedEvents.push({
+              type: 'project',
+              id: project.id,
+              name: project["Project Name"],
+              eventId: createdEvent.id
+            });
+          }
+        } catch (err) {
+          console.error(`Error processing project ${project.id}:`, err);
+        }
+      }
+    } else {
+      console.log('No projects with due dates found to sync');
     }
     
     // Update last sync time
@@ -291,35 +347,37 @@ async function syncTasksToGoogleCalendar() {
       console.error("Error updating last sync time:", updateError);
     }
     
-    console.log(`Successfully synced ${syncedEvents.length} tasks to Google Calendar`);
+    const taskCount = syncedEvents.filter(e => e.type === 'task').length;
+    const projectCount = syncedEvents.filter(e => e.type === 'project').length;
+    
+    console.log(`Successfully synced ${taskCount} tasks and ${projectCount} projects to Google Calendar`);
     
     return { 
       success: true, 
-      message: `Synced ${syncedEvents.length} tasks to Google Calendar`,
+      message: `Synced ${taskCount} tasks and ${projectCount} project due dates to Google Calendar`,
       syncedEvents
     };
-  } catch (error) {
-    console.error('Error syncing tasks to Google Calendar:', error);
+  } catch (error: any) {
+    console.error('Error syncing to Google Calendar:', error);
     return { success: false, error: error.message };
   }
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
   
   try {
     console.log("Google Calendar sync edge function invoked");
-    const result = await syncTasksToGoogleCalendar();
+    const result = await syncToGoogleCalendar();
     console.log("Sync completed with result:", result);
     
     return new Response(
       JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in sync-google-calendar function:', error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),

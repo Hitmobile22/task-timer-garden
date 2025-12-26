@@ -140,50 +140,51 @@ const Calendar = () => {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg max-w-[1400px] mx-auto">
-          <CalendarHeader 
-            handleRefreshCalendar={handleRefreshCalendar}
-            isSyncing={isSyncing}
-          />
-          
           <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
-            <div className="flex flex-col space-y-6">
-              <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-center justify-between'}`}>
-                <TabsList className="grid w-full sm:w-auto grid-cols-3">
-                  <TabsTrigger value="day">Today</TabsTrigger>
-                  <TabsTrigger value="week">Week</TabsTrigger>
-                  <TabsTrigger value="month">Month</TabsTrigger>
-                </TabsList>
+            <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-start justify-between'} mb-6`}>
+              <div className="flex-1" />
+              
+              <div className="flex flex-col items-end gap-4">
+                <CalendarHeader 
+                  handleRefreshCalendar={handleRefreshCalendar}
+                  isSyncing={isSyncing}
+                />
                 <CalendarComponent
                   mode="single"
                   selected={date}
                   onSelect={(date) => date && setDate(date)}
-                  className="rounded-md"
+                  className="rounded-md border"
                 />
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="day">Today</TabsTrigger>
+                  <TabsTrigger value="week">Week</TabsTrigger>
+                  <TabsTrigger value="month">Month</TabsTrigger>
+                </TabsList>
               </div>
-
-              <TabsContent value="day" className="m-0">
-                <DayView 
-                  date={date}
-                  events={getEventsForCurrentDay(date)}
-                />
-              </TabsContent>
-
-              <TabsContent value="week" className="m-0">
-                <WeekView 
-                  date={date}
-                  isMobile={isMobile}
-                  getEventsForDay={getEventsForCurrentDay}
-                />
-              </TabsContent>
-
-              <TabsContent value="month" className="m-0">
-                <MonthView 
-                  date={date}
-                  isMobile={isMobile}
-                  getEventsForDay={getEventsForCurrentDay}
-                />
-              </TabsContent>
             </div>
+
+            <TabsContent value="day" className="m-0">
+              <DayView 
+                date={date}
+                events={getEventsForCurrentDay(date)}
+              />
+            </TabsContent>
+
+            <TabsContent value="week" className="m-0">
+              <WeekView 
+                date={date}
+                isMobile={isMobile}
+                getEventsForDay={getEventsForCurrentDay}
+              />
+            </TabsContent>
+
+            <TabsContent value="month" className="m-0">
+              <MonthView 
+                date={date}
+                isMobile={isMobile}
+                getEventsForDay={getEventsForCurrentDay}
+              />
+            </TabsContent>
           </Tabs>
         </div>
       </main>

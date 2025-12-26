@@ -14,7 +14,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   isSyncing 
 }) => {
   return (
-    <div className="flex justify-end mb-4 gap-2">
+    <div className="flex gap-2">
       <GoogleCalendarIntegration onManualSync={handleRefreshCalendar} />
       <Button
         variant="outline"

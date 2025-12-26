@@ -10,7 +10,7 @@ interface DayViewProps {
   events: CalendarEvent[];
 }
 
-export const DayView: React.FC<DayViewProps> = ({ date, events }) => {
+export const DayView: React.FC<DayViewProps> = ({ date, events = [] }) => {
   const allDayEvents = events.filter(e => e.isAllDay);
   const timedEvents = events.filter(e => !e.isAllDay);
 

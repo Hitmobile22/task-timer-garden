@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ChevronDown, Filter, Plus, Search } from "lucide-react";
+import { ChevronDown, Filter, Plus, Search, ListChecks } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -27,6 +27,7 @@ interface TaskFiltersProps {
   onProjectModalChange: (open: boolean) => void;
   onNewTaskListNameChange: (name: string) => void;
   onCreateTaskList: () => void;
+  onSubtaskPresetModalChange?: (open: boolean) => void;
 }
 
 export const TaskFilters: React.FC<TaskFiltersProps> = ({
@@ -43,6 +44,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   onProjectModalChange,
   onNewTaskListNameChange,
   onCreateTaskList,
+  onSubtaskPresetModalChange,
 }) => {
   return (
     <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -102,6 +104,17 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
         <Plus className="h-4 w-4" />
         New Project
       </Button>
+
+      {onSubtaskPresetModalChange && (
+        <Button
+          variant="outline"
+          onClick={() => onSubtaskPresetModalChange(true)}
+          className="flex items-center gap-2"
+        >
+          <ListChecks className="h-4 w-4" />
+          Subtask Presets
+        </Button>
+      )}
       
       <Dialog open={showNewTaskListDialog} onOpenChange={onNewTaskListDialogChange}>
         <DialogContent className="sm:max-w-[425px]">

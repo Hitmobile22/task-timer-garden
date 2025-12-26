@@ -142,13 +142,7 @@ const Calendar = () => {
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg max-w-[1400px] mx-auto">
           <Tabs defaultValue="day" className="w-full" onValueChange={(v) => setView(v as 'day' | 'week' | 'month')}>
             <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-start justify-between'} mb-6`}>
-              <div className="flex-1" />
-              
-              <div className="flex flex-col items-end gap-4">
-                <CalendarHeader 
-                  handleRefreshCalendar={handleRefreshCalendar}
-                  isSyncing={isSyncing}
-                />
+              <div className="flex flex-col items-start gap-4">
                 <CalendarComponent
                   mode="single"
                   selected={date}
@@ -161,6 +155,11 @@ const Calendar = () => {
                   <TabsTrigger value="month">Month</TabsTrigger>
                 </TabsList>
               </div>
+              
+              <CalendarHeader 
+                handleRefreshCalendar={handleRefreshCalendar}
+                isSyncing={isSyncing}
+              />
             </div>
 
             <TabsContent value="day" className="m-0">

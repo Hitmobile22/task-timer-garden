@@ -480,6 +480,7 @@ export type Database = {
           google_event_id: string
           id: string
           last_sync_time: string | null
+          project_id: number | null
           task_id: number | null
           updated_at: string | null
           user_id: string | null
@@ -489,6 +490,7 @@ export type Database = {
           google_event_id: string
           id?: string
           last_sync_time?: string | null
+          project_id?: number | null
           task_id?: number | null
           updated_at?: string | null
           user_id?: string | null
@@ -498,11 +500,19 @@ export type Database = {
           google_event_id?: string
           id?: string
           last_sync_time?: string | null
+          project_id?: number | null
           task_id?: number | null
           updated_at?: string | null
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "synced_calendar_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "Projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "synced_calendar_events_task_id_fkey"
             columns: ["task_id"]

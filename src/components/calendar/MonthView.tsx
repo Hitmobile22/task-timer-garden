@@ -1,22 +1,21 @@
-
 import React from 'react';
-import { format, startOfMonth, getDaysInMonth, isSameDay } from 'date-fns';
+import { format, startOfMonth, getDaysInMonth, isSameDay, addDays } from 'date-fns';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Task } from '@/pages/Calendar';
+import { FolderOpen } from "lucide-react";
+import { CalendarEvent } from '@/types/calendar.types';
+import { getEventColor } from './CalendarUtils';
 
 interface MonthViewProps {
   date: Date;
   isMobile: boolean;
-  getTasksForDay: (date: Date) => Task[];
-  getTaskColor: (progress: Task['Progress']) => string;
+  getEventsForDay: (date: Date) => CalendarEvent[];
 }
 
 export const MonthView: React.FC<MonthViewProps> = ({ 
   date, 
   isMobile, 
-  getTasksForDay,
-  getTaskColor
+  getEventsForDay
 }) => {
   const monthStart = startOfMonth(date);
   const daysInMonth = getDaysInMonth(date);
@@ -34,35 +33,58 @@ export const MonthView: React.FC<MonthViewProps> = ({
           <div key={`empty-${i}`} />
         ))}
         {days.map((day) => {
-          const dayTasks = getTasksForDay(day);
+          const dayEvents = getEventsForDay(day);
+          const allDayEvents = dayEvents.filter(e => e.isAllDay);
+          const timedEvents = dayEvents.filter(e => !e.isAllDay);
           const isToday = isSameDay(day, new Date());
 
           return (
             <Card 
               key={day.toString()} 
-              className={`min-h-[120px] ${isToday ? 'border-primary' : ''}`}
+              className={`min-h-[120px] ${isToday ? 'border-primary ring-1 ring-primary/20' : ''}`}
             >
               <CardHeader className="p-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className={`text-sm ${isToday ? 'text-primary' : ''}`}>
+                  <CardTitle className={`text-sm ${isToday ? 'text-primary font-bold' : ''}`}>
                     {format(day, isMobile ? 'EEE, MMM d' : 'd')}
                   </CardTitle>
-                  {dayTasks.length > 0 && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                      {dayTasks.length}
-                    </span>
+                  {dayEvents.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {allDayEvents.length > 0 && (
+                        <span className="text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">
+                          {allDayEvents.length}📁
+                        </span>
+                      )}
+                      {timedEvents.length > 0 && (
+                        <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                          {timedEvents.length}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </CardHeader>
               <CardContent className="p-2">
                 <ScrollArea className="h-[80px]">
                   <div className="space-y-1">
-                    {dayTasks.map((task) => (
+                    {/* All-Day Events (Projects) first */}
+                    {allDayEvents.map((event) => (
                       <div
-                        key={task.id}
-                        className={`${getTaskColor(task.Progress)} p-1.5 rounded text-white text-xs`}
+                        key={`project-${event.id}`}
+                        className={`${getEventColor(event.progress, 'project')} p-1.5 rounded text-white text-xs flex items-center gap-1`}
                       >
-                        {task["Task Name"]}
+                        <FolderOpen className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{event.name}</span>
+                      </div>
+                    ))}
+                    
+                    {/* Timed Events (Tasks) */}
+                    {timedEvents.map((event) => (
+                      <div
+                        key={`task-${event.id}`}
+                        className={`${getEventColor(event.progress, 'task')} p-1.5 rounded text-white text-xs truncate`}
+                      >
+                        {event.name}
                       </div>
                     ))}
                   </div>
@@ -74,11 +96,4 @@ export const MonthView: React.FC<MonthViewProps> = ({
       </div>
     </div>
   );
-
-  // Helper function for the MonthView
-  function addDays(date: Date, days: number): Date {
-    const result = new Date(date);
-    result.setDate(date.getDate() + days);
-    return result;
-  }
 };

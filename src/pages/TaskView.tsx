@@ -28,6 +28,7 @@ import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { ProjectModal } from '@/components/project/ProjectModal';
 import { RecurringTasksModal, RecurringTaskSettings } from '@/components/task/RecurringTasksModal';
 import { SubtaskPresetModal } from '@/components/task/SubtaskPresetModal';
+import { CSVUploadModal } from '@/components/task/CSVUploadModal';
 import { syncGoogleCalendar } from '@/components/task/GoogleCalendarIntegration';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
@@ -55,6 +56,7 @@ export function TaskView() {
   const [selectedListId, setSelectedListId] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [showSubtaskPresetModal, setShowSubtaskPresetModal] = useState(false);
+  const [showCSVUploadModal, setShowCSVUploadModal] = useState(false);
   const { archiveCompletedTasks, archiveTaskList, archiveProject } = useArchiveActions();
 
   const { data: taskLists } = useQuery({
@@ -704,6 +706,7 @@ export function TaskView() {
               onNewTaskListNameChange={setNewTaskListName}
               onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
               onSubtaskPresetModalChange={setShowSubtaskPresetModal}
+              onCSVUploadModalChange={setShowCSVUploadModal}
             />
             <div className="flex items-center gap-2">
               <Button 
@@ -988,6 +991,12 @@ export function TaskView() {
       <SubtaskPresetModal
         open={showSubtaskPresetModal}
         onOpenChange={setShowSubtaskPresetModal}
+      />
+
+      <CSVUploadModal
+        open={showCSVUploadModal}
+        onOpenChange={setShowCSVUploadModal}
+        taskLists={taskLists || []}
       />
     </div>
   );

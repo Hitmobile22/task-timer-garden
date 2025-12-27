@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ChevronDown, Filter, Plus, Search, ListChecks } from "lucide-react";
+import { ChevronDown, Filter, Plus, Search, ListChecks, Upload } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -28,6 +28,7 @@ interface TaskFiltersProps {
   onNewTaskListNameChange: (name: string) => void;
   onCreateTaskList: () => void;
   onSubtaskPresetModalChange?: (open: boolean) => void;
+  onCSVUploadModalChange?: (open: boolean) => void;
 }
 
 export const TaskFilters: React.FC<TaskFiltersProps> = ({
@@ -45,6 +46,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   onNewTaskListNameChange,
   onCreateTaskList,
   onSubtaskPresetModalChange,
+  onCSVUploadModalChange,
 }) => {
   return (
     <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -113,6 +115,17 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
         >
           <ListChecks className="h-4 w-4" />
           Subtask Presets
+        </Button>
+      )}
+
+      {onCSVUploadModalChange && (
+        <Button
+          variant="outline"
+          onClick={() => onCSVUploadModalChange(true)}
+          className="flex items-center gap-2"
+        >
+          <Upload className="h-4 w-4" />
+          Upload CSV
         </Button>
       )}
       

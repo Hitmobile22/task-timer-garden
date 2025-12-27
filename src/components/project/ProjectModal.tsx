@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox"; 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type Goal } from '@/types/goals.types';
+import { RichTextEditor } from '../task/editor/RichTextEditor';
 
 interface TaskList {
   id: number;
@@ -60,9 +61,10 @@ export const ProjectModal = ({
   const [taskListId, setTaskListId] = useState<number | null>(null);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
-  const [activeTab, setActiveTab] = useState<'details' | 'tasks' | 'goals'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'description' | 'tasks' | 'goals'>('details');
   const [subtaskNames, setSubtaskNames] = useState<string[]>([]);
   const [progressiveMode, setProgressiveMode] = useState(false);
+  const [descriptionContent, setDescriptionContent] = useState<any>(null);
   
   useEffect(() => {
     if (taskLists.length > 0 && !taskListId) {
@@ -84,6 +86,19 @@ export const ProjectModal = ({
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
       setTaskListId(project.task_list_id || taskLists[0]?.id);
+      
+      // Load description content from project details
+      if (project.details) {
+        try {
+          const details = typeof project.details === 'string' ? JSON.parse(project.details) : project.details;
+          setDescriptionContent(details.description || null);
+        } catch (e) {
+          console.error("Error parsing project details:", e);
+          setDescriptionContent(null);
+        }
+      } else {
+        setDescriptionContent(null);
+      }
       
       // Load subtask names and progressive mode from recurring_project_settings
       if (project.id) {
@@ -147,8 +162,13 @@ export const ProjectModal = ({
       setGoals([]);
       setSubtaskNames([]);
       setProgressiveMode(false);
+      setDescriptionContent(null);
     }
   }, [project, taskLists]);
+  
+  const handleDescriptionChange = (content: any) => {
+    setDescriptionContent(content);
+  };
   
   const loadAvailableTasks = async () => {
     try {
@@ -375,6 +395,11 @@ export const ProjectModal = ({
     setIsSaving(true);
     
     try {
+      // Build the details object with description
+      const detailsObject = {
+        description: descriptionContent
+      };
+      
       const projectData = {
         'Project Name': projectName,
         date_started: dateStarted?.toISOString(),
@@ -384,7 +409,8 @@ export const ProjectModal = ({
         recurringTaskCount: recurringTaskCount,
         task_list_id: taskListId,
         id: project?.id,
-        selectedTasks: selectedTasks
+        selectedTasks: selectedTasks,
+        details: detailsObject
       };
       
       if (project?.id) {
@@ -398,7 +424,8 @@ export const ProjectModal = ({
             isRecurring: isRecurring,
             recurringTaskCount: recurringTaskCount,
             task_list_id: taskListId,
-            user_id: user?.id
+            user_id: user?.id,
+            details: detailsObject
           })
           .eq('id', project.id);
         
@@ -478,7 +505,8 @@ export const ProjectModal = ({
             recurringTaskCount: recurringTaskCount,
             task_list_id: taskListId,
             sort_order: 0,
-            user_id: user?.id
+            user_id: user?.id,
+            details: { description: descriptionContent }
           }])
           .select()
           .single();
@@ -573,6 +601,12 @@ export const ProjectModal = ({
             onClick={() => setActiveTab('details')}
           >
             Project Details
+          </button>
+          <button
+            className={`px-4 py-2 ${activeTab === 'description' ? 'border-b-2 border-primary font-medium text-primary' : 'text-muted-foreground'}`}
+            onClick={() => setActiveTab('description')}
+          >
+            Description
           </button>
           <button
             className={`px-4 py-2 ${activeTab === 'tasks' ? 'border-b-2 border-primary font-medium text-primary' : 'text-muted-foreground'}`}
@@ -877,6 +911,23 @@ export const ProjectModal = ({
               </div>
             )}
           </>
+        )}
+        
+        {activeTab === 'description' && (
+          <div className="py-4">
+            <h3 className="text-lg font-medium mb-2">Project Description</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Add detailed notes and description for this project
+            </p>
+            
+            <div className="border rounded-md">
+              <RichTextEditor
+                initialContent={descriptionContent}
+                onChange={handleDescriptionChange}
+                editable={editMode}
+              />
+            </div>
+          </div>
         )}
         
         {activeTab === 'tasks' && (

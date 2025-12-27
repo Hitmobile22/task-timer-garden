@@ -219,6 +219,7 @@ export type Database = {
           created_at: string
           date_due: string | null
           date_started: string | null
+          details: Json | null
           id: number
           isRecurring: boolean | null
           position: number | null
@@ -235,6 +236,7 @@ export type Database = {
           created_at?: string
           date_due?: string | null
           date_started?: string | null
+          details?: Json | null
           id?: number
           isRecurring?: boolean | null
           position?: number | null
@@ -251,6 +253,7 @@ export type Database = {
           created_at?: string
           date_due?: string | null
           date_started?: string | null
+          details?: Json | null
           id?: number
           isRecurring?: boolean | null
           position?: number | null

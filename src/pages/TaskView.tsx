@@ -690,7 +690,7 @@ export function TaskView() {
         </header>
 
         <div className="glass bg-white/90 backdrop-blur-lg rounded-xl p-8 shadow-lg">
-          <div className={`${isMobile ? 'flex flex-col gap-4' : 'flex justify-between items-center'} mb-6`}>
+          <div className="mb-6">
             <TaskFilters
               searchQuery={searchQuery}
               progressFilter={progressFilter}
@@ -707,39 +707,10 @@ export function TaskView() {
               onCreateTaskList={() => createTaskListMutation.mutate(newTaskListName)}
               onSubtaskPresetModalChange={setShowSubtaskPresetModal}
               onCSVUploadModalChange={setShowCSVUploadModal}
+              onArchiveCompleted={handleArchiveCompletedTasks}
+              onToggleArchiveView={toggleArchiveView}
+              showArchived={showArchived}
             />
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                onClick={handleArchiveCompletedTasks}
-                className="flex items-center gap-2 text-xs sm:text-sm"
-                size="sm"
-              >
-                <Archive className="h-4 w-4" />
-                <span className="hidden sm:inline">Archive</span>
-                <span>Completed</span>
-              </Button>
-              <Button 
-                variant={showArchived ? "default" : "outline"} 
-                onClick={toggleArchiveView}
-                className="flex items-center gap-2 text-xs sm:text-sm"
-                size="sm"
-              >
-                {showArchived ? (
-                  <>
-                    <ArchiveRestore className="h-4 w-4" />
-                    <span className="hidden sm:inline">Show</span>
-                    <span>Active</span>
-                  </>
-                ) : (
-                  <>
-                    <Archive className="h-4 w-4" />
-                    <span className="hidden sm:inline">Show</span>
-                    <span>Archived</span>
-                  </>
-                )}
-              </Button>
-            </div>
           </div>
 
           <DndContext collisionDetection={closestCenter}>

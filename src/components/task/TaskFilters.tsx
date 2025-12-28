@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ChevronDown, Filter, Plus, Search, ListChecks, Upload } from "lucide-react";
+import { ChevronDown, Filter, Plus, Search, ListChecks, Upload, Archive, ArchiveRestore } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -29,6 +29,9 @@ interface TaskFiltersProps {
   onCreateTaskList: () => void;
   onSubtaskPresetModalChange?: (open: boolean) => void;
   onCSVUploadModalChange?: (open: boolean) => void;
+  onArchiveCompleted?: () => void;
+  onToggleArchiveView?: () => void;
+  showArchived?: boolean;
 }
 
 export const TaskFilters: React.FC<TaskFiltersProps> = ({
@@ -47,87 +50,132 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   onCreateTaskList,
   onSubtaskPresetModalChange,
   onCSVUploadModalChange,
+  onArchiveCompleted,
+  onToggleArchiveView,
+  showArchived,
 }) => {
   return (
-    <div className="flex flex-wrap items-center gap-4 mb-4">
-      <div className="relative flex-grow md:max-w-xs">
-        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          className="pl-8"
-          placeholder="Search tasks..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
+    <div className="flex flex-wrap items-center justify-between gap-4 mb-4 w-full">
+      {/* Left side - Action buttons */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={() => onNewTaskListDialogChange(true)}
+          className="flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          New List
+        </Button>
+        
+        <Button
+          onClick={() => onProjectModalChange(true)}
+          className="flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          New Project
+        </Button>
+
+        {onSubtaskPresetModalChange && (
+          <Button
+            variant="outline"
+            onClick={() => onSubtaskPresetModalChange(true)}
+            className="flex items-center gap-2"
+          >
+            <ListChecks className="h-4 w-4" />
+            Subtask Presets
+          </Button>
+        )}
+
+        {onArchiveCompleted && (
+          <Button 
+            variant="outline" 
+            onClick={onArchiveCompleted}
+            className="flex items-center gap-2 text-xs sm:text-sm"
+            size="sm"
+          >
+            <Archive className="h-4 w-4" />
+            <span className="hidden sm:inline">Archive</span>
+            <span>Completed</span>
+          </Button>
+        )}
+
+        {onToggleArchiveView && (
+          <Button 
+            variant={showArchived ? "default" : "outline"} 
+            onClick={onToggleArchiveView}
+            className="flex items-center gap-2 text-xs sm:text-sm"
+            size="sm"
+          >
+            {showArchived ? (
+              <>
+                <ArchiveRestore className="h-4 w-4" />
+                <span className="hidden sm:inline">Show</span>
+                <span>Active</span>
+              </>
+            ) : (
+              <>
+                <Archive className="h-4 w-4" />
+                <span className="hidden sm:inline">Show</span>
+                <span>Archived</span>
+              </>
+            )}
+          </Button>
+        )}
+
+        {onCSVUploadModalChange && (
+          <Button
+            variant="outline"
+            onClick={() => onCSVUploadModalChange(true)}
+            className="flex items-center gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Upload CSV
+          </Button>
+        )}
       </div>
-      
-      <Select value={progressFilter} onValueChange={(value: Task['Progress'] | 'all') => onProgressFilterChange(value)}>
-        <SelectTrigger className="w-[160px]">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            <SelectValue placeholder="Filter" />
-          </div>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All</SelectItem>
-          <SelectItem value="Not started">Not started</SelectItem>
-          <SelectItem value="In progress">In progress</SelectItem>
-          <SelectItem value="Completed">Completed</SelectItem>
-          <SelectItem value="Backlog">Backlog</SelectItem>
-        </SelectContent>
-      </Select>
-      
-      <Select value={sortBy} onValueChange={(value: 'date' | 'list' | 'project') => onSortByChange(value)}>
-        <SelectTrigger className="w-[140px]">
-          <div className="flex items-center gap-2">
-            <ChevronDown className="h-4 w-4" />
-            <SelectValue placeholder="Group by" />
-          </div>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="date">By Date</SelectItem>
-          <SelectItem value="list">By List</SelectItem>
-          <SelectItem value="project">By Project</SelectItem>
-        </SelectContent>
-      </Select>
-      
-      <Button
-        variant="outline"
-        onClick={() => onNewTaskListDialogChange(true)}
-        className="flex items-center gap-2"
-      >
-        <Plus className="h-4 w-4" />
-        New List
-      </Button>
-      
-      <Button
-        onClick={() => onProjectModalChange(true)}
-        className="flex items-center gap-2"
-      >
-        <Plus className="h-4 w-4" />
-        New Project
-      </Button>
 
-      {onSubtaskPresetModalChange && (
-        <Button
-          variant="outline"
-          onClick={() => onSubtaskPresetModalChange(true)}
-          className="flex items-center gap-2"
-        >
-          <ListChecks className="h-4 w-4" />
-          Subtask Presets
-        </Button>
-      )}
-
-      {onCSVUploadModalChange && (
-        <Button
-          variant="outline"
-          onClick={() => onCSVUploadModalChange(true)}
-          className="flex items-center gap-2"
-        >
-          <Upload className="h-4 w-4" />
-          Upload CSV
-        </Button>
-      )}
+      {/* Right side - Search and filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            className="pl-8 w-[180px]"
+            placeholder="Search tasks..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
+        </div>
+        
+        <Select value={progressFilter} onValueChange={(value: Task['Progress'] | 'all') => onProgressFilterChange(value)}>
+          <SelectTrigger className="w-[140px]">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              <SelectValue placeholder="Filter" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="Not started">Not started</SelectItem>
+            <SelectItem value="In progress">In progress</SelectItem>
+            <SelectItem value="Completed">Completed</SelectItem>
+            <SelectItem value="Backlog">Backlog</SelectItem>
+          </SelectContent>
+        </Select>
+        
+        <Select value={sortBy} onValueChange={(value: 'date' | 'list' | 'project') => onSortByChange(value)}>
+          <SelectTrigger className="w-[120px]">
+            <div className="flex items-center gap-2">
+              <ChevronDown className="h-4 w-4" />
+              <SelectValue placeholder="Group by" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date">By Date</SelectItem>
+            <SelectItem value="list">By List</SelectItem>
+            <SelectItem value="project">By Project</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       
       <Dialog open={showNewTaskListDialog} onOpenChange={onNewTaskListDialogChange}>
         <DialogContent className="sm:max-w-[425px]">

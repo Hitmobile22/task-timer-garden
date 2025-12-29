@@ -38,6 +38,23 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+
+  // Helper function to get task duration from details, defaulting to 25 minutes
+  const getTaskDuration = (task: any): number => {
+    try {
+      if (task?.details) {
+        const details = typeof task.details === 'string' 
+          ? JSON.parse(task.details) 
+          : task.details;
+        if (details?.taskDuration && typeof details.taskDuration === 'number' && details.taskDuration > 0) {
+          return details.taskDuration;
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing task details for duration:', error);
+    }
+    return 25; // Default to 25 minutes
+  };
   
   // Clear past tasks function - marks visible past open tasks as completed
   const clearPastTasks = async () => {
@@ -433,12 +450,13 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       const currentTime = new Date();
       
       // Always update the selected task to current time, regardless of whether it's already "In progress"
+      const selectedTaskDuration = getTaskDuration(selectedTask);
       const { error: updateError } = await supabase
         .from('Tasks')
         .update({
           Progress: 'In progress',
           date_started: currentTime.toISOString(),
-          date_due: new Date(currentTime.getTime() + 25 * 60 * 1000).toISOString()
+          date_due: new Date(currentTime.getTime() + selectedTaskDuration * 60 * 1000).toISOString()
         })
         .eq('id', taskId);
         
@@ -453,8 +471,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         }))
         .sort((a, b) => a.start.getTime() - b.start.getTime()) || [];
       
-      // Determine starting point for rescheduling other tasks
-      let nextStartTime = new Date(currentTime.getTime() + 30 * 60 * 1000);
+      // Determine starting point for rescheduling other tasks (current task duration + 5 min break)
+      let nextStartTime = new Date(currentTime.getTime() + (selectedTaskDuration + 5) * 60 * 1000);
       
       // Reschedule all affected tasks (from today or earlier)
       for (const task of tasksToReschedule) {
@@ -463,7 +481,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         if (nextStartTime >= tomorrow) break;
         
         let taskStartTime = new Date(nextStartTime);
-        let taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        const taskDuration = getTaskDuration(task);
+        let taskDueTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
         
         // Avoid scheduling conflicts with time blocks
         let needsRescheduling = true;
@@ -477,7 +496,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
               (taskStartTime <= block.start && taskDueTime >= block.end)
             ) {
               taskStartTime = new Date(block.end.getTime() + 5 * 60 * 1000);
-              taskDueTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+              taskDueTime = new Date(taskStartTime.getTime() + taskDuration * 60 * 1000);
               needsRescheduling = true;
               break;
             }
@@ -582,11 +601,12 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       for (const task of nonTimeBlockTasks) {
         if (currentTask && task.id === currentTask.id) continue;
         
+        const shuffleTaskDuration = getTaskDuration(task);
         const timeBlockConflicts = timeBlocks.filter(block => {
           const blockStart = new Date(block.date_started);
           const blockEnd = new Date(block.date_due);
           
-          const taskEnd = new Date(currentScheduleTime.getTime() + 25 * 60 * 1000);
+          const taskEnd = new Date(currentScheduleTime.getTime() + shuffleTaskDuration * 60 * 1000);
           
           return (
             (currentScheduleTime >= blockStart && currentScheduleTime < blockEnd) ||
@@ -605,7 +625,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         }
         
         const taskStartTime = new Date(currentScheduleTime);
-        const taskEndTime = new Date(taskStartTime.getTime() + 25 * 60 * 1000);
+        const taskEndTime = new Date(taskStartTime.getTime() + shuffleTaskDuration * 60 * 1000);
         
         await supabase
           .from('Tasks')

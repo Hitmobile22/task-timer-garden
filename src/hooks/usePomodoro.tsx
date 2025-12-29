@@ -97,6 +97,11 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
   });
 
+  const getTaskDurationFromDetails = (task: any) => {
+    const duration = task?.details?.taskDuration;
+    return typeof duration === 'number' && duration > 0 ? duration : 25;
+  };
+
   const resetTaskSchedule = useMutation({
     mutationFn: async () => {
       if (!activeTasks || activeTasks.length === 0 || !currentTask) {
@@ -109,7 +114,8 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       }
 
       const currentTime = new Date();
-      const currentTaskEndTime = new Date(currentTime.getTime() + 25 * 60 * 1000);
+      const currentTaskDuration = getTaskDurationFromDetails(currentTask);
+      const currentTaskEndTime = new Date(currentTime.getTime() + currentTaskDuration * 60 * 1000);
 
       await supabase
         .from('Tasks')
@@ -127,7 +133,8 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       let nextStartTime = new Date(currentTaskEndTime.getTime() + 5 * 60 * 1000);
 
       for (const task of remainingTasks) {
-        const taskEndTime = new Date(nextStartTime.getTime() + 25 * 60 * 1000);
+        const taskDuration = getTaskDurationFromDetails(task);
+        const taskEndTime = new Date(nextStartTime.getTime() + taskDuration * 60 * 1000);
 
         await supabase
           .from('Tasks')
@@ -174,20 +181,28 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     return calculateTimeUntilTaskStart(nextTask.date_started);
   };
 
+  const getTaskDuration = (task: any) => {
+    const duration = task?.details?.taskDuration;
+    return typeof duration === 'number' && duration > 0 ? duration : 25;
+  };
+
   const calculateTimeLeft = (task: any) => {
-    if (!task || !task.date_due) return 25 * 60;
+    const taskDurationMinutes = getTaskDuration(task);
+    const taskDurationSeconds = taskDurationMinutes * 60;
+    
+    if (!task || !task.date_due) return taskDurationSeconds;
 
     const now = new Date();
     const dueTime = new Date(task.date_due);
     const diffInSeconds = Math.floor((dueTime.getTime() - now.getTime()) / 1000);
 
     if (isTaskTimeBlock(task)) {
-      if (diffInSeconds <= 0) return 25 * 60;
-      return diffInSeconds > 0 ? diffInSeconds : 25 * 60;
+      if (diffInSeconds <= 0) return taskDurationSeconds;
+      return diffInSeconds > 0 ? diffInSeconds : taskDurationSeconds;
     }
 
-    if (diffInSeconds <= 0 || diffInSeconds > 25 * 60) {
-      return 25 * 60;
+    if (diffInSeconds <= 0 || diffInSeconds > taskDurationSeconds) {
+      return taskDurationSeconds;
     }
 
     return diffInSeconds;
@@ -567,7 +582,8 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     }
 
     if (!isBreak) {
-      setTimeLeft(25 * 60);
+      const taskDuration = getTaskDuration(currentTask);
+      setTimeLeft(taskDuration * 60);
     } else {
       setTimeLeft(5 * 60);
       setIsBreak(false);

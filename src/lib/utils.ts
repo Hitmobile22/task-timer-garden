@@ -182,12 +182,16 @@ export function throttle<T extends (...args: any[]) => any>(
 }
 
 /**
- * Calculates the number of days between two dates
+ * Calculates the number of calendar days between two dates
+ * Uses midnight normalization to ensure accurate day counting
  */
 export function daysBetween(date1: Date, date2: Date): number {
-  const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
-  const diffTime = Math.abs(date2.getTime() - date1.getTime());
-  return Math.floor(diffTime / oneDay);
+  // Normalize both dates to midnight to compare calendar days, not time
+  const d1 = startOfDay(date1);
+  const d2 = startOfDay(date2);
+  const oneDay = 24 * 60 * 60 * 1000;
+  const diffTime = d2.getTime() - d1.getTime();
+  return Math.round(diffTime / oneDay);
 }
 
 /**

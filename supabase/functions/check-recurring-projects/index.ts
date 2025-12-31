@@ -328,6 +328,21 @@ Deno.serve(async (req) => {
         
         const newTasks = [];
         
+        // Extract project description to copy to tasks
+        let taskDetails = null;
+        if (project.details) {
+          try {
+            const projectDetails = typeof project.details === 'string' 
+              ? JSON.parse(project.details) 
+              : project.details;
+            if (projectDetails?.description) {
+              taskDetails = { description: projectDetails.description };
+            }
+          } catch (e) {
+            console.error('Error parsing project details:', e);
+          }
+        }
+        
         for (let i = 0; i < tasksToCreate; i++) {
           const taskStartTime = new Date(today);
           taskStartTime.setHours(13, 0 + (i * 30), 0, 0); // Changed from 9 to 13 for EST (9am EST = 1pm UTC)
@@ -345,7 +360,8 @@ Deno.serve(async (req) => {
             date_due: taskEndTime.toISOString(),
             project_id: project.id,
             task_list_id: project.task_list_id,
-            user_id: user.id  // Add user_id to comply with RLS policy
+            user_id: user.id,
+            details: taskDetails  // Copy project description to task
           });
         }
         

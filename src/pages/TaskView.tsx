@@ -839,6 +839,7 @@ export function TaskView() {
                                 selectedTasks: projectTasks?.map(t => t.id) || [],
                                 isRecurring: project.isRecurring || false,
                                 recurringTaskCount: project.recurringTaskCount || 1,
+                                details: project.details,
                               });
                               setShowProjectModal(true);
                             }}

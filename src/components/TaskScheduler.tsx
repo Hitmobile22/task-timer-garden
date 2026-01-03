@@ -820,6 +820,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
                     autoStart={timerStarted && hasInProgressTask}
                     activeTaskId={activeTaskId} 
                     onShuffleTasks={onShuffleTasks || handleShuffleTasks}
+                    projectColor={activeTaskListColor || undefined}
                   />
                 </div>}
               <div className="form-control">

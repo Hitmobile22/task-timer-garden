@@ -12,6 +12,7 @@ interface TimerDisplayProps {
   formatTime: (seconds: number) => string;
   getNextTask: () => any;
   isCountdownToNextTask?: boolean;
+  projectColor?: string;
 }
 
 export const TimerDisplay: React.FC<TimerDisplayProps> = ({
@@ -20,7 +21,8 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
   currentTask,
   formatTime,
   getNextTask,
-  isCountdownToNextTask = false
+  isCountdownToNextTask = false,
+  projectColor
 }) => {
   const nextTask = getNextTask();
   const { theme } = useTheme();
@@ -180,9 +182,12 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
       </div>
 
       <div
-        className="relative p-6 md:p-8 rounded-xl transition-all duration-300 shadow-lg mx-auto w-full"
+        className="relative p-6 md:p-8 rounded-xl transition-all duration-300 mx-auto w-full"
         style={{
           background: getTimerColor(),
+          boxShadow: isNightMode && projectColor 
+            ? `0 0 30px 8px ${projectColor}, 0 0 60px 16px ${projectColor}40`
+            : '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         }}
       >
         <span className={`text-4xl md:text-5xl font-mono font-bold text-center block ${isNightMode ? 'text-white' : 'text-primary'}`}>

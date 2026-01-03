@@ -809,7 +809,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
           <p className="text-sm md:text-base text-white/80">It really whips the ollama's ass</p>
         </header>
 
-        <div className="glass bg-white/90 backdrop-blur-lg shadow-lg w-full md:rounded-xl px-0">
+        <div className={`glass backdrop-blur-lg shadow-lg w-full md:rounded-xl px-0 ${isNightMode ? 'bg-black/60' : 'bg-white/90'}`}>
           <div className="p-4 md:p-8 space-y-6 px-0 py-0">
             <div className="space-y-6 w-full">
               {showTimer && <div className="timer-container animate-slideIn rounded-lg overflow-hidden" style={{

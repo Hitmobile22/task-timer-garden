@@ -3,6 +3,7 @@ import React from 'react';
 import { Progress } from '@/components/ui/progress';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
+import { useTheme } from 'next-themes';
 
 interface TimerDisplayProps {
   timeLeft: number | null;
@@ -22,6 +23,8 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
   isCountdownToNextTask = false
 }) => {
   const nextTask = getNextTask();
+  const { theme } = useTheme();
+  const isNightMode = theme === 'night';
   
   // Calculate progress differently for countdown to next task
   const progress = timeLeft === null ? 0 : isBreak
@@ -73,6 +76,10 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
 
   const getTimerColor = () => {
     if (isBreak) {
+      if (isNightMode) {
+        // Night mode: black for break time
+        return 'linear-gradient(184.1deg, rgba(0,0,0,1) 44.7%, rgba(20,20,20,1) 67.2%)';
+      }
       if (isCountdownToNextTask) {
         // Use a slightly different color for countdown to distinguish it
         return 'linear-gradient(184.1deg, rgba(255,229,163,1) 44.7%, rgba(246,214,130,1) 67.2%)';
@@ -81,6 +88,30 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
     }
 
     const progress = timeLeft === null ? 0 : ((25 * 60 - timeLeft) / (25 * 60)) * 100;
+    
+    // Night mode: darker colors
+    if (isNightMode) {
+      const colors = {
+        start: {
+          hue: 150,
+          saturation: 60,
+          lightness: 20
+        },
+        end: {
+          hue: 200,
+          saturation: 50,
+          lightness: 30
+        }
+      };
+
+      const currentHue = colors.start.hue + (progress * (colors.end.hue - colors.start.hue) / 100);
+      const currentSaturation = colors.start.saturation + (progress * (colors.end.saturation - colors.start.saturation) / 100);
+      const currentLightness = colors.start.lightness + (progress * (colors.end.lightness - colors.start.lightness) / 100);
+
+      return `linear-gradient(109.6deg, hsl(${currentHue}, ${currentSaturation}%, ${currentLightness}%) 11.2%, hsl(${currentHue + 10}, ${currentSaturation - 10}%, ${currentLightness + 5}%) 91.1%)`;
+    }
+    
+    // Default mode: original colors
     const colors = {
       start: {
         hue: 150,
@@ -154,7 +185,7 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
           background: getTimerColor(),
         }}
       >
-        <span className="text-4xl md:text-5xl font-mono font-bold text-primary text-center block">
+        <span className={`text-4xl md:text-5xl font-mono font-bold text-center block ${isNightMode ? 'text-white' : 'text-primary'}`}>
           {timeLeft !== null ? formatTime(timeLeft) : '25:00'}
         </span>
       </div>

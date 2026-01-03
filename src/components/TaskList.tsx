@@ -17,6 +17,7 @@ import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circl
 import { Task, Subtask } from '@/types/task.types';
 import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
+import { useTheme } from 'next-themes';
 
 interface SubtaskData {
   id: number;
@@ -306,6 +307,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const location = useLocation();
   const isTaskView = location.pathname === '/tasks';
   const isTimeBlock = isTaskTimeBlock(task);
+  const { theme } = useTheme();
+  const isNightMode = theme === 'night';
   
   const taskListColor = task.task_list_id && taskLists ? 
     getTaskListColor(task.task_list_id, taskLists) : 
@@ -443,11 +446,26 @@ const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
+  // Theme-aware background colors
+  const getTaskBackground = () => {
+    if (isCurrentTask) {
+      return isNightMode ? "bg-black" : "bg-white";
+    }
+    if (isTimeBlock) {
+      return "bg-[#FF5030]/20 hover:bg-[#FF5030]/30";
+    }
+    return isNightMode ? "bg-white/10 hover:bg-white/20" : "bg-white/50 hover:bg-white/80";
+  };
+
+  // Theme-aware text colors for meta info
+  const metaTextColor = isNightMode ? "text-gray-300" : "text-gray-500";
+  const taskNameCompletedColor = isNightMode ? "text-gray-400" : "text-gray-500";
+
   return <li className="space-y-2">
       <div 
         className={cn(
           "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", 
-          isCurrentTask ? "bg-white" : isTimeBlock ? "bg-[#FF5030]/20 hover:bg-[#FF5030]/30" : "bg-white/50 hover:bg-white/80",
+          getTaskBackground(),
           task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? "border-l-4" : ""
         )}
         style={task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? {
@@ -455,33 +473,52 @@ const TaskItem: React.FC<TaskItemProps> = ({
         } : undefined}
       >
         <div className="flex gap-2 flex-shrink-0">
-          <Button size="icon" variant="ghost" className="touch-none cursor-grab flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" {...dragHandleProps}>
+          <Button size="icon" variant="ghost" className={cn(
+            "touch-none cursor-grab flex-shrink-0 h-8 w-8 rounded-full",
+            isNightMode && isCurrentTask ? "bg-white/20 text-white hover:bg-white/30" : "bg-primary/10 text-primary hover:bg-primary/20"
+          )} {...dragHandleProps}>
             <GripVertical className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-8 w-8 rounded-full", task.Progress === 'Completed' ? "bg-green-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
+          <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-8 w-8 rounded-full", task.Progress === 'Completed' ? "bg-green-500 text-white" : isNightMode && isCurrentTask ? "bg-white/20 text-white hover:bg-white/30" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
           id: task.id
         })}>
             <Check className="h-4 w-4" />
           </Button>
-          {task.Progress !== 'Completed' && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20" onClick={() => onTaskStart?.(task.id)}>
+          {task.Progress !== 'Completed' && <Button size="icon" variant="ghost" className={cn(
+            "flex-shrink-0 h-8 w-8 rounded-full",
+            isNightMode && isCurrentTask ? "bg-white/20 text-white hover:bg-white/30" : "bg-primary/10 text-primary hover:bg-primary/20"
+          )} onClick={() => onTaskStart?.(task.id)}>
               <Play className="h-4 w-4" />
             </Button>}
         </div>
         <div className="flex-grow min-w-0">
           <div className="flex items-start gap-2 flex-wrap">
-            <span className={cn("font-bold break-words", task.Progress === 'Completed' && "line-through text-gray-500")}>
+            <span className={cn(
+              "font-bold break-words", 
+              task.Progress === 'Completed' && `line-through ${taskNameCompletedColor}`,
+              isNightMode && isCurrentTask && task.Progress !== 'Completed' && "text-white"
+            )}>
               {task["Task Name"]}
             </span>
-            {task.Progress !== 'Completed' && <span className="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap mt-1">
+            {task.Progress !== 'Completed' && <span className={cn(
+              "text-xs flex items-center gap-1 whitespace-nowrap mt-1",
+              isNightMode && isCurrentTask ? "text-gray-300" : metaTextColor
+            )}>
                 <Clock className="h-3 w-3" />
                 {format(new Date(task.date_started), 'M/d h:mm a')}
               </span>}
           </div>
         </div>
-        {!isTaskView && task.Progress !== 'Completed' && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-primary/10" onClick={() => setIsEditing(true)}>
+        {!isTaskView && task.Progress !== 'Completed' && <Button size="icon" variant="ghost" className={cn(
+          "flex-shrink-0 h-8 w-8 rounded-full",
+          isNightMode && isCurrentTask ? "text-white hover:bg-white/20" : "hover:bg-primary/10"
+        )} onClick={() => setIsEditing(true)}>
             <PencilIcon className="h-4 w-4" />
           </Button>}
-        {hasSubtasks && <Button size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-primary/10" onClick={() => setIsExpanded(!isExpanded)}>
+        {hasSubtasks && <Button size="icon" variant="ghost" className={cn(
+          "flex-shrink-0 h-8 w-8 rounded-full",
+          isNightMode && isCurrentTask ? "text-white hover:bg-white/20" : "hover:bg-primary/10"
+        )} onClick={() => setIsExpanded(!isExpanded)}>
             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>}
       </div>
@@ -493,14 +530,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
         if (a.Progress === 'Completed' && b.Progress !== 'Completed') return 1;
         if (a.Progress !== 'Completed' && b.Progress === 'Completed') return -1;
         return 0;
-      }).map(subtask => <li key={subtask.id} className={cn("flex items-start gap-3 p-3 rounded-lg bg-white/30 hover:bg-white/50 transition-colors")}>
+      }).map(subtask => <li key={subtask.id} className={cn(
+        "flex items-start gap-3 p-3 rounded-lg transition-colors",
+        isNightMode ? "bg-white/10 hover:bg-white/20" : "bg-white/30 hover:bg-white/50"
+      )}>
                 <Button size="icon" variant="ghost" className={cn("flex-shrink-0 h-6 w-6 rounded-full", subtask.Progress === 'Completed' ? "bg-green-500 text-white" : "bg-primary/10 text-primary hover:bg-primary/20")} onClick={() => updateTaskProgress.mutate({
           id: subtask.id,
           isSubtask: true
         })}>
                   <Check className="h-3 w-3" />
                 </Button>
-                <span className={cn("text-sm font-bold break-words", subtask.Progress === 'Completed' && "line-through text-gray-500")}>
+                <span className={cn(
+                  "text-sm font-bold break-words", 
+                  subtask.Progress === 'Completed' && `line-through ${taskNameCompletedColor}`,
+                  isNightMode && subtask.Progress !== 'Completed' && "text-foreground"
+                )}>
                   {subtask["Task Name"]}
                 </span>
               </li>)}

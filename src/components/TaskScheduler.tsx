@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Task } from '@/types/task.types';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { isTaskTimeBlock, isTaskInFuture, isCurrentTask } from '@/utils/taskUtils';
+import { isTaskTimeBlock, isTaskInFuture, isCurrentTask, extractSolidColorFromGradient } from '@/utils/taskUtils';
 import { syncGoogleCalendar } from './task/GoogleCalendarIntegration';
 import { NotificationBell } from './notifications/NotificationBell';
 import { Button } from '@/components/ui/button';
@@ -813,7 +813,10 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
           <div className="p-4 md:p-8 space-y-6 px-0 py-0">
             <div className="space-y-6 w-full">
               {showTimer && <div className="timer-container animate-slideIn rounded-lg overflow-hidden" style={{
-              background: activeTaskListColor || undefined
+              background: activeTaskListColor || undefined,
+              boxShadow: isNightMode && activeTaskListColor 
+                ? `0 0 30px 8px ${extractSolidColorFromGradient(activeTaskListColor)}, 0 0 60px 16px ${extractSolidColorFromGradient(activeTaskListColor)}80`
+                : undefined
             }}>
                   <PomodoroTimer
                     tasks={tasks.map(t => t.name)}

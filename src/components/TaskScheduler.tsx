@@ -16,6 +16,7 @@ import { NotificationBell } from './notifications/NotificationBell';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { useTheme } from 'next-themes';
 
 interface SubTask {
   name: string;
@@ -38,6 +39,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const { theme } = useTheme();
+  const isNightMode = theme === 'night';
 
   // Helper function to get task duration from details, defaulting to 25 minutes
   const getTaskDuration = (task: any): number => {
@@ -772,8 +775,12 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const hasActiveTasks = activeTasks && activeTasks.length > 0;
   const hasInProgressTask = activeTasks?.some(t => t.Progress === 'In progress');
   
+  const pageBackground = isNightMode 
+    ? 'linear-gradient(135deg, #000000 0%, #1f1001 100%)'
+    : 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)';
+
   return <div className="min-h-screen p-0 space-y-4 md:space-y-8 overflow-x-hidden" style={{
-    background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)'
+    background: pageBackground
   }}>
       <div className="container mx-auto flex justify-between items-center py-4">
         <MenuBar />

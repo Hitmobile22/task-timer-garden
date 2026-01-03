@@ -64,6 +64,16 @@
     --border: 0 0% 20%;
     --input: 0 0% 15%;
     --ring: 0 0% 40%;
+
+    /* Night theme page background gradient */
+    --page-gradient-top: 0 0% 0%;
+    --page-gradient-bottom: 32 94% 6%;
+  }
+
+  /* Default theme page background gradient */
+  :root {
+    --page-gradient-top: 210 100% 12%;
+    --page-gradient-bottom: 210 100% 25%;
   }
 }
  

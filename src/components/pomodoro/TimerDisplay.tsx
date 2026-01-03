@@ -183,12 +183,9 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
       </div>
 
       <div
-        className="relative p-6 md:p-8 rounded-xl transition-all duration-300 mx-auto w-full"
+        className="relative p-6 md:p-8 rounded-xl transition-all duration-300 shadow-lg mx-auto w-full"
         style={{
           background: getTimerColor(),
-          boxShadow: isNightMode && projectColor 
-            ? `0 0 30px 8px ${extractSolidColorFromGradient(projectColor)}, 0 0 60px 16px ${extractSolidColorFromGradient(projectColor)}80`
-            : '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         }}
       >
         <span className={`text-4xl md:text-5xl font-mono font-bold text-center block ${isNightMode ? 'text-white' : 'text-primary'}`}>

@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef } from 'react';
+import { useTheme } from 'next-themes';
 import { getTaskListColor } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 
@@ -98,6 +99,8 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const blobs = useRef<Blob[]>([]);
   const animationRef = useRef<number>();
+  const { theme } = useTheme();
+  const isNightMode = theme === 'night';
   
   // Get the gradient colors for the active task's list
   const gradientColors = React.useMemo(() => {
@@ -150,7 +153,7 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({
       cancelAnimationFrame(animationRef.current as number);
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [gradientColors]);
+  }, [gradientColors, isNightMode]);
 
   const generateBlobs = () => {
     return Array.from({ length: 8 }).map(() => ({
@@ -158,18 +161,27 @@ export const LavaLampBackground: React.FC<LavaLampBackgroundProps> = ({
       y: Math.random() * window.innerHeight,
       speedX: (Math.random() - 0.5) * 6.0,
       speedY: (Math.random() - 0.5) * 6.0,
-      size: 10 + Math.random() * 20,
-      opacity: 0.5,
-      color: lightenColor(gradientColors[Math.floor(Math.random() * gradientColors.length)], 60),
+      size: isNightMode ? 15 + Math.random() * 30 : 10 + Math.random() * 20,
+      opacity: isNightMode ? 0.7 : 0.5,
+      color: isNightMode 
+        ? gradientColors[Math.floor(Math.random() * gradientColors.length)]
+        : lightenColor(gradientColors[Math.floor(Math.random() * gradientColors.length)], 60),
     }));
   };
 
   const drawBackground = (ctx: CanvasRenderingContext2D) => {
-    const gradient = ctx.createLinearGradient(0, 0, ctx.canvas.width, ctx.canvas.height);
-    gradient.addColorStop(0, gradientColors[0]);
-    gradient.addColorStop(1, gradientColors[1]);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    if (isNightMode) {
+      // Solid black background for night mode
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    } else {
+      // Original gradient for default mode
+      const gradient = ctx.createLinearGradient(0, 0, ctx.canvas.width, ctx.canvas.height);
+      gradient.addColorStop(0, gradientColors[0]);
+      gradient.addColorStop(1, gradientColors[1]);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
   };
 
   const drawBlobs = (ctx: CanvasRenderingContext2D) => {

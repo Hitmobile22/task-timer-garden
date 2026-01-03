@@ -18,13 +18,15 @@ interface PomodoroTimerProps {
   autoStart?: boolean;
   activeTaskId?: number;
   onShuffleTasks?: () => void;
+  projectColor?: string;
 }
 
 export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   tasks: initialTasks,
   autoStart = false,
   activeTaskId,
-  onShuffleTasks
+  onShuffleTasks,
+  projectColor
 }) => {
   const fullscreenContainerRef = useRef<HTMLDivElement>(null);
   const recalculateProjectGoals = useRecalculateProjectGoals();
@@ -206,6 +208,7 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         formatTime={formatTime}
         getNextTask={getNextTask}
         isCountdownToNextTask={isCountdownToNextTask}
+        projectColor={projectColor}
       />
 
       <SubtaskDisplay 

@@ -4,6 +4,7 @@ import { Progress } from '@/components/ui/progress';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from 'next-themes';
+import { extractSolidColorFromGradient } from '@/utils/taskUtils';
 
 interface TimerDisplayProps {
   timeLeft: number | null;
@@ -186,7 +187,7 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({
         style={{
           background: getTimerColor(),
           boxShadow: isNightMode && projectColor 
-            ? `0 0 30px 8px ${projectColor}, 0 0 60px 16px ${projectColor}40`
+            ? `0 0 30px 8px ${extractSolidColorFromGradient(projectColor)}, 0 0 60px 16px ${extractSolidColorFromGradient(projectColor)}80`
             : '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         }}
       >

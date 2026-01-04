@@ -485,6 +485,41 @@ export const ProjectModal = ({
                 progressive_mode: progressiveMode
               });
           }
+          
+          // Auto-populate subtasks on existing incomplete tasks
+          if (filteredSubtaskNames.length > 0) {
+            const { data: incompleteTasks } = await supabase
+              .from('Tasks')
+              .select('id')
+              .eq('project_id', project.id)
+              .eq('archived', false)
+              .in('Progress', ['Not started', 'In progress']);
+            
+            if (incompleteTasks && incompleteTasks.length > 0) {
+              for (const task of incompleteTasks) {
+                const { data: existingSubtasks } = await supabase
+                  .from('subtasks')
+                  .select('*')
+                  .eq('Parent Task ID', task.id);
+                
+                const existingNames = existingSubtasks?.map(s => s['Task Name']) || [];
+                
+                const newSubtasks = filteredSubtaskNames
+                  .filter(name => !existingNames.includes(name))
+                  .map((name, index) => ({
+                    'Task Name': name,
+                    'Parent Task ID': task.id,
+                    'Progress': 'Not started' as 'Not started' | 'In progress' | 'Completed' | 'Backlog',
+                    'user_id': user?.id!,
+                    'sort_order': existingNames.length + index
+                  }));
+                
+                if (newSubtasks.length > 0) {
+                  await supabase.from('subtasks').insert(newSubtasks);
+                }
+              }
+            }
+          }
         }
         
         onUpdateProject({
@@ -556,6 +591,41 @@ export const ProjectModal = ({
               subtask_names: filteredSubtaskNames,
               progressive_mode: progressiveMode
             });
+          
+          // Auto-populate subtasks on existing incomplete tasks (for new projects with selected tasks)
+          if (filteredSubtaskNames.length > 0 && selectedTasks.length > 0) {
+            const { data: incompleteTasks } = await supabase
+              .from('Tasks')
+              .select('id, Progress')
+              .in('id', selectedTasks)
+              .eq('archived', false)
+              .in('Progress', ['Not started', 'In progress']);
+            
+            if (incompleteTasks && incompleteTasks.length > 0) {
+              for (const task of incompleteTasks) {
+                const { data: existingSubtasks } = await supabase
+                  .from('subtasks')
+                  .select('*')
+                  .eq('Parent Task ID', task.id);
+                
+                const existingNames = existingSubtasks?.map(s => s['Task Name']) || [];
+                
+                const newSubtasks = filteredSubtaskNames
+                  .filter(name => !existingNames.includes(name))
+                  .map((name, index) => ({
+                    'Task Name': name,
+                    'Parent Task ID': task.id,
+                    'Progress': 'Not started' as 'Not started' | 'In progress' | 'Completed' | 'Backlog',
+                    'user_id': user?.id!,
+                    'sort_order': existingNames.length + index
+                  }));
+                
+                if (newSubtasks.length > 0) {
+                  await supabase.from('subtasks').insert(newSubtasks);
+                }
+              }
+            }
+          }
         }
         
         onUpdateProject({

@@ -480,7 +480,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
       // Reschedule all affected tasks (from today or earlier)
       for (const task of tasksToReschedule) {
         // Skip the task we're starting and time blocks
-        if (task.id === taskId || (currentTask && task.id === currentTask.id && task.id !== taskId) || isTaskTimeBlock(task)) continue;
+        if (task.id === taskId || isTaskTimeBlock(task)) continue;
         if (nextStartTime >= tomorrow) break;
         
         let taskStartTime = new Date(nextStartTime);

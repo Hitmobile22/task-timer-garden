@@ -3,6 +3,7 @@
 // This involves adding logic to check if a project should be processed based on the current day.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+import { toZonedTime, fromZonedTime } from 'npm:date-fns-tz@3.2.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,9 +74,12 @@ Deno.serve(async (req) => {
       try {
         console.log("Resetting daily project goals");
         
-        // Get the current date in server's timezone
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Get the current date in EST timezone (matching frontend pattern)
+        const now = new Date();
+        const estNow = toZonedTime(now, 'America/New_York');
+        const todayMidnightEST = new Date(estNow);
+        todayMidnightEST.setHours(0, 0, 0, 0);
+        const today = fromZonedTime(todayMidnightEST, 'America/New_York');
         
         // First, check if we've already reset goals today using the log table
         const { data: resetLog, error: resetLogError } = await supabaseClient
@@ -218,12 +222,21 @@ Deno.serve(async (req) => {
           }
         }
         
-        // Check for existing generation log for today
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Check for existing generation log for today (using EST timezone)
+        const now = new Date();
+        const estNow = toZonedTime(now, 'America/New_York');
         
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        // Get today's midnight in EST
+        const todayMidnightEST = new Date(estNow);
+        todayMidnightEST.setHours(0, 0, 0, 0);
+        
+        // Get tomorrow's midnight in EST
+        const tomorrowMidnightEST = new Date(todayMidnightEST);
+        tomorrowMidnightEST.setDate(tomorrowMidnightEST.getDate() + 1);
+        
+        // Convert EST boundaries back to UTC for database queries
+        const today = fromZonedTime(todayMidnightEST, 'America/New_York');
+        const tomorrow = fromZonedTime(tomorrowMidnightEST, 'America/New_York');
         
         const { data: existingLog, error: logError } = await supabaseClient
           .from('recurring_task_generation_logs')

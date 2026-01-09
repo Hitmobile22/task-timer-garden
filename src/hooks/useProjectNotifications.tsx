@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { daysBetween } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface ProjectNotification {
   id: number;
@@ -13,11 +14,13 @@ export interface ProjectNotification {
   days_remaining: number;
   created_at: string;
   is_read: boolean;
+  user_id: string;
 }
 
 export function useProjectNotifications() {
   const queryClient = useQueryClient();
   const [isCheckingProjects, setIsCheckingProjects] = useState(false);
+  const { user } = useAuth();
 
   // Fetch notifications
   const { data: notifications = [], isLoading } = useQuery({
@@ -68,7 +71,7 @@ export function useProjectNotifications() {
 
   // Check for projects due soon and create notifications
   const checkProjectsDueSoon = async () => {
-    if (isCheckingProjects) return;
+    if (isCheckingProjects || !user) return;
     
     try {
       setIsCheckingProjects(true);
@@ -110,7 +113,8 @@ export function useProjectNotifications() {
               project_name: project["Project Name"],
               due_date: project.date_due,
               days_remaining: daysRemaining,
-              is_read: false
+              is_read: false,
+              user_id: user.id
             });
           }
         }
@@ -134,14 +138,16 @@ export function useProjectNotifications() {
   };
 
   useEffect(() => {
-    // Check for projects due soon on initial load
-    checkProjectsDueSoon();
+    // Check for projects due soon on initial load (only when user is available)
+    if (user) {
+      checkProjectsDueSoon();
+    }
     
     // Set up interval to check for projects due soon every hour
     const intervalId = setInterval(checkProjectsDueSoon, 60 * 60 * 1000);
     
     return () => clearInterval(intervalId);
-  }, []);
+  }, [user]);
 
   return {
     notifications,

@@ -184,6 +184,7 @@ export type Database = {
           is_read: boolean | null
           project_id: number | null
           project_name: string
+          user_id: string
         }
         Insert: {
           created_at?: string | null
@@ -193,6 +194,7 @@ export type Database = {
           is_read?: boolean | null
           project_id?: number | null
           project_name: string
+          user_id: string
         }
         Update: {
           created_at?: string | null
@@ -202,6 +204,7 @@ export type Database = {
           is_read?: boolean | null
           project_id?: number | null
           project_name?: string
+          user_id?: string
         }
         Relationships: [
           {

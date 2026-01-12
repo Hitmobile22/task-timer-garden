@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from "@/integrations/supabase/client";
 import { isTaskInFuture, isTaskInBacklog, isTaskTimeBlock } from '@/utils/taskUtils';
 import { calculateTimeUntilTaskStart, shouldShowCountdownForTask } from '@/utils/timerUtils';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -64,51 +65,39 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     const filteredTasks = tasks.filter(task => task.Progress !== 'Backlog');
     
     const now = new Date();
-    // Get current time in EST/EDT
-    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
-    const estHour = nowEST.getHours();
+    const estNow = toZonedTime(now, 'America/New_York');
+    const estHour = estNow.getHours();
     const isEveningMode = estHour >= 21 || estHour < 3;
     
+    let sessionEndEST: Date;
+    
     if (isEveningMode) {
-      let sessionEndEST: Date;
-      
       if (estHour >= 21) {
-        // Currently after 9 PM - session ends at 3 AM tomorrow
-        sessionEndEST = new Date(nowEST);
+        // Session ends at 3 AM tomorrow EST
+        sessionEndEST = new Date(estNow);
         sessionEndEST.setDate(sessionEndEST.getDate() + 1);
         sessionEndEST.setHours(3, 0, 0, 0);
       } else {
-        // Currently before 3 AM - session ends at 3 AM today
-        sessionEndEST = new Date(nowEST);
+        // Session ends at 3 AM today EST
+        sessionEndEST = new Date(estNow);
         sessionEndEST.setHours(3, 0, 0, 0);
       }
-      
-      // Convert EST to UTC
-      const isDST = nowEST.getTimezoneOffset() === 240;
-      const offsetHours = isDST ? 4 : 5;
-      const sessionEndUTC = new Date(sessionEndEST.getTime() + (offsetHours * 60 * 60 * 1000));
-      
-      return filteredTasks.filter(task => {
-        const taskDate = task.date_started ? new Date(task.date_started) : null;
-        if (!taskDate) return false;
-        return taskDate < sessionEndUTC;
-      });
     } else {
-      // Normal mode: show tasks before 3 AM EST next day
-      const tomorrowESTExtended = new Date(nowEST);
-      tomorrowESTExtended.setDate(tomorrowESTExtended.getDate() + 1);
-      tomorrowESTExtended.setHours(3, 0, 0, 0);
-      
-      const isDST = nowEST.getTimezoneOffset() === 240;
-      const offsetHours = isDST ? 4 : 5;
-      const tomorrowUTCExtended = new Date(tomorrowESTExtended.getTime() + (offsetHours * 60 * 60 * 1000));
-      
-      return filteredTasks.filter(task => {
-        const taskDate = task.date_started ? new Date(task.date_started) : null;
-        if (!taskDate) return false;
-        return taskDate < tomorrowUTCExtended;
-      });
+      // Normal mode: session ends at 3 AM tomorrow EST
+      const tomorrowEST = new Date(estNow);
+      tomorrowEST.setDate(tomorrowEST.getDate() + 1);
+      tomorrowEST.setHours(3, 0, 0, 0);
+      sessionEndEST = tomorrowEST;
     }
+    
+    // Convert EST boundary to UTC using proper date-fns-tz function
+    const sessionEndUTC = fromZonedTime(sessionEndEST, 'America/New_York');
+    
+    return filteredTasks.filter(task => {
+      const taskDate = task.date_started ? new Date(task.date_started) : null;
+      if (!taskDate) return false;
+      return taskDate < sessionEndUTC;
+    });
   };
 
   const completeSubtask = useMutation({

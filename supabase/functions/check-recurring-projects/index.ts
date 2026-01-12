@@ -14,6 +14,160 @@ const corsHeaders = {
 const normalizeDay = (day: string): string => 
   day?.trim().toLowerCase().replace(/^\w/, c => c.toUpperCase()) || '';
 
+// Type for subtask modes
+type SubtaskMode = 'on_task_creation' | 'progressive' | 'daily' | 'every_x_days' | 'every_x_weeks' | 'days_of_week';
+
+// Helper function to check if subtasks should respawn based on mode and timing
+function checkIfShouldRespawn(
+  settings: any, 
+  estNow: Date, 
+  currentDay: string
+): boolean {
+  const lastRespawn = settings.last_subtask_respawn 
+    ? new Date(settings.last_subtask_respawn) 
+    : null;
+  
+  switch (settings.subtask_mode as SubtaskMode) {
+    case 'daily':
+      // Respawn if it's a new day (past midnight EST)
+      if (!lastRespawn) return true;
+      const lastRespawnEST = toZonedTime(lastRespawn, 'America/New_York');
+      return estNow.toDateString() !== lastRespawnEST.toDateString();
+      
+    case 'every_x_days':
+      if (!lastRespawn) return true;
+      const daysDiff = Math.floor((estNow.getTime() - lastRespawn.getTime()) / (1000 * 60 * 60 * 24));
+      return daysDiff >= (settings.respawn_interval_value || 1);
+      
+    case 'every_x_weeks':
+      if (!lastRespawn) return true;
+      const weeksDiff = Math.floor((estNow.getTime() - lastRespawn.getTime()) / (1000 * 60 * 60 * 24 * 7));
+      return weeksDiff >= (settings.respawn_interval_value || 1);
+      
+    case 'days_of_week':
+      const normalizedCurrentDay = normalizeDay(currentDay);
+      const respawnDays = (settings.respawn_days_of_week || []).map(normalizeDay);
+      if (!respawnDays.includes(normalizedCurrentDay)) return false;
+      if (!lastRespawn) return true;
+      const lastRespawnESTDow = toZonedTime(lastRespawn, 'America/New_York');
+      return estNow.toDateString() !== lastRespawnESTDow.toDateString();
+      
+    default:
+      return false;
+  }
+}
+
+// Function to respawn subtasks for projects that need it
+async function checkSubtaskRespawns(supabaseClient: any, userId: string) {
+  console.log('Checking for subtask respawns...');
+  
+  const now = new Date();
+  const estNow = toZonedTime(now, 'America/New_York');
+  const currentDay = estNow.toLocaleDateString('en-US', { weekday: 'long' });
+  
+  // Get all project settings that might need respawn
+  const { data: allSettings, error: settingsError } = await supabaseClient
+    .from('recurring_project_settings')
+    .select('*, project_id')
+    .eq('user_id', userId)
+    .in('subtask_mode', ['daily', 'every_x_days', 'every_x_weeks', 'days_of_week']);
+  
+  if (settingsError) {
+    console.error('Error fetching project settings for subtask respawn:', settingsError);
+    return { respawned: 0, errors: 1 };
+  }
+  
+  let respawnedCount = 0;
+  let errorsCount = 0;
+  
+  for (const settings of (allSettings || [])) {
+    try {
+      const shouldRespawn = checkIfShouldRespawn(settings, estNow, currentDay);
+      
+      if (!shouldRespawn) {
+        console.log(`Project ${settings.project_id} - no respawn needed (mode: ${settings.subtask_mode})`);
+        continue;
+      }
+      
+      console.log(`Project ${settings.project_id} - respawning subtasks (mode: ${settings.subtask_mode})`);
+      
+      // Get all active tasks for this project
+      const { data: activeTasks, error: tasksError } = await supabaseClient
+        .from('Tasks')
+        .select('id')
+        .eq('project_id', settings.project_id)
+        .in('Progress', ['Not started', 'In progress']);
+      
+      if (tasksError) {
+        console.error(`Error fetching tasks for project ${settings.project_id}:`, tasksError);
+        errorsCount++;
+        continue;
+      }
+      
+      const subtaskTemplate = settings.subtask_names || [];
+      if (subtaskTemplate.length === 0) {
+        console.log(`Project ${settings.project_id} - no subtask template defined, skipping`);
+        continue;
+      }
+      
+      // For each active task, ensure all template subtasks exist
+      for (const task of (activeTasks || [])) {
+        const { data: existingSubtasks, error: subtasksError } = await supabaseClient
+          .from('subtasks')
+          .select('"Task Name"')
+          .eq('Parent Task ID', task.id);
+        
+        if (subtasksError) {
+          console.error(`Error fetching subtasks for task ${task.id}:`, subtasksError);
+          continue;
+        }
+        
+        const existingNames = existingSubtasks?.map((s: any) => s['Task Name']) || [];
+        
+        // Add missing subtasks (no duplicates)
+        const newSubtasks = subtaskTemplate
+          .filter((name: string) => !existingNames.includes(name) && name.trim())
+          .map((name: string, index: number) => ({
+            'Task Name': name,
+            'Parent Task ID': task.id,
+            'Progress': 'Not started',
+            'user_id': userId,
+            'sort_order': existingNames.length + index
+          }));
+        
+        if (newSubtasks.length > 0) {
+          const { error: insertError } = await supabaseClient
+            .from('subtasks')
+            .insert(newSubtasks);
+          
+          if (insertError) {
+            console.error(`Error inserting subtasks for task ${task.id}:`, insertError);
+          } else {
+            console.log(`Respawned ${newSubtasks.length} subtasks for task ${task.id}`);
+            respawnedCount += newSubtasks.length;
+          }
+        }
+      }
+      
+      // Update last_subtask_respawn timestamp
+      const { error: updateError } = await supabaseClient
+        .from('recurring_project_settings')
+        .update({ last_subtask_respawn: now.toISOString() })
+        .eq('id', settings.id);
+      
+      if (updateError) {
+        console.error(`Error updating last_subtask_respawn for project ${settings.project_id}:`, updateError);
+      }
+      
+    } catch (error) {
+      console.error(`Error processing subtask respawn for project ${settings.project_id}:`, error);
+      errorsCount++;
+    }
+  }
+  
+  return { respawned: respawnedCount, errors: errorsCount };
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -68,6 +222,16 @@ Deno.serve(async (req) => {
     // Parse request body
     const body = await req.json();
     console.log("Received request body:", JSON.stringify(body));
+    
+    // Check for subtask respawns FIRST, before any other processing
+    // This runs every time the function is called
+    try {
+      const respawnResult = await checkSubtaskRespawns(supabaseClient, user.id);
+      console.log(`Subtask respawn check complete: ${respawnResult.respawned} respawned, ${respawnResult.errors} errors`);
+    } catch (respawnError) {
+      console.error('Error during subtask respawn check:', respawnError);
+      // Continue with the rest of the function - this shouldn't block other operations
+    }
     
     // Process reset daily goals request if provided
     if (body.resetDailyGoals) {

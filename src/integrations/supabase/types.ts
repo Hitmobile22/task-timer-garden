@@ -283,8 +283,12 @@ export type Database = {
           created_at: string
           days_of_week: string[]
           id: number
+          last_subtask_respawn: string | null
           progressive_mode: boolean | null
           project_id: number
+          respawn_days_of_week: string[] | null
+          respawn_interval_value: number | null
+          subtask_mode: string | null
           subtask_names: string[] | null
           updated_at: string
           user_id: string | null
@@ -293,8 +297,12 @@ export type Database = {
           created_at?: string
           days_of_week?: string[]
           id?: number
+          last_subtask_respawn?: string | null
           progressive_mode?: boolean | null
           project_id: number
+          respawn_days_of_week?: string[] | null
+          respawn_interval_value?: number | null
+          subtask_mode?: string | null
           subtask_names?: string[] | null
           updated_at?: string
           user_id?: string | null
@@ -303,8 +311,12 @@ export type Database = {
           created_at?: string
           days_of_week?: string[]
           id?: number
+          last_subtask_respawn?: string | null
           progressive_mode?: boolean | null
           project_id?: number
+          respawn_days_of_week?: string[] | null
+          respawn_interval_value?: number | null
+          subtask_mode?: string | null
           subtask_names?: string[] | null
           updated_at?: string
           user_id?: string | null

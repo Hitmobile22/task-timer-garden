@@ -40,7 +40,30 @@ export interface RecurringTaskSettings {
   dailyTaskCount: number;
   daysOfWeek: string[];
   subtaskNames: string[];
+  subtaskMode: string;
+  respawnIntervalValue: number;
+  respawnDaysOfWeek: string[];
 }
+
+type SubtaskMode = 'on_task_creation' | 'progressive' | 'daily' | 'every_x_days' | 'every_x_weeks' | 'days_of_week';
+
+const SUBTASK_MODE_OPTIONS: { value: SubtaskMode; label: string }[] = [
+  { value: 'on_task_creation', label: 'On Task Creation' },
+  { value: 'progressive', label: 'Progressive Mode' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'every_x_days', label: 'Every X Days' },
+  { value: 'every_x_weeks', label: 'Every X Weeks' },
+  { value: 'days_of_week', label: 'Days of Week' },
+];
+
+const SUBTASK_MODE_DESCRIPTIONS: Record<SubtaskMode, string> = {
+  'on_task_creation': 'Subtasks are created once when the task is created and marked complete when done.',
+  'progressive': 'Completing a subtask permanently removes it from the template for future tasks.',
+  'daily': 'Completed subtasks respawn every day.',
+  'every_x_days': 'Completed subtasks respawn after X days.',
+  'every_x_weeks': 'Completed subtasks respawn after X weeks.',
+  'days_of_week': 'Completed subtasks respawn on specific days of the week.',
+};
 
 const DAYS_OF_WEEK = [
   'Monday',
@@ -93,6 +116,9 @@ export const RecurringTasksModal = ({
     dailyTaskCount: 1,
     daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
     subtaskNames: [],
+    subtaskMode: 'on_task_creation',
+    respawnIntervalValue: 1,
+    respawnDaysOfWeek: [],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -158,6 +184,9 @@ export const RecurringTasksModal = ({
             dailyTaskCount: mostRecentSetting.daily_task_count ?? 1,
             daysOfWeek: mostRecentSetting.days_of_week ?? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
             subtaskNames: mostRecentSetting.subtask_names ?? [],
+            subtaskMode: mostRecentSetting.subtask_mode ?? 'on_task_creation',
+            respawnIntervalValue: mostRecentSetting.respawn_interval_value ?? 1,
+            respawnDaysOfWeek: mostRecentSetting.respawn_days_of_week ?? [],
           });
         } else {
           // Reset to defaults if no settings found
@@ -168,6 +197,9 @@ export const RecurringTasksModal = ({
             dailyTaskCount: 1,
             daysOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
             subtaskNames: [],
+            subtaskMode: 'on_task_creation',
+            respawnIntervalValue: 1,
+            respawnDaysOfWeek: [],
           });
         }
         
@@ -222,6 +254,9 @@ export const RecurringTasksModal = ({
         throw disableError;
       }
       
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
       // Now create the new settings record
       // This ensures we have a clear history and the most recent settings are always used
       const { data, error } = await supabase
@@ -232,6 +267,10 @@ export const RecurringTasksModal = ({
           daily_task_count: settings.dailyTaskCount,
           days_of_week: settings.daysOfWeek,
           subtask_names: settings.subtaskNames.filter(name => name.trim() !== ''),
+          subtask_mode: settings.subtaskMode,
+          respawn_interval_value: settings.respawnIntervalValue,
+          respawn_days_of_week: settings.respawnDaysOfWeek,
+          user_id: user?.id,
         })
         .select();
 
@@ -456,6 +495,62 @@ export const RecurringTasksModal = ({
               <p className="text-xs text-muted-foreground">
                 These subtasks will be automatically added to each recurring task created.
               </p>
+              
+              {settings.subtaskNames.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-primary/10 mt-3">
+                  <div className="space-y-2">
+                    <Label>Subtask Mode</Label>
+                    <Select
+                      value={settings.subtaskMode}
+                      onValueChange={(value) => updateSettings({ subtaskMode: value })}
+                      disabled={!settings.enabled || isSaving}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUBTASK_MODE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {SUBTASK_MODE_DESCRIPTIONS[settings.subtaskMode as SubtaskMode]}
+                    </p>
+                  </div>
+                  
+                  {(settings.subtaskMode === 'every_x_days' || settings.subtaskMode === 'every_x_weeks') && (
+                    <div className="flex items-center gap-2">
+                      <Label>Every</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={settings.respawnIntervalValue}
+                        onChange={(e) => updateSettings({ respawnIntervalValue: parseInt(e.target.value) || 1 })}
+                        className="w-20"
+                        disabled={!settings.enabled || isSaving}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {settings.subtaskMode === 'every_x_days' ? 'days' : 'weeks'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {settings.subtaskMode === 'days_of_week' && (
+                    <div className="space-y-2">
+                      <Label>Respawn Days</Label>
+                      <DaysOfWeekSelector
+                        selectedDays={settings.respawnDaysOfWeek}
+                        onChange={(days) => updateSettings({ respawnDaysOfWeek: days })}
+                        disabled={!settings.enabled || isSaving}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isSaving || isCheckingTasks}>

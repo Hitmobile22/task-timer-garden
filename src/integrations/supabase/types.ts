@@ -391,9 +391,14 @@ export type Database = {
           days_of_week: string[] | null
           enabled: boolean | null
           id: number
+          last_subtask_respawn: string | null
+          respawn_days_of_week: string[] | null
+          respawn_interval_value: number | null
+          subtask_mode: string | null
           subtask_names: string[] | null
           task_list_id: number | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           archived?: boolean | null
@@ -402,9 +407,14 @@ export type Database = {
           days_of_week?: string[] | null
           enabled?: boolean | null
           id?: number
+          last_subtask_respawn?: string | null
+          respawn_days_of_week?: string[] | null
+          respawn_interval_value?: number | null
+          subtask_mode?: string | null
           subtask_names?: string[] | null
           task_list_id?: number | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           archived?: boolean | null
@@ -413,9 +423,14 @@ export type Database = {
           days_of_week?: string[] | null
           enabled?: boolean | null
           id?: number
+          last_subtask_respawn?: string | null
+          respawn_days_of_week?: string[] | null
+          respawn_interval_value?: number | null
+          subtask_mode?: string | null
           subtask_names?: string[] | null
           task_list_id?: number | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {

@@ -82,7 +82,180 @@ interface RecurringTaskSetting {
   daily_task_count: number;
   days_of_week: string[];
   subtask_names?: string[];
+  subtask_mode?: string;
+  respawn_interval_value?: number;
+  respawn_days_of_week?: string[];
+  last_subtask_respawn?: string;
+  user_id?: string;
   created_at?: string;
+}
+
+type SubtaskMode = 'on_task_creation' | 'progressive' | 'daily' | 'every_x_days' | 'every_x_weeks' | 'days_of_week';
+
+// Check if subtasks should respawn based on mode and settings
+function checkIfShouldRespawn(settings: RecurringTaskSetting, now: Date, currentDay: string): boolean {
+  const mode = settings.subtask_mode as SubtaskMode || 'on_task_creation';
+  
+  // These modes don't support respawning
+  if (mode === 'on_task_creation' || mode === 'progressive') {
+    return false;
+  }
+  
+  const lastRespawn = settings.last_subtask_respawn ? new Date(settings.last_subtask_respawn) : null;
+  
+  if (mode === 'daily') {
+    // Respawn if we haven't respawned today
+    if (!lastRespawn) return true;
+    const lastRespawnDate = new Date(lastRespawn);
+    lastRespawnDate.setHours(0, 0, 0, 0);
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    return lastRespawnDate.getTime() < today.getTime();
+  }
+  
+  if (mode === 'every_x_days') {
+    if (!lastRespawn) return true;
+    const intervalDays = settings.respawn_interval_value || 1;
+    const daysSinceRespawn = Math.floor((now.getTime() - lastRespawn.getTime()) / (1000 * 60 * 60 * 24));
+    return daysSinceRespawn >= intervalDays;
+  }
+  
+  if (mode === 'every_x_weeks') {
+    if (!lastRespawn) return true;
+    const intervalWeeks = settings.respawn_interval_value || 1;
+    const weeksSinceRespawn = Math.floor((now.getTime() - lastRespawn.getTime()) / (1000 * 60 * 60 * 24 * 7));
+    return weeksSinceRespawn >= intervalWeeks;
+  }
+  
+  if (mode === 'days_of_week') {
+    // Respawn if current day is in the respawn days
+    const respawnDays = (settings.respawn_days_of_week || []).map(normalizeDay);
+    const normalizedCurrentDay = normalizeDay(currentDay);
+    
+    if (!respawnDays.includes(normalizedCurrentDay)) {
+      return false;
+    }
+    
+    // Check if we've already respawned today
+    if (!lastRespawn) return true;
+    const lastRespawnDate = new Date(lastRespawn);
+    lastRespawnDate.setHours(0, 0, 0, 0);
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    return lastRespawnDate.getTime() < today.getTime();
+  }
+  
+  return false;
+}
+
+// Check and respawn subtasks for task list settings
+async function checkSubtaskRespawns(supabaseClient: any) {
+  console.log('Checking for subtask respawns...');
+  
+  const now = new Date();
+  const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
+  
+  // Get all task list settings that might need respawn
+  const { data: allSettings, error } = await supabaseClient
+    .from('recurring_task_settings')
+    .select('*')
+    .eq('enabled', true)
+    .in('subtask_mode', ['daily', 'every_x_days', 'every_x_weeks', 'days_of_week']);
+  
+  if (error) {
+    console.error('Error fetching settings for subtask respawn:', error);
+    return;
+  }
+  
+  console.log(`Found ${allSettings?.length || 0} settings to check for subtask respawn`);
+  
+  for (const settings of (allSettings || [])) {
+    const shouldRespawn = checkIfShouldRespawn(settings, now, currentDay);
+    
+    if (!shouldRespawn) {
+      console.log(`Task list ${settings.task_list_id} does not need subtask respawn`);
+      continue;
+    }
+    
+    console.log(`Task list ${settings.task_list_id} needs subtask respawn (mode: ${settings.subtask_mode})`);
+    
+    // Get active tasks in this task list
+    const { data: activeTasks, error: tasksError } = await supabaseClient
+      .from('Tasks')
+      .select('id, user_id')
+      .eq('task_list_id', settings.task_list_id)
+      .in('Progress', ['Not started', 'In progress']);
+    
+    if (tasksError) {
+      console.error(`Error fetching active tasks for list ${settings.task_list_id}:`, tasksError);
+      continue;
+    }
+    
+    if (!activeTasks || activeTasks.length === 0) {
+      console.log(`No active tasks in list ${settings.task_list_id}, skipping subtask respawn`);
+      // Still update last_subtask_respawn to prevent repeated checks
+      await supabaseClient
+        .from('recurring_task_settings')
+        .update({ last_subtask_respawn: now.toISOString() })
+        .eq('id', settings.id);
+      continue;
+    }
+    
+    const subtaskTemplate = settings.subtask_names || [];
+    if (subtaskTemplate.length === 0) {
+      console.log(`No subtask template for list ${settings.task_list_id}, skipping`);
+      continue;
+    }
+    
+    let totalSubtasksAdded = 0;
+    
+    // For each task, add missing subtasks from template
+    for (const task of activeTasks) {
+      // Get existing subtasks for this task
+      const { data: existingSubtasks, error: subtasksError } = await supabaseClient
+        .from('subtasks')
+        .select('"Task Name"')
+        .eq('Parent Task ID', task.id);
+      
+      if (subtasksError) {
+        console.error(`Error fetching subtasks for task ${task.id}:`, subtasksError);
+        continue;
+      }
+      
+      const existingNames = (existingSubtasks || []).map(s => s['Task Name']);
+      
+      // Find subtasks that need to be added
+      const subtasksToAdd = subtaskTemplate
+        .filter(name => name && name.trim() !== '' && !existingNames.includes(name))
+        .map((name, index) => ({
+          'Task Name': name.trim(),
+          'Parent Task ID': task.id,
+          'Progress': 'Not started',
+          'user_id': task.user_id || settings.user_id,
+          'sort_order': existingNames.length + index
+        }));
+      
+      if (subtasksToAdd.length > 0) {
+        const { error: insertError } = await supabaseClient
+          .from('subtasks')
+          .insert(subtasksToAdd);
+        
+        if (insertError) {
+          console.error(`Error inserting subtasks for task ${task.id}:`, insertError);
+        } else {
+          totalSubtasksAdded += subtasksToAdd.length;
+        }
+      }
+    }
+    
+    console.log(`Respawned ${totalSubtasksAdded} subtasks for task list ${settings.task_list_id}`);
+    
+    // Update last_subtask_respawn
+    await supabaseClient
+      .from('recurring_task_settings')
+      .update({ last_subtask_respawn: now.toISOString() })
+      .eq('id', settings.id);
+  }
 }
 
 // Enhanced count function that includes completed tasks for today
@@ -152,6 +325,9 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
+
+    // Check for subtask respawns first
+    await checkSubtaskRespawns(supabaseClient);
 
     // Parse request body
     const body = await req.json();

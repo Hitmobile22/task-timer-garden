@@ -129,12 +129,77 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
           if (error) throw error;
         }
       } else {
-        // No project - just mark as completed
-        const { error } = await supabase
-          .from('subtasks')
-          .update({ Progress: 'Completed' })
-          .eq('id', subtaskId);
-        if (error) throw error;
+        // No project - check if task is in a recurring task list
+        const { data: parentTaskWithList } = await supabase
+          .from('Tasks')
+          .select('task_list_id')
+          .eq('id', subtask['Parent Task ID'])
+          .single();
+        
+        if (parentTaskWithList?.task_list_id) {
+          // Get task list recurring settings
+          const { data: listSettings } = await supabase
+            .from('recurring_task_settings')
+            .select('subtask_names, subtask_mode')
+            .eq('task_list_id', parentTaskWithList.task_list_id)
+            .eq('enabled', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          const mode = listSettings?.subtask_mode || 'on_task_creation';
+          
+          if (mode === 'progressive') {
+            // PERMANENT REMOVAL: Remove from template
+            const updatedSubtaskNames = (listSettings?.subtask_names || []).filter(
+              (name: string) => name !== subtask['Task Name']
+            );
+            await supabase
+              .from('recurring_task_settings')
+              .update({ subtask_names: updatedSubtaskNames })
+              .eq('task_list_id', parentTaskWithList.task_list_id)
+              .eq('enabled', true);
+            
+            // Delete the subtask
+            const { error } = await supabase
+              .from('subtasks')
+              .delete()
+              .eq('id', subtaskId);
+            if (error) throw error;
+            
+          } else if (['daily', 'every_x_days', 'every_x_weeks', 'days_of_week'].includes(mode)) {
+            // TEMPORARY REMOVAL: Delete from ALL tasks in this task list
+            const { data: listTasks } = await supabase
+              .from('Tasks')
+              .select('id')
+              .eq('task_list_id', parentTaskWithList.task_list_id);
+            
+            if (listTasks && listTasks.length > 0) {
+              const taskIds = listTasks.map(t => t.id);
+              
+              const { error } = await supabase
+                .from('subtasks')
+                .delete()
+                .eq('Task Name', subtask['Task Name'])
+                .in('Parent Task ID', taskIds);
+              if (error) throw error;
+            }
+          } else {
+            // on_task_creation mode: just mark as completed
+            const { error } = await supabase
+              .from('subtasks')
+              .update({ Progress: 'Completed' })
+              .eq('id', subtaskId);
+            if (error) throw error;
+          }
+        } else {
+          // No project and no task list settings - just mark as completed
+          const { error } = await supabase
+            .from('subtasks')
+            .update({ Progress: 'Completed' })
+            .eq('id', subtaskId);
+          if (error) throw error;
+        }
       }
     },
     onSuccess: () => {

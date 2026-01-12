@@ -56,6 +56,61 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     enabled: !!currentTask?.id,
   });
 
+  // Helper function to filter tasks to "Today's Tasks" using the same logic as TaskScheduler
+  const filterTodayTasks = (tasks: Array<{ id: number; date_started: string | null; Progress: string | null }>) => {
+    if (!tasks || tasks.length === 0) return [];
+    
+    // Filter out backlog tasks
+    const filteredTasks = tasks.filter(task => task.Progress !== 'Backlog');
+    
+    const now = new Date();
+    // Get current time in EST/EDT
+    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
+    const estHour = nowEST.getHours();
+    const isEveningMode = estHour >= 21 || estHour < 3;
+    
+    if (isEveningMode) {
+      let sessionEndEST: Date;
+      
+      if (estHour >= 21) {
+        // Currently after 9 PM - session ends at 3 AM tomorrow
+        sessionEndEST = new Date(nowEST);
+        sessionEndEST.setDate(sessionEndEST.getDate() + 1);
+        sessionEndEST.setHours(3, 0, 0, 0);
+      } else {
+        // Currently before 3 AM - session ends at 3 AM today
+        sessionEndEST = new Date(nowEST);
+        sessionEndEST.setHours(3, 0, 0, 0);
+      }
+      
+      // Convert EST to UTC
+      const isDST = nowEST.getTimezoneOffset() === 240;
+      const offsetHours = isDST ? 4 : 5;
+      const sessionEndUTC = new Date(sessionEndEST.getTime() + (offsetHours * 60 * 60 * 1000));
+      
+      return filteredTasks.filter(task => {
+        const taskDate = task.date_started ? new Date(task.date_started) : null;
+        if (!taskDate) return false;
+        return taskDate < sessionEndUTC;
+      });
+    } else {
+      // Normal mode: show tasks before 3 AM EST next day
+      const tomorrowESTExtended = new Date(nowEST);
+      tomorrowESTExtended.setDate(tomorrowESTExtended.getDate() + 1);
+      tomorrowESTExtended.setHours(3, 0, 0, 0);
+      
+      const isDST = nowEST.getTimezoneOffset() === 240;
+      const offsetHours = isDST ? 4 : 5;
+      const tomorrowUTCExtended = new Date(tomorrowESTExtended.getTime() + (offsetHours * 60 * 60 * 1000));
+      
+      return filteredTasks.filter(task => {
+        const taskDate = task.date_started ? new Date(task.date_started) : null;
+        if (!taskDate) return false;
+        return taskDate < tomorrowUTCExtended;
+      });
+    }
+  };
+
   const completeSubtask = useMutation({
     mutationFn: async (subtaskId: number) => {
       // Get the subtask first to find its name and parent task
@@ -102,23 +157,27 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
           if (error) throw error;
           
         } else if (['daily', 'every_x_days', 'every_x_weeks', 'days_of_week'].includes(mode)) {
-          // TEMPORARY REMOVAL: Delete this subtask from ALL tasks in this project
-          // First get all task IDs for this project
+          // TEMPORARY COMPLETION: Mark subtask as completed on all tasks in this project
+          // that are in Today's Tasks and are "In progress" or "Not started"
           const { data: projectTasks } = await supabase
             .from('Tasks')
-            .select('id')
-            .eq('project_id', parentTask.project_id);
+            .select('id, date_started, Progress')
+            .eq('project_id', parentTask.project_id)
+            .in('Progress', ['In progress', 'Not started']);
           
           if (projectTasks && projectTasks.length > 0) {
-            const taskIds = projectTasks.map(t => t.id);
+            // Filter to only tasks in Today's Tasks using the same logic
+            const todayTaskIds = filterTodayTasks(projectTasks).map(t => t.id);
             
-            // Delete all subtasks with matching name across all tasks in this project
-            const { error } = await supabase
-              .from('subtasks')
-              .delete()
-              .eq('Task Name', subtask['Task Name'])
-              .in('Parent Task ID', taskIds);
-            if (error) throw error;
+            if (todayTaskIds.length > 0) {
+              // Mark all subtasks with matching name as completed across today's tasks in this project
+              const { error } = await supabase
+                .from('subtasks')
+                .update({ Progress: 'Completed' })
+                .eq('Task Name', subtask['Task Name'])
+                .in('Parent Task ID', todayTaskIds);
+              if (error) throw error;
+            }
           }
         } else {
           // 'on_task_creation' mode: just mark as completed
@@ -168,21 +227,27 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
             if (error) throw error;
             
           } else if (['daily', 'every_x_days', 'every_x_weeks', 'days_of_week'].includes(mode)) {
-            // TEMPORARY REMOVAL: Delete from ALL tasks in this task list
+            // TEMPORARY COMPLETION: Mark subtask as completed on all tasks in this task list
+            // that are in Today's Tasks and are "In progress" or "Not started"
             const { data: listTasks } = await supabase
               .from('Tasks')
-              .select('id')
-              .eq('task_list_id', parentTaskWithList.task_list_id);
+              .select('id, date_started, Progress')
+              .eq('task_list_id', parentTaskWithList.task_list_id)
+              .in('Progress', ['In progress', 'Not started']);
             
             if (listTasks && listTasks.length > 0) {
-              const taskIds = listTasks.map(t => t.id);
+              // Filter to only tasks in Today's Tasks using the same logic
+              const todayTaskIds = filterTodayTasks(listTasks).map(t => t.id);
               
-              const { error } = await supabase
-                .from('subtasks')
-                .delete()
-                .eq('Task Name', subtask['Task Name'])
-                .in('Parent Task ID', taskIds);
-              if (error) throw error;
+              if (todayTaskIds.length > 0) {
+                // Mark all subtasks with matching name as completed across today's tasks
+                const { error } = await supabase
+                  .from('subtasks')
+                  .update({ Progress: 'Completed' })
+                  .eq('Task Name', subtask['Task Name'])
+                  .in('Parent Task ID', todayTaskIds);
+                if (error) throw error;
+              }
             }
           } else {
             // on_task_creation mode: just mark as completed

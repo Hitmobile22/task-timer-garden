@@ -58,12 +58,84 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
 
   const completeSubtask = useMutation({
     mutationFn: async (subtaskId: number) => {
-      const { error } = await supabase
+      // Get the subtask first to find its name and parent task
+      const { data: subtask, error: fetchError } = await supabase
         .from('subtasks')
-        .update({ Progress: 'Completed' })
-        .eq('id', subtaskId);
-
-      if (error) throw error;
+        .select('*, "Parent Task ID", "Task Name"')
+        .eq('id', subtaskId)
+        .single();
+      
+      if (fetchError || !subtask) throw fetchError || new Error('Subtask not found');
+      
+      // Get the parent task to find the project
+      const { data: parentTask } = await supabase
+        .from('Tasks')
+        .select('project_id')
+        .eq('id', subtask['Parent Task ID'])
+        .single();
+      
+      if (parentTask?.project_id) {
+        // Get project settings to check subtask_mode
+        const { data: projectSettings } = await supabase
+          .from('recurring_project_settings')
+          .select('subtask_names, subtask_mode')
+          .eq('project_id', parentTask.project_id)
+          .maybeSingle();
+        
+        const mode = projectSettings?.subtask_mode || 'on_task_creation';
+        
+        if (mode === 'progressive') {
+          // PERMANENT REMOVAL: Remove from template (the subtask_names array)
+          const updatedSubtaskNames = (projectSettings?.subtask_names || []).filter(
+            (name: string) => name !== subtask['Task Name']
+          );
+          await supabase
+            .from('recurring_project_settings')
+            .update({ subtask_names: updatedSubtaskNames })
+            .eq('project_id', parentTask.project_id);
+            
+          // Also delete the subtask record
+          const { error } = await supabase
+            .from('subtasks')
+            .delete()
+            .eq('id', subtaskId);
+          if (error) throw error;
+          
+        } else if (['daily', 'every_x_days', 'every_x_weeks', 'days_of_week'].includes(mode)) {
+          // TEMPORARY REMOVAL: Delete this subtask from ALL tasks in this project
+          // First get all task IDs for this project
+          const { data: projectTasks } = await supabase
+            .from('Tasks')
+            .select('id')
+            .eq('project_id', parentTask.project_id);
+          
+          if (projectTasks && projectTasks.length > 0) {
+            const taskIds = projectTasks.map(t => t.id);
+            
+            // Delete all subtasks with matching name across all tasks in this project
+            const { error } = await supabase
+              .from('subtasks')
+              .delete()
+              .eq('Task Name', subtask['Task Name'])
+              .in('Parent Task ID', taskIds);
+            if (error) throw error;
+          }
+        } else {
+          // 'on_task_creation' mode: just mark as completed
+          const { error } = await supabase
+            .from('subtasks')
+            .update({ Progress: 'Completed' })
+            .eq('id', subtaskId);
+          if (error) throw error;
+        }
+      } else {
+        // No project - just mark as completed
+        const { error } = await supabase
+          .from('subtasks')
+          .update({ Progress: 'Completed' })
+          .eq('id', subtaskId);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });

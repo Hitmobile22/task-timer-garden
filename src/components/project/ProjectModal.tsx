@@ -21,6 +21,20 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { type Goal } from '@/types/goals.types';
 import { RichTextEditor } from '../task/editor/RichTextEditor';
 
+// Subtask mode type
+type SubtaskMode = 'on_task_creation' | 'progressive' | 'daily' | 'every_x_days' | 'every_x_weeks' | 'days_of_week';
+
+const SUBTASK_MODE_DESCRIPTIONS: Record<SubtaskMode, string> = {
+  'on_task_creation': 'Subtasks are added to each new task. Completing them has no effect on the template.',
+  'progressive': 'When a subtask is completed, it is permanently removed from future tasks.',
+  'daily': 'Completed subtasks are removed from all tasks and respawn at midnight.',
+  'every_x_days': 'Completed subtasks respawn after the specified number of days.',
+  'every_x_weeks': 'Completed subtasks respawn after the specified number of weeks.',
+  'days_of_week': 'Completed subtasks respawn on selected days of the week.',
+};
+
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
 interface TaskList {
   id: number;
   name: string;
@@ -63,7 +77,9 @@ export const ProjectModal = ({
   const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<'details' | 'description' | 'tasks' | 'goals'>('details');
   const [subtaskNames, setSubtaskNames] = useState<string[]>([]);
-  const [progressiveMode, setProgressiveMode] = useState(false);
+  const [subtaskMode, setSubtaskMode] = useState<SubtaskMode>('on_task_creation');
+  const [respawnIntervalValue, setRespawnIntervalValue] = useState(1);
+  const [respawnDaysOfWeek, setRespawnDaysOfWeek] = useState<string[]>([]);
   const [descriptionContent, setDescriptionContent] = useState<any>(null);
   
   useEffect(() => {
@@ -100,11 +116,11 @@ export const ProjectModal = ({
         setDescriptionContent(null);
       }
       
-      // Load subtask names and progressive mode from recurring_project_settings
+      // Load subtask names and subtask mode from recurring_project_settings
       if (project.id) {
         supabase
           .from('recurring_project_settings')
-          .select('subtask_names, progressive_mode')
+          .select('subtask_names, subtask_mode, respawn_interval_value, respawn_days_of_week')
           .eq('project_id', project.id)
           .maybeSingle()
           .then(({ data }) => {
@@ -113,7 +129,10 @@ export const ProjectModal = ({
             } else {
               setSubtaskNames([]);
             }
-            setProgressiveMode(data?.progressive_mode || false);
+            // Handle migration from old progressive_mode boolean
+            setSubtaskMode((data?.subtask_mode as SubtaskMode) || 'on_task_creation');
+            setRespawnIntervalValue(data?.respawn_interval_value || 1);
+            setRespawnDaysOfWeek(data?.respawn_days_of_week || []);
           });
       }
       
@@ -161,7 +180,9 @@ export const ProjectModal = ({
       setSelectedTasks([]);
       setGoals([]);
       setSubtaskNames([]);
-      setProgressiveMode(false);
+      setSubtaskMode('on_task_creation');
+      setRespawnIntervalValue(1);
+      setRespawnDaysOfWeek([]);
       setDescriptionContent(null);
     }
   }, [project, taskLists]);
@@ -472,7 +493,9 @@ export const ProjectModal = ({
               .from('recurring_project_settings')
               .update({ 
                 subtask_names: filteredSubtaskNames,
-                progressive_mode: progressiveMode 
+                subtask_mode: subtaskMode,
+                respawn_interval_value: respawnIntervalValue,
+                respawn_days_of_week: respawnDaysOfWeek
               })
               .eq('project_id', project.id);
           } else {
@@ -482,7 +505,9 @@ export const ProjectModal = ({
                 project_id: project.id,
                 user_id: user?.id,
                 subtask_names: filteredSubtaskNames,
-                progressive_mode: progressiveMode
+                subtask_mode: subtaskMode,
+                respawn_interval_value: respawnIntervalValue,
+                respawn_days_of_week: respawnDaysOfWeek
               });
           }
           
@@ -579,7 +604,7 @@ export const ProjectModal = ({
           console.error("Error creating project goals:", goalsError);
         }
         
-        // Save subtask names and progressive mode to recurring_project_settings for new project
+        // Save subtask names and subtask mode to recurring_project_settings for new project
         if (isRecurring) {
           const filteredSubtaskNames = subtaskNames.filter(name => name.trim() !== '');
           
@@ -589,7 +614,9 @@ export const ProjectModal = ({
               project_id: newProject.id,
               user_id: user?.id,
               subtask_names: filteredSubtaskNames,
-              progressive_mode: progressiveMode
+              subtask_mode: subtaskMode,
+              respawn_interval_value: respawnIntervalValue,
+              respawn_days_of_week: respawnDaysOfWeek
             });
           
           // Auto-populate subtasks on existing incomplete tasks (for new projects with selected tasks)
@@ -898,19 +925,78 @@ export const ProjectModal = ({
                               These subtasks will be added to each recurring task created
                             </p>
                             
-                            <div className="flex items-center gap-2 pt-2 border-t border-primary/10">
-                              <Switch
-                                id="progressiveMode"
-                                checked={progressiveMode}
-                                onCheckedChange={setProgressiveMode}
-                              />
-                              <Label htmlFor="progressiveMode" className="text-sm font-normal cursor-pointer">
-                                Progressive Mode
-                              </Label>
+                            <div className="space-y-3 pt-2 border-t border-primary/10">
+                              <div className="flex flex-col gap-2">
+                                <Label htmlFor="subtaskMode" className="text-sm font-normal">
+                                  Subtask Mode
+                                </Label>
+                                <Select value={subtaskMode} onValueChange={(value: SubtaskMode) => setSubtaskMode(value)}>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="on_task_creation">On Task Creation</SelectItem>
+                                    <SelectItem value="progressive">Progressive Mode</SelectItem>
+                                    <SelectItem value="daily">Daily</SelectItem>
+                                    <SelectItem value="every_x_days">Every X Days</SelectItem>
+                                    <SelectItem value="every_x_weeks">Every X Weeks</SelectItem>
+                                    <SelectItem value="days_of_week">Days of Week</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              {/* Show interval input for every_x_days or every_x_weeks */}
+                              {(subtaskMode === 'every_x_days' || subtaskMode === 'every_x_weeks') && (
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-sm">Every</Label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    max="30"
+                                    value={respawnIntervalValue}
+                                    onChange={(e) => setRespawnIntervalValue(Math.max(1, Number(e.target.value)))}
+                                    className="w-20"
+                                  />
+                                  <span className="text-sm text-muted-foreground">
+                                    {subtaskMode === 'every_x_days' ? 'day(s)' : 'week(s)'}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Show day checkboxes for days_of_week mode */}
+                              {subtaskMode === 'days_of_week' && (
+                                <div className="space-y-2">
+                                  <Label className="text-sm">Respawn on:</Label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {DAYS_OF_WEEK.map((day) => (
+                                      <div key={day} className="flex items-center space-x-2">
+                                        <Checkbox
+                                          id={`respawn-${day}`}
+                                          checked={respawnDaysOfWeek.includes(day)}
+                                          onCheckedChange={(checked) => {
+                                            if (checked) {
+                                              setRespawnDaysOfWeek([...respawnDaysOfWeek, day]);
+                                            } else {
+                                              setRespawnDaysOfWeek(respawnDaysOfWeek.filter(d => d !== day));
+                                            }
+                                          }}
+                                        />
+                                        <label
+                                          htmlFor={`respawn-${day}`}
+                                          className="text-xs font-medium leading-none cursor-pointer"
+                                        >
+                                          {day.slice(0, 3)}
+                                        </label>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <p className="text-xs text-muted-foreground">
+                                {SUBTASK_MODE_DESCRIPTIONS[subtaskMode]}
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              When enabled, completed subtasks are permanently removed and won't appear in future tasks
-                            </p>
                           </div>
                         )}
                       </div>

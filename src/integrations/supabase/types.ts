@@ -471,6 +471,7 @@ export type Database = {
       }
       subtasks: {
         Row: {
+          completed_at: string | null
           created_at: string
           id: number
           "Parent Task ID": number | null
@@ -480,6 +481,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          completed_at?: string | null
           created_at?: string
           id?: never
           "Parent Task ID"?: number | null
@@ -489,6 +491,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          completed_at?: string | null
           created_at?: string
           id?: never
           "Parent Task ID"?: number | null

@@ -1013,7 +1013,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       id: number;
       isSubtask?: boolean;
     }) => {
-      // If it's a subtask, check if progressive mode is enabled for the parent project
+      // If it's a subtask, handle recurring subtask modes
       if (isSubtask) {
         // Get the subtask details first
         const { data: subtask, error: subtaskError } = await supabase
@@ -1024,40 +1024,150 @@ export const TaskList: React.FC<TaskListProps> = ({
           
         if (subtaskError) throw subtaskError;
         
-        // Get the parent task to find the project
+        // Get the parent task to find the project or task list
         const { data: parentTask, error: taskError } = await supabase
           .from('Tasks')
-          .select('project_id')
+          .select('id, project_id, task_list_id, Progress, date_started')
           .eq('id', subtask["Parent Task ID"])
           .single();
           
         if (taskError) throw taskError;
         
-        // If the task belongs to a project, check progressive mode
+        const subtaskName = subtask["Task Name"];
+        let subtaskMode: string | null = null;
+        let isProjectBased = false;
+        
+        // Check for project settings first
         if (parentTask?.project_id) {
           const { data: projectSettings } = await supabase
             .from('recurring_project_settings')
-            .select('subtask_names, progressive_mode')
+            .select('subtask_names, progressive_mode, subtask_mode')
             .eq('project_id', parentTask.project_id)
             .maybeSingle();
             
-          // If progressive mode is enabled, remove the subtask from the template
-          if (projectSettings?.progressive_mode && projectSettings?.subtask_names) {
-            const subtaskName = subtask["Task Name"];
-            const updatedSubtaskNames = projectSettings.subtask_names.filter(
-              (name: string) => name !== subtaskName
-            );
+          if (projectSettings) {
+            subtaskMode = projectSettings.subtask_mode || 'on_task_creation';
+            isProjectBased = true;
             
-            await supabase
-              .from('recurring_project_settings')
-              .update({ subtask_names: updatedSubtaskNames })
-              .eq('project_id', parentTask.project_id);
+            // Handle progressive mode (remove from template)
+            if (projectSettings.progressive_mode || subtaskMode === 'progressive') {
+              if (projectSettings.subtask_names) {
+                const updatedSubtaskNames = projectSettings.subtask_names.filter(
+                  (name: string) => name !== subtaskName
+                );
+                
+                await supabase
+                  .from('recurring_project_settings')
+                  .update({ subtask_names: updatedSubtaskNames })
+                  .eq('project_id', parentTask.project_id);
+                  
+                console.log(`Progressive Mode: Removed "${subtaskName}" from project ${parentTask.project_id} template`);
+              }
+            }
+          }
+        }
+        
+        // Check for task list settings if no project settings found
+        if (!subtaskMode && parentTask?.task_list_id) {
+          const { data: listSettings } = await supabase
+            .from('recurring_task_settings')
+            .select('subtask_names, subtask_mode')
+            .eq('task_list_id', parentTask.task_list_id)
+            .eq('enabled', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+            
+          if (listSettings) {
+            subtaskMode = listSettings.subtask_mode || 'on_task_creation';
+            
+            // Handle progressive mode for task lists
+            if (subtaskMode === 'progressive' && listSettings.subtask_names) {
+              const updatedSubtaskNames = listSettings.subtask_names.filter(
+                (name: string) => name !== subtaskName
+              );
               
-            console.log(`Progressive Mode: Removed "${subtaskName}" from project ${parentTask.project_id} template`);
+              await supabase
+                .from('recurring_task_settings')
+                .update({ subtask_names: updatedSubtaskNames })
+                .eq('task_list_id', parentTask.task_list_id)
+                .eq('enabled', true);
+                
+              console.log(`Progressive Mode: Removed "${subtaskName}" from task list ${parentTask.task_list_id} template`);
+            }
+          }
+        }
+        
+        // For recurring modes (daily, every_x_days, every_x_weeks, days_of_week):
+        // Delete the same subtask from other Today's Tasks
+        const recurringModes = ['daily', 'every_x_days', 'every_x_weeks', 'days_of_week'];
+        if (subtaskMode && recurringModes.includes(subtaskMode)) {
+          console.log(`Recurring subtask mode: ${subtaskMode} - deleting "${subtaskName}" from other Today's Tasks`);
+          
+          // Get Today's Tasks using the same logic as the Scheduler
+          const now = new Date();
+          const estNow = toZonedTime(now, 'America/New_York');
+          const estHour = estNow.getHours();
+          const isEveningMode = estHour >= 21 || estHour < 3;
+          
+          let sessionEndEST: Date;
+          if (isEveningMode) {
+            if (estHour >= 21) {
+              sessionEndEST = new Date(estNow);
+              sessionEndEST.setDate(sessionEndEST.getDate() + 1);
+              sessionEndEST.setHours(3, 0, 0, 0);
+            } else {
+              sessionEndEST = new Date(estNow);
+              sessionEndEST.setHours(3, 0, 0, 0);
+            }
+          } else {
+            const tomorrowEST = new Date(estNow);
+            tomorrowEST.setDate(tomorrowEST.getDate() + 1);
+            tomorrowEST.setHours(3, 0, 0, 0);
+            sessionEndEST = tomorrowEST;
+          }
+          
+          const sessionEndUTC = fromZonedTime(sessionEndEST, 'America/New_York');
+          
+          // Get all active tasks from the same recurring source within Today's window
+          let todayTasksQuery = supabase
+            .from('Tasks')
+            .select('id')
+            .in('Progress', ['Not started', 'In progress'])
+            .lt('date_started', sessionEndUTC.toISOString());
+          
+          // Scope to the same recurring source
+          if (isProjectBased && parentTask.project_id) {
+            todayTasksQuery = todayTasksQuery.eq('project_id', parentTask.project_id);
+          } else if (parentTask.task_list_id) {
+            todayTasksQuery = todayTasksQuery.eq('task_list_id', parentTask.task_list_id);
+          }
+          
+          const { data: todayTasks, error: todayTasksError } = await todayTasksQuery;
+          
+          if (todayTasksError) {
+            console.error('Error fetching today tasks for subtask deletion:', todayTasksError);
+          } else if (todayTasks && todayTasks.length > 0) {
+            const todayTaskIds = todayTasks.map(t => t.id);
+            
+            // Delete the same subtask from other tasks (not the current one)
+            const { error: deleteError, count } = await supabase
+              .from('subtasks')
+              .delete()
+              .eq('Task Name', subtaskName)
+              .in('Parent Task ID', todayTaskIds)
+              .neq('id', id);
+              
+            if (deleteError) {
+              console.error('Error deleting subtasks from other Today tasks:', deleteError);
+            } else {
+              console.log(`Deleted ${count || 0} matching subtasks "${subtaskName}" from other Today's Tasks`);
+            }
           }
         }
       }
       
+      // Mark the clicked subtask/task as completed
       const {
         error
       } = await supabase.from(isSubtask ? 'subtasks' : 'Tasks').update({

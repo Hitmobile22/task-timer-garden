@@ -110,8 +110,26 @@ async function checkSubtaskRespawns(supabaseClient: any, userId: string) {
         continue;
       }
       
-      // For each active task, ensure all template subtasks exist
+      let totalReset = 0;
+      let totalAdded = 0;
+      
+      // For each active task, reset completed subtasks AND add missing ones
       for (const task of (activeTasks || [])) {
+        // First, reset any existing template subtasks that are completed back to Not started
+        const { error: resetError, count: resetCount } = await supabaseClient
+          .from('subtasks')
+          .update({ Progress: 'Not started', completed_at: null })
+          .eq('Parent Task ID', task.id)
+          .in('Task Name', subtaskTemplate)
+          .eq('Progress', 'Completed');
+        
+        if (resetError) {
+          console.error(`Error resetting subtasks for task ${task.id}:`, resetError);
+        } else {
+          totalReset += resetCount || 0;
+        }
+        
+        // Get existing subtasks after reset
         const { data: existingSubtasks, error: subtasksError } = await supabaseClient
           .from('subtasks')
           .select('"Task Name"')
@@ -124,7 +142,7 @@ async function checkSubtaskRespawns(supabaseClient: any, userId: string) {
         
         const existingNames = existingSubtasks?.map((s: any) => s['Task Name']) || [];
         
-        // Add missing subtasks (no duplicates)
+        // Add missing subtasks (were deleted during completion)
         const newSubtasks = subtaskTemplate
           .filter((name: string) => !existingNames.includes(name) && name.trim())
           .map((name: string, index: number) => ({
@@ -144,10 +162,13 @@ async function checkSubtaskRespawns(supabaseClient: any, userId: string) {
             console.error(`Error inserting subtasks for task ${task.id}:`, insertError);
           } else {
             console.log(`Respawned ${newSubtasks.length} subtasks for task ${task.id}`);
-            respawnedCount += newSubtasks.length;
+            totalAdded += newSubtasks.length;
           }
         }
       }
+      
+      respawnedCount += totalReset + totalAdded;
+      console.log(`Project ${settings.project_id} respawn complete: ${totalReset} reset, ${totalAdded} added`);
       
       // Update last_subtask_respawn timestamp
       const { error: updateError } = await supabaseClient
@@ -166,6 +187,40 @@ async function checkSubtaskRespawns(supabaseClient: any, userId: string) {
   }
   
   return { respawned: respawnedCount, errors: errorsCount };
+}
+
+// Get suppressed subtask names (completed since last respawn) for a project
+async function getSuppressedSubtaskNamesForProject(
+  supabaseClient: any,
+  projectId: number,
+  lastRespawn: string | null,
+  subtaskTemplate: string[]
+): Promise<string[]> {
+  if (!subtaskTemplate || subtaskTemplate.length === 0) {
+    return [];
+  }
+  
+  const windowStart = lastRespawn ? new Date(lastRespawn) : new Date(0);
+  
+  // Find subtasks that were completed since the last respawn for this project
+  const { data: completedSubtasks, error } = await supabaseClient
+    .from('subtasks')
+    .select('"Task Name", "Parent Task ID", completed_at, Tasks!inner(project_id)')
+    .eq('Tasks.project_id', projectId)
+    .in('Task Name', subtaskTemplate)
+    .not('completed_at', 'is', null)
+    .gte('completed_at', windowStart.toISOString());
+  
+  if (error) {
+    console.error(`Error fetching suppressed subtasks for project ${projectId}:`, error);
+    return [];
+  }
+  
+  // Get unique suppressed names
+  const suppressedNames = [...new Set((completedSubtasks || []).map(s => s['Task Name']))];
+  console.log(`Suppressed subtasks for project ${projectId}: [${suppressedNames.join(', ')}]`);
+  
+  return suppressedNames;
 }
 
 Deno.serve(async (req) => {
@@ -561,18 +616,39 @@ Deno.serve(async (req) => {
         console.log(`Created ${createdTasks?.length || 0} tasks for project ${project.id}`);
         
         // Create subtasks for each task created
+        // But exclude suppressed subtasks (completed since last respawn) for recurring modes
         if (createdTasks && createdTasks.length > 0) {
           const { data: projectSettings } = await supabaseClient
             .from('recurring_project_settings')
-            .select('subtask_names')
+            .select('subtask_names, subtask_mode, last_subtask_respawn')
             .eq('project_id', project.id)
             .maybeSingle();
             
           if (projectSettings?.subtask_names && projectSettings.subtask_names.length > 0) {
+            const recurringModes = ['daily', 'every_x_days', 'every_x_weeks', 'days_of_week'];
+            let subtasksToInsertNames = [...projectSettings.subtask_names];
+            
+            // For recurring modes, check for suppressed subtasks
+            if (recurringModes.includes(projectSettings.subtask_mode || '')) {
+              const suppressedNames = await getSuppressedSubtaskNamesForProject(
+                supabaseClient,
+                project.id,
+                projectSettings.last_subtask_respawn,
+                projectSettings.subtask_names
+              );
+              
+              // Filter out suppressed subtasks
+              subtasksToInsertNames = subtasksToInsertNames.filter(
+                name => !suppressedNames.includes(name)
+              );
+              
+              console.log(`After filtering suppressed subtasks for project ${project.id}, inserting: [${subtasksToInsertNames.join(', ')}]`);
+            }
+            
             const subtasksToInsert = [];
             for (const task of createdTasks) {
               // Use index as sort_order to preserve array order
-              projectSettings.subtask_names.forEach((subtaskName: string, index: number) => {
+              subtasksToInsertNames.forEach((subtaskName: string, index: number) => {
                 if (subtaskName.trim()) {
                   subtasksToInsert.push({
                     "Task Name": subtaskName,

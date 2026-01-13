@@ -7,7 +7,8 @@ import {
   hasTaskListBeenGeneratedToday, 
   setTaskListGenerated, 
   isDayMatch,
-  resetGenerationCacheIfNewDay
+  resetGenerationCacheIfNewDay,
+  isWithinGenerationWindow
 } from '@/utils/recurringUtils';
 
 let isGlobalChecking = false;
@@ -392,9 +393,8 @@ export const useUnifiedRecurringTasksCheck = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       try {
-        const currentHour = new Date().getHours();
-        
-        if (currentHour >= 8 && currentHour < 22) {
+        // Use EST-based generation window check (7 AM - 9 PM EST)
+        if (isWithinGenerationWindow()) {
           checkRecurringTasks(false);
         }
       } catch (error) {

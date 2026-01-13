@@ -17,6 +17,42 @@ const normalizeDay = (day: string): string =>
 // Type for subtask modes
 type SubtaskMode = 'on_task_creation' | 'progressive' | 'daily' | 'every_x_days' | 'every_x_weeks' | 'days_of_week';
 
+// Helper function to get EST day boundaries (day starts at 3 AM EST)
+function getESTDayBoundaries() {
+  const now = new Date();
+  const estNow = toZonedTime(now, 'America/New_York');
+  const estHour = estNow.getHours();
+  
+  // Day starts at 3 AM EST
+  // If before 3 AM, we're still in "yesterday"
+  const dayStartEST = new Date(estNow);
+  if (estHour < 3) {
+    dayStartEST.setDate(dayStartEST.getDate() - 1);
+  }
+  dayStartEST.setHours(3, 0, 0, 0);
+  
+  const dayEndEST = new Date(dayStartEST);
+  dayEndEST.setDate(dayEndEST.getDate() + 1);
+  
+  // Convert EST boundaries back to UTC for database queries
+  const dayStartUTC = fromZonedTime(dayStartEST, 'America/New_York');
+  const dayEndUTC = fromZonedTime(dayEndEST, 'America/New_York');
+  
+  // Get day name in EST
+  const estDayName = estNow.toLocaleDateString('en-US', { weekday: 'long' });
+  
+  return { 
+    now, 
+    estNow, 
+    estHour, 
+    dayStartUTC, 
+    dayEndUTC, 
+    dayStartEST, 
+    dayEndEST,
+    estDayName
+  };
+}
+
 // Helper function to check if subtasks should respawn based on mode and timing
 function checkIfShouldRespawn(
   settings: any, 
@@ -27,12 +63,14 @@ function checkIfShouldRespawn(
     ? new Date(settings.last_subtask_respawn) 
     : null;
   
+  const { dayStartEST } = getESTDayBoundaries();
+  
   switch (settings.subtask_mode as SubtaskMode) {
     case 'daily':
-      // Respawn if it's a new day (past midnight EST)
+      // Respawn if it's a new day (past 3 AM EST)
       if (!lastRespawn) return true;
       const lastRespawnEST = toZonedTime(lastRespawn, 'America/New_York');
-      return estNow.toDateString() !== lastRespawnEST.toDateString();
+      return lastRespawnEST.getTime() < dayStartEST.getTime();
       
     case 'every_x_days':
       if (!lastRespawn) return true;
@@ -50,7 +88,7 @@ function checkIfShouldRespawn(
       if (!respawnDays.includes(normalizedCurrentDay)) return false;
       if (!lastRespawn) return true;
       const lastRespawnESTDow = toZonedTime(lastRespawn, 'America/New_York');
-      return estNow.toDateString() !== lastRespawnESTDow.toDateString();
+      return lastRespawnESTDow.getTime() < dayStartEST.getTime();
       
     default:
       return false;
@@ -61,9 +99,8 @@ function checkIfShouldRespawn(
 async function checkSubtaskRespawns(supabaseClient: any, userId: string) {
   console.log('Checking for subtask respawns...');
   
-  const now = new Date();
-  const estNow = toZonedTime(now, 'America/New_York');
-  const currentDay = estNow.toLocaleDateString('en-US', { weekday: 'long' });
+  const { now, estNow, estDayName } = getESTDayBoundaries();
+  const currentDay = estDayName;
   
   // Get all project settings that might need respawn
   const { data: allSettings, error: settingsError } = await supabaseClient
@@ -293,12 +330,10 @@ Deno.serve(async (req) => {
       try {
         console.log("Resetting daily project goals");
         
-        // Get the current date in EST timezone (matching frontend pattern)
-        const now = new Date();
-        const estNow = toZonedTime(now, 'America/New_York');
-        const todayMidnightEST = new Date(estNow);
-        todayMidnightEST.setHours(0, 0, 0, 0);
-        const today = fromZonedTime(todayMidnightEST, 'America/New_York');
+        // Get EST day boundaries (day starts at 3 AM EST)
+        const { dayStartUTC, dayEndUTC } = getESTDayBoundaries();
+        const today = dayStartUTC;
+        const tomorrow = dayEndUTC;
         
         // First, check if we've already reset goals today using the log table
         const { data: resetLog, error: resetLogError } = await supabaseClient
@@ -307,7 +342,7 @@ Deno.serve(async (req) => {
           .eq('task_list_id', -1) // Special ID for daily goal resets
           .eq('setting_id', -1)   // Special ID for daily goal resets 
           .gte('generation_date', today.toISOString())
-          .lt('generation_date', new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString())
+          .lt('generation_date', tomorrow.toISOString())
           .maybeSingle();
           
         if (resetLogError) {
@@ -396,8 +431,29 @@ Deno.serve(async (req) => {
     const forceCheck = body.forceCheck || false;
     const results = [];
     
-    // Get the current day of week (use the one from the client if available)
-    const currentDay = body.dayOfWeek || new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    // Get EST day boundaries (day starts at 3 AM EST)
+    const { estNow, estHour, dayStartUTC, dayEndUTC, estDayName } = getESTDayBoundaries();
+    
+    // Check if we're in the valid generation window (7 AM - 9 PM EST)
+    if (!forceCheck && (estHour < 7 || estHour >= 21)) {
+      console.log(`Outside generation window (EST hour: ${estHour}), skipping task generation`);
+      return new Response(
+        JSON.stringify({ 
+          message: 'Outside generation window', 
+          estHour,
+          windowStart: 7,
+          windowEnd: 21
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Use these for database queries
+    const today = dayStartUTC;
+    const tomorrow = dayEndUTC;
+    
+    // Get the current day of week (use EST for consistency)
+    const currentDay = body.dayOfWeek || estDayName;
     const normalizedCurrentDay = normalizeDay(currentDay);
     
     console.log(`Processing ${projects.length} recurring projects on ${currentDay} (normalized: ${normalizedCurrentDay})`);
@@ -441,22 +497,7 @@ Deno.serve(async (req) => {
           }
         }
         
-        // Check for existing generation log for today (using EST timezone)
-        const now = new Date();
-        const estNow = toZonedTime(now, 'America/New_York');
-        
-        // Get today's midnight in EST
-        const todayMidnightEST = new Date(estNow);
-        todayMidnightEST.setHours(0, 0, 0, 0);
-        
-        // Get tomorrow's midnight in EST
-        const tomorrowMidnightEST = new Date(todayMidnightEST);
-        tomorrowMidnightEST.setDate(tomorrowMidnightEST.getDate() + 1);
-        
-        // Convert EST boundaries back to UTC for database queries
-        const today = fromZonedTime(todayMidnightEST, 'America/New_York');
-        const tomorrow = fromZonedTime(tomorrowMidnightEST, 'America/New_York');
-        
+        // Check for existing generation log for today (using 3 AM EST boundaries)
         const { data: existingLog, error: logError } = await supabaseClient
           .from('recurring_task_generation_logs')
           .select('*')
@@ -504,7 +545,7 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        // CRITICAL FIX: Also get tasks completed today
+        // CRITICAL FIX: Also get tasks completed today (using 3 AM EST boundary)
         const { data: completedTodayTasks, error: completedTasksError } = await supabaseClient
           .from('Tasks')
           .select('id')
@@ -528,7 +569,7 @@ Deno.serve(async (req) => {
         const totalRelevantTaskCount = activeTaskCount + completedTodayCount;
         const taskGoal = project.recurringTaskCount || 1;
         
-        console.log(`Project ${project.id} has ${activeTaskCount} active tasks, ${completedTodayCount} completed today. Total: ${totalRelevantTaskCount} of ${taskGoal} goal`);
+        console.log(`Project ${project.id} has ${activeTaskCount} active tasks, ${completedTodayCount} completed today (3AM EST boundary). Total: ${totalRelevantTaskCount} of ${taskGoal} goal`);
         
         if (totalRelevantTaskCount >= taskGoal && !forceCheck) {
           console.log(`Project ${project.id} already has enough tasks (including completed ones), skipping`);
@@ -576,11 +617,13 @@ Deno.serve(async (req) => {
         }
         
         for (let i = 0; i < tasksToCreate; i++) {
-          const taskStartTime = new Date(today);
-          taskStartTime.setHours(13, 0 + (i * 30), 0, 0); // Changed from 9 to 13 for EST (9am EST = 1pm UTC)
+          // Set task start time to 8 AM EST (convert to UTC for storage)
+          const taskStartEST = new Date(getESTDayBoundaries().dayStartEST);
+          taskStartEST.setHours(8, 0 + (i * 30), 0, 0); // 8:00, 8:30, 9:00 EST, etc.
+          const taskStartUTC = fromZonedTime(taskStartEST, 'America/New_York');
           
-          const taskEndTime = new Date(taskStartTime);
-          taskEndTime.setMinutes(taskStartTime.getMinutes() + 25);
+          const taskEndUTC = new Date(taskStartUTC);
+          taskEndUTC.setMinutes(taskStartUTC.getMinutes() + 25);
           
           // Remove the task number suffix to avoid (1), (2) etc. at the end of task names
           let taskName = `${project["Project Name"]} - Task`;
@@ -588,8 +631,8 @@ Deno.serve(async (req) => {
           newTasks.push({
             "Task Name": taskName,
             "Progress": "Not started",
-            date_started: taskStartTime.toISOString(),
-            date_due: taskEndTime.toISOString(),
+            date_started: taskStartUTC.toISOString(),
+            date_due: taskEndUTC.toISOString(),
             project_id: project.id,
             task_list_id: project.task_list_id,
             user_id: user.id,

@@ -1,5 +1,6 @@
 
 import { getCurrentDayName } from "@/lib/utils";
+import { toZonedTime } from 'date-fns-tz';
 
 // Create a module state object to keep track of state
 const globalState = {
@@ -72,13 +73,24 @@ export const setHasShownDailyResetToast = (value: boolean) => {
 
 export const getTaskListGenerationCache = () => globalState.taskListGenerationCache;
 
-// Reset toast notification state at midnight
+// Reset toast notification state at 3 AM EST (day boundary)
 export const resetToastStateAtMidnight = () => {
   const now = new Date();
-  const resetDate = new Date(globalState.lastDailyGoalResetDay);
+  const estNow = toZonedTime(now, 'America/New_York');
+  const estHour = estNow.getHours();
   
-  // If the day has changed since last reset, clear the toast flag
-  if (now.toDateString() !== resetDate.toDateString()) {
+  // Get the EST day start (3 AM boundary)
+  const dayStartEST = new Date(estNow);
+  if (estHour < 3) {
+    dayStartEST.setDate(dayStartEST.getDate() - 1);
+  }
+  dayStartEST.setHours(3, 0, 0, 0);
+  
+  const resetDate = new Date(globalState.lastDailyGoalResetDay);
+  const resetDateEST = toZonedTime(resetDate, 'America/New_York');
+  
+  // If the reset was before today's 3 AM EST boundary, clear the toast flag
+  if (resetDateEST.getTime() < dayStartEST.getTime()) {
     setHasShownDailyResetToast(false);
   }
 };
@@ -101,23 +113,32 @@ export const setTaskListGenerated = (listId: number, date: Date = new Date()) =>
   }
 };
 
-// More strict checking if a task list has been generated today
+// More strict checking if a task list has been generated today (using 3 AM EST boundary)
 export const hasTaskListBeenGeneratedToday = (listId: number): boolean => {
   if (!listId) return false;
+  
+  // Get EST day boundaries (day starts at 3 AM EST)
+  const now = new Date();
+  const estNow = toZonedTime(now, 'America/New_York');
+  const estHour = estNow.getHours();
+  
+  const dayStartEST = new Date(estNow);
+  if (estHour < 3) {
+    dayStartEST.setDate(dayStartEST.getDate() - 1);
+  }
+  dayStartEST.setHours(3, 0, 0, 0);
   
   // First try localStorage for persistence across page refreshes
   try {
     const cacheData = JSON.parse(localStorage.getItem('task_list_generation_cache') || '{}');
     if (cacheData[listId]) {
       const cachedDate = new Date(cacheData[listId]);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const cachedDay = new Date(cachedDate);
-      cachedDay.setHours(0, 0, 0, 0);
+      const cachedDateEST = toZonedTime(cachedDate, 'America/New_York');
       
-      const result = cachedDay.getTime() === today.getTime();
+      // Check if cached date is after today's 3 AM EST boundary
+      const result = cachedDateEST.getTime() >= dayStartEST.getTime();
       if (result) {
-        console.log(`Task list ${listId} was generated today (from localStorage cache): ${cachedDate}`);
+        console.log(`Task list ${listId} was generated today (from localStorage cache, 3AM EST boundary): ${cachedDate}`);
         // Also update memory cache
         globalState.taskListGenerationCache.set(listId, cachedDate);
         return true;
@@ -131,13 +152,9 @@ export const hasTaskListBeenGeneratedToday = (listId: number): boolean => {
   const cachedDate = globalState.taskListGenerationCache.get(listId);
   if (!cachedDate) return false;
   
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const cachedDay = new Date(cachedDate);
-  cachedDay.setHours(0, 0, 0, 0);
-  
-  const result = cachedDay.getTime() === today.getTime();
-  console.log(`Checking if task list ${listId} was generated today: ${result} (cached: ${cachedDate.toISOString()})`);
+  const cachedDateEST = toZonedTime(cachedDate, 'America/New_York');
+  const result = cachedDateEST.getTime() >= dayStartEST.getTime();
+  console.log(`Checking if task list ${listId} was generated today (3AM EST boundary): ${result} (cached: ${cachedDate.toISOString()})`);
   return result;
 };
 
@@ -163,16 +180,32 @@ export const isDayMatch = (currentDay: string, configuredDays: string[]): boolea
   return isMatch;
 };
 
-// Check if it's daytime hours for running checks
+// Check if it's daytime hours for running checks (7 AM - 9 PM EST)
 export const isDaytimeHours = (): boolean => {
-  const currentHour = new Date().getHours();
-  return currentHour >= 7 && currentHour < 22;
+  const estNow = toZonedTime(new Date(), 'America/New_York');
+  const estHour = estNow.getHours();
+  return estHour >= 7 && estHour < 21;
 };
 
-// Early morning check (before 7am don't generate tasks)
+// Early morning check (before 7 AM EST don't generate tasks)
 export const isTooEarlyForTaskGeneration = (): boolean => {
-  const currentHour = new Date().getHours();
-  return currentHour < 7;
+  const estNow = toZonedTime(new Date(), 'America/New_York');
+  const estHour = estNow.getHours();
+  return estHour < 7;
+};
+
+// Late evening check (9 PM EST or later don't generate tasks)
+export const isTooLateForTaskGeneration = (): boolean => {
+  const estNow = toZonedTime(new Date(), 'America/New_York');
+  const estHour = estNow.getHours();
+  return estHour >= 21;
+};
+
+// Check if we're within the valid generation window (7 AM - 9 PM EST)
+export const isWithinGenerationWindow = (): boolean => {
+  const estNow = toZonedTime(new Date(), 'America/New_York');
+  const estHour = estNow.getHours();
+  return estHour >= 7 && estHour < 21;
 };
 
 // Check if enough time has passed since the last check (rate limiting)
@@ -190,22 +223,38 @@ export const shouldRateLimitCheck = (
   return timeSinceLastCheck < rateLimitMs;
 };
 
-// Reset the generation cache for a new day
+// Reset the generation cache for a new day (using 3 AM EST boundary)
 export const resetGenerationCacheIfNewDay = () => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const estNow = toZonedTime(now, 'America/New_York');
+  const estHour = estNow.getHours();
+  
+  // Get today's 3 AM EST boundary
+  const dayStartEST = new Date(estNow);
+  if (estHour < 3) {
+    dayStartEST.setDate(dayStartEST.getDate() - 1);
+  }
+  dayStartEST.setHours(3, 0, 0, 0);
   
   // Check if we've stored the last reset date
   const lastResetKey = 'last_cache_reset_date';
   const lastResetStr = localStorage.getItem(lastResetKey);
   const lastReset = lastResetStr ? new Date(lastResetStr) : null;
   
-  // If we haven't reset today, clear the cache
-  if (!lastReset || lastReset.getTime() !== today.getTime()) {
-    console.log('New day detected, clearing task generation cache');
+  // If we haven't reset since today's 3 AM EST, clear the cache
+  if (!lastReset) {
+    console.log('No previous cache reset, clearing task generation cache');
     globalState.taskListGenerationCache.clear();
     localStorage.removeItem('task_list_generation_cache');
-    localStorage.setItem(lastResetKey, today.toISOString());
+    localStorage.setItem(lastResetKey, dayStartEST.toISOString());
+  } else {
+    const lastResetEST = toZonedTime(lastReset, 'America/New_York');
+    if (lastResetEST.getTime() < dayStartEST.getTime()) {
+      console.log('New day detected (3 AM EST boundary), clearing task generation cache');
+      globalState.taskListGenerationCache.clear();
+      localStorage.removeItem('task_list_generation_cache');
+      localStorage.setItem(lastResetKey, dayStartEST.toISOString());
+    }
   }
 };
 

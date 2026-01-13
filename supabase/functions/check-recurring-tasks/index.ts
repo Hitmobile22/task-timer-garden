@@ -1,8 +1,45 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+import { toZonedTime, fromZonedTime } from 'npm:date-fns-tz@3.2.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Helper function to get EST day boundaries (day starts at 3 AM EST)
+function getESTDayBoundaries() {
+  const now = new Date();
+  const estNow = toZonedTime(now, 'America/New_York');
+  const estHour = estNow.getHours();
+  
+  // Day starts at 3 AM EST
+  // If before 3 AM, we're still in "yesterday"
+  const dayStartEST = new Date(estNow);
+  if (estHour < 3) {
+    dayStartEST.setDate(dayStartEST.getDate() - 1);
+  }
+  dayStartEST.setHours(3, 0, 0, 0);
+  
+  const dayEndEST = new Date(dayStartEST);
+  dayEndEST.setDate(dayEndEST.getDate() + 1);
+  
+  // Convert EST boundaries back to UTC for database queries
+  const dayStartUTC = fromZonedTime(dayStartEST, 'America/New_York');
+  const dayEndUTC = fromZonedTime(dayEndEST, 'America/New_York');
+  
+  // Get day name in EST
+  const estDayName = estNow.toLocaleDateString('en-US', { weekday: 'long' });
+  
+  return { 
+    now, 
+    estNow, 
+    estHour, 
+    dayStartUTC, 
+    dayEndUTC, 
+    dayStartEST, 
+    dayEndEST,
+    estDayName
+  };
 }
 
 // Helper function to update or create generation log entry
@@ -14,19 +51,16 @@ async function updateGenerationLog(
   userId?: string
 ) {
   try {
-    // First try to update existing record for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Use EST day boundaries (3 AM EST to 3 AM EST)
+    const { dayStartUTC, dayEndUTC } = getESTDayBoundaries();
     
     const { data: existingLog, error: selectError } = await supabaseClient
       .from('recurring_task_generation_logs')
       .select('id')
       .eq('task_list_id', taskListId)
       .eq('setting_id', settingId)
-      .gte('generation_date', today.toISOString())
-      .lt('generation_date', tomorrow.toISOString())
+      .gte('generation_date', dayStartUTC.toISOString())
+      .lt('generation_date', dayEndUTC.toISOString())
       .maybeSingle();
       
     if (selectError) {
@@ -92,8 +126,8 @@ interface RecurringTaskSetting {
 
 type SubtaskMode = 'on_task_creation' | 'progressive' | 'daily' | 'every_x_days' | 'every_x_weeks' | 'days_of_week';
 
-// Check if subtasks should respawn based on mode and settings
-function checkIfShouldRespawn(settings: RecurringTaskSetting, now: Date, currentDay: string): boolean {
+// Check if subtasks should respawn based on mode and settings (using EST)
+function checkIfShouldRespawn(settings: RecurringTaskSetting, estNow: Date, currentDay: string): boolean {
   const mode = settings.subtask_mode as SubtaskMode || 'on_task_creation';
   
   // These modes don't support respawning
@@ -104,13 +138,12 @@ function checkIfShouldRespawn(settings: RecurringTaskSetting, now: Date, current
   const lastRespawn = settings.last_subtask_respawn ? new Date(settings.last_subtask_respawn) : null;
   
   if (mode === 'daily') {
-    // Respawn if we haven't respawned today
+    // Respawn if we haven't respawned today (using 3 AM EST boundary)
     if (!lastRespawn) return true;
-    const lastRespawnDate = new Date(lastRespawn);
-    lastRespawnDate.setHours(0, 0, 0, 0);
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    return lastRespawnDate.getTime() < today.getTime();
+    const lastRespawnEST = toZonedTime(lastRespawn, 'America/New_York');
+    // Compare dates based on 3 AM boundary
+    const { dayStartEST } = getESTDayBoundaries();
+    return lastRespawnEST.getTime() < dayStartEST.getTime();
   }
   
   if (mode === 'every_x_days') {
@@ -136,13 +169,11 @@ function checkIfShouldRespawn(settings: RecurringTaskSetting, now: Date, current
       return false;
     }
     
-    // Check if we've already respawned today
+    // Check if we've already respawned today (using 3 AM EST boundary)
     if (!lastRespawn) return true;
-    const lastRespawnDate = new Date(lastRespawn);
-    lastRespawnDate.setHours(0, 0, 0, 0);
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    return lastRespawnDate.getTime() < today.getTime();
+    const lastRespawnEST = toZonedTime(lastRespawn, 'America/New_York');
+    const { dayStartEST } = getESTDayBoundaries();
+    return lastRespawnEST.getTime() < dayStartEST.getTime();
   }
   
   return false;
@@ -152,8 +183,8 @@ function checkIfShouldRespawn(settings: RecurringTaskSetting, now: Date, current
 async function checkSubtaskRespawns(supabaseClient: any) {
   console.log('Checking for subtask respawns...');
   
-  const now = new Date();
-  const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
+  const { now, estNow, estDayName } = getESTDayBoundaries();
+  const currentDay = estDayName;
   
   // Get all task list settings that might need respawn
   const { data: allSettings, error } = await supabaseClient
@@ -170,7 +201,7 @@ async function checkSubtaskRespawns(supabaseClient: any) {
   console.log(`Found ${allSettings?.length || 0} settings to check for subtask respawn`);
   
   for (const settings of (allSettings || [])) {
-    const shouldRespawn = checkIfShouldRespawn(settings, now, currentDay);
+    const shouldRespawn = checkIfShouldRespawn(settings, estNow, currentDay);
     
     if (!shouldRespawn) {
       console.log(`Task list ${settings.task_list_id} does not need subtask respawn`);
@@ -307,36 +338,34 @@ async function getSuppressedSubtaskNames(
   return suppressedNames;
 }
 
-// Enhanced count function that includes completed tasks for today
+// Enhanced count function that includes completed tasks for today (using 3 AM EST boundary)
 const countAllTasksForDaily = async (supabaseClient: any, taskListId: number) => {
   try {
-    // Get today's date bounds
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Use EST day boundaries (3 AM EST to 3 AM EST)
+    const { dayStartUTC, dayEndUTC } = getESTDayBoundaries();
     
     // 1. Count active tasks in the list (Not Started or In Progress)
+    // Active tasks with date_started >= 3 AM EST today
     const { data: activeTasks, error: activeError } = await supabaseClient
       .from('Tasks')
       .select('id')
       .eq('task_list_id', taskListId)
-      .in('Progress', ['Not started', 'In progress']);
+      .in('Progress', ['Not started', 'In progress'])
+      .gte('date_started', dayStartUTC.toISOString());
       
     if (activeError) {
       console.error(`Error counting active tasks for list ${taskListId}:`, activeError);
       return { total: 0, active: 0, completedToday: 0 };
     }
     
-    // 2. Count tasks completed today
+    // 2. Count tasks completed today (using 3 AM EST boundary)
     const { data: completedTodayTasks, error: completedError } = await supabaseClient
       .from('Tasks')
       .select('id')
       .eq('task_list_id', taskListId)
       .eq('Progress', 'Completed')
-      .gte('date_completed', today.toISOString()) // Use date_completed, not date_started
-      .lt('date_completed', tomorrow.toISOString());
+      .gte('date_started', dayStartUTC.toISOString())
+      .lt('date_started', dayEndUTC.toISOString());
     
     if (completedError) {
       console.error(`Error counting completed tasks for list ${taskListId}:`, completedError);
@@ -348,7 +377,7 @@ const countAllTasksForDaily = async (supabaseClient: any, taskListId: number) =>
     const completedTodayCount = completedTodayTasks?.length || 0;
     const totalCount = activeCount + completedTodayCount;
     
-    console.log(`Task list ${taskListId} counts: active=${activeCount}, completedToday=${completedTodayCount}, total=${totalCount}`);
+    console.log(`Task list ${taskListId} counts (3AM EST boundary): active=${activeCount}, completedToday=${completedTodayCount}, total=${totalCount}`);
     
     return { 
       total: totalCount,
@@ -382,19 +411,32 @@ Deno.serve(async (req) => {
     const body = await req.json();
     console.log("Received request body:", JSON.stringify(body));
     
-    // Get today's date (without time)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Get EST day boundaries (day starts at 3 AM EST)
+    const { estNow, estHour, dayStartUTC, dayEndUTC, estDayName } = getESTDayBoundaries();
     
-    // Get tomorrow's date
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Use these for database queries
+    const today = dayStartUTC;
+    const tomorrow = dayEndUTC;
     
-    // Get current day of week - use the one passed from client if available
-    // This ensures consistency between client and server day determination
+    // Check if we're in the valid generation window (7 AM - 9 PM EST)
+    const forceCheckFromBody = !!body.forceCheck;
+    if (!forceCheckFromBody && (estHour < 7 || estHour >= 21)) {
+      console.log(`Outside generation window (EST hour: ${estHour}), skipping task generation`);
+      return new Response(
+        JSON.stringify({ 
+          message: 'Outside generation window', 
+          estHour,
+          windowStart: 7,
+          windowEnd: 21
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Get current day of week - use EST time for consistency
     let dayOfWeek = body.currentDay;
     if (!dayOfWeek) {
-      dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
+      dayOfWeek = estDayName;
     }
     
     // Normalize the day name for consistent case-insensitive comparison

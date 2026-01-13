@@ -14,6 +14,7 @@ import {
   normalizeDay,
   getCurrentNormalizedDay,
   isTooEarlyForTaskGeneration,
+  isWithinGenerationWindow,
   shouldRateLimitCheck,
   isDayMatch
 } from '@/utils/recurringUtils';
@@ -247,8 +248,8 @@ export const useRecurringProjectsCheck = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       try {
-        const currentHour = new Date().getHours();
-        if (currentHour >= 7 && currentHour < 22 && !isLocalChecking && !getIsGlobalCheckInProgress()) {
+        // Use EST-based generation window check (7 AM - 9 PM EST)
+        if (isWithinGenerationWindow() && !isLocalChecking && !getIsGlobalCheckInProgress()) {
           checkRecurringProjects();
         }
       } catch (error) {

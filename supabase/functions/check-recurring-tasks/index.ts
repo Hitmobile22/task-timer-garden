@@ -149,14 +149,14 @@ function checkIfShouldRespawn(settings: RecurringTaskSetting, estNow: Date, curr
   if (mode === 'every_x_days') {
     if (!lastRespawn) return true;
     const intervalDays = settings.respawn_interval_value || 1;
-    const daysSinceRespawn = Math.floor((now.getTime() - lastRespawn.getTime()) / (1000 * 60 * 60 * 24));
+    const daysSinceRespawn = Math.floor((estNow.getTime() - lastRespawn.getTime()) / (1000 * 60 * 60 * 24));
     return daysSinceRespawn >= intervalDays;
   }
   
   if (mode === 'every_x_weeks') {
     if (!lastRespawn) return true;
     const intervalWeeks = settings.respawn_interval_value || 1;
-    const weeksSinceRespawn = Math.floor((now.getTime() - lastRespawn.getTime()) / (1000 * 60 * 60 * 24 * 7));
+    const weeksSinceRespawn = Math.floor((estNow.getTime() - lastRespawn.getTime()) / (1000 * 60 * 60 * 24 * 7));
     return weeksSinceRespawn >= intervalWeeks;
   }
   

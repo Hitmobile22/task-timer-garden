@@ -66,6 +66,14 @@ const EditTaskModal = ({
   const [taskDuration, setTaskDuration] = useState(25); // Default task duration
   const queryClient = useQueryClient();
   
+  // Keep editingSubtasks synchronized with subtasks prop
+  React.useEffect(() => {
+    if (subtasks) {
+      const filtered = subtasks.filter(st => st["Parent Task ID"] === task.id);
+      setEditingSubtasks(filtered);
+    }
+  }, [subtasks, task.id]);
+  
   // Initialize task duration from details if available
   React.useEffect(() => {
     if (task.details) {
@@ -163,6 +171,18 @@ const EditTaskModal = ({
         return;
       }
 
+      // Fetch subtasks directly from the database to ensure we have the latest
+      const { data: taskSubtasks, error: subtasksError } = await supabase
+        .from('subtasks')
+        .select('*')
+        .eq('Parent Task ID', task.id)
+        .order('sort_order', { ascending: true });
+      
+      if (subtasksError) {
+        console.error('Error fetching subtasks for duplication:', subtasksError);
+        // Continue with duplication even if subtasks fetch fails
+      }
+
       // Create a new task as a copy of the current task, but only include fields that exist in the database
       const { data: newTask, error: taskError } = await supabase
         .from('Tasks')
@@ -175,17 +195,19 @@ const EditTaskModal = ({
           date_due: task.date_due,
           details: task.details,
           user_id: user.id  // Add user_id to comply with RLS policy
-          // IsTimeBlock field is removed as it doesn't exist in the database
         }])
         .select()
         .single();
 
       if (taskError) throw taskError;
 
+      // Use fetched subtasks, fallback to editingSubtasks if fetch failed
+      const subtasksToUse = taskSubtasks || editingSubtasks;
+      
       // If there are subtasks, duplicate them for the new task
-      if (editingSubtasks.length > 0) {
+      if (subtasksToUse && subtasksToUse.length > 0) {
         // Create an array of new subtasks objects, preserving their order
-        const newSubtasks = editingSubtasks.map((subtask, index) => ({
+        const newSubtasks = subtasksToUse.map((subtask, index) => ({
           "Task Name": subtask["Task Name"],
           "Parent Task ID": newTask.id,
           Progress: "Not started" as const,
@@ -204,6 +226,7 @@ const EditTaskModal = ({
       // Invalidate queries to refresh the UI
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
       
       toast.success('Task duplicated successfully');
       onClose();

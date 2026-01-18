@@ -32,12 +32,15 @@ import { CSVUploadModal } from '@/components/task/CSVUploadModal';
 import { syncGoogleCalendar } from '@/components/task/GoogleCalendarIntegration';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
+import { useTheme } from 'next-themes';
 
 export function TaskView() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { theme } = useTheme();
+  const isNightMode = theme === 'night';
   const [editingTaskId, setEditingTaskId] = React.useState<number | null>(null);
   const [editingTaskName, setEditingTaskName] = React.useState("");
   const [expandedTasks, setExpandedTasks] = React.useState<number[]>([]);
@@ -674,9 +677,13 @@ export function TaskView() {
     }
   };
 
+  const pageBackground = isNightMode 
+    ? 'linear-gradient(135deg, #000000 0%, #1f1001 100%)'
+    : 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)';
+
   return (
     <div className="min-h-screen p-6 space-y-8 animate-fadeIn" style={{
-      background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
+      background: pageBackground,
     }}>
       <div className="container mx-auto max-w-4xl flex justify-between items-center">
         <MenuBar />

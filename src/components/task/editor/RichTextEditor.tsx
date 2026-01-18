@@ -282,7 +282,7 @@ export const RichTextEditor = ({ initialContent, onChange, editable = true }: Ri
           </div>
         )}
         
-        <div className={`p-4 ${!editable ? 'prose prose-sm max-w-none' : ''}`}>
+        <div className={`p-4 ${!editable ? 'prose prose-sm max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h1:mb-4 prose-h2:text-xl prose-h2:mb-3 prose-h3:text-lg prose-h3:mb-2 prose-p:mb-2 prose-ul:list-disc prose-ul:pl-5 prose-ul:mb-2 prose-ol:list-decimal prose-ol:pl-5 prose-ol:mb-2 prose-li:mb-1' : ''}`}>
           <EditorContent editor={editor} />
         </div>
       </div>

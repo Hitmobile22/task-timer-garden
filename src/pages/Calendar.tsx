@@ -14,11 +14,14 @@ import { CalendarHeader } from '@/components/calendar/CalendarHeader';
 import { getEventsForDay } from '@/components/calendar/CalendarUtils';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { Task, Project, CalendarEvent } from '@/types/calendar.types';
+import { useTheme } from 'next-themes';
 
 const Calendar = () => {
   const [date, setDate] = React.useState<Date>(new Date());
   const [view, setView] = React.useState<'day' | 'week' | 'month'>('day');
   const isMobile = useIsMobile();
+  const { theme } = useTheme();
+  const isNightMode = theme === 'night';
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCalendarConnected, setIsCalendarConnected] = useState(false);
   
@@ -121,11 +124,15 @@ const Calendar = () => {
     return getEventsForDay(tasks, projects, targetDate);
   };
 
+  const pageBackground = isNightMode 
+    ? 'linear-gradient(135deg, #000000 0%, #1f1001 100%)'
+    : 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)';
+
   return (
     <div 
       className="min-h-screen p-6 space-y-8 animate-fadeIn"
       style={{
-        background: 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)',
+        background: pageBackground,
       }}
     >
       <div className="container mx-auto max-w-4xl flex justify-between items-center">

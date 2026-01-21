@@ -96,18 +96,25 @@ export function TaskView() {
     },
   });
 
+  // Get task IDs to filter subtasks query
+  const taskIds = React.useMemo(() => tasks?.map(t => t.id) || [], [tasks]);
+
   const { data: subtasks, isLoading: subtasksLoading } = useQuery({
-    queryKey: ['subtasks'],
+    queryKey: ['subtasks', taskIds],
     queryFn: async () => {
+      if (taskIds.length === 0) return [] as Subtask[];
+      
       const { data, error } = await supabase
         .from('subtasks')
         .select('*')
+        .in('Parent Task ID', taskIds)
         .order('sort_order', { ascending: true })
         .order('id', { ascending: true });
       
       if (error) throw error;
       return data as Subtask[];
     },
+    enabled: taskIds.length > 0,
   });
 
   const { data: projects } = useQuery({

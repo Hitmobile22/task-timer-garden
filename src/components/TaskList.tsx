@@ -677,20 +677,30 @@ export const TaskList: React.FC<TaskListProps> = ({
     }
   });
 
+  // Get task IDs from the tasks being displayed to filter subtasks
+  const taskIdsForSubtasks = React.useMemo(() => {
+    const tasksSource = initialTasks || dbTasks;
+    return tasksSource?.map(t => t.id) || [];
+  }, [initialTasks, dbTasks]);
+
   const {
     data: todaySubtasks
   } = useQuery({
-    queryKey: ['today-subtasks'],
+    queryKey: ['today-subtasks', taskIdsForSubtasks],
     queryFn: async () => {
+      if (taskIdsForSubtasks.length === 0) return [];
+      
       const {
         data,
         error
       } = await supabase.from('subtasks').select('*')
+        .in('Parent Task ID', taskIdsForSubtasks)
         .order('sort_order', { ascending: true })
         .order('id', { ascending: true });
       if (error) throw error;
       return data;
-    }
+    },
+    enabled: taskIdsForSubtasks.length > 0,
   });
 
   // Use the passed tasks prop for scheduler page, or dbTasks for task view

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowUpDown, Filter, ListFilter, Plus, PencilIcon, Check, X, ChevronRight, ChevronDown, Clock, Edit2, Trash2, Repeat } from "lucide-react";
 import { format } from 'date-fns';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { ProjectModal } from '@/components/project/ProjectModal';
 import { RecurringTasksModal, RecurringTaskSettings } from '@/components/task/RecurringTasksModal';
@@ -677,7 +678,117 @@ export function TaskView() {
     }
   };
 
-  const pageBackground = isNightMode 
+  const handleQuickAddTask = async (params: {
+    projectId?: number;
+    taskListId: number;
+    projectName?: string;
+    listName?: string;
+  }) => {
+    try {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      if (authError || !authUser) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const taskName = params.projectName 
+        ? `${params.projectName} - Task`
+        : `${params.listName} - Task`;
+
+      const now = new Date();
+      const taskStartEST = toZonedTime(now, 'America/New_York');
+      taskStartEST.setHours(8, 0, 0, 0);
+      const taskStartUTC = fromZonedTime(taskStartEST, 'America/New_York');
+      const taskEndUTC = new Date(taskStartUTC);
+      taskEndUTC.setMinutes(taskStartUTC.getMinutes() + 25);
+
+      let taskDetails = null;
+      if (params.projectId) {
+        const project = projects?.find(p => p.id === params.projectId);
+        const projectDetails = project?.details as { description?: string } | null;
+        if (projectDetails?.description) {
+          taskDetails = { description: projectDetails.description };
+        }
+      }
+
+      const { data: newTask, error: taskError } = await supabase
+        .from('Tasks')
+        .insert([{
+          "Task Name": taskName,
+          Progress: "Not started",
+          date_started: taskStartUTC.toISOString(),
+          date_due: taskEndUTC.toISOString(),
+          project_id: params.projectId || null,
+          task_list_id: params.taskListId,
+          user_id: authUser.id,
+          details: taskDetails
+        }])
+        .select()
+        .single();
+
+      if (taskError) throw taskError;
+
+      let subtaskNames: string[] = [];
+      
+      if (params.projectId) {
+        const { data: projectSettings } = await supabase
+          .from('recurring_project_settings')
+          .select('subtask_names, subtask_mode, progressive_mode')
+          .eq('project_id', params.projectId)
+          .maybeSingle();
+          
+        if (projectSettings) {
+          subtaskNames = projectSettings.subtask_names || [];
+        }
+      } else {
+        const { data: listSettings } = await supabase
+          .from('recurring_task_settings')
+          .select('subtask_names, subtask_mode')
+          .eq('task_list_id', params.taskListId)
+          .eq('enabled', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        if (listSettings) {
+          subtaskNames = listSettings.subtask_names || [];
+        }
+      }
+
+      if (subtaskNames.length > 0 && newTask) {
+        const subtasksToInsert = subtaskNames
+          .filter(name => name && name.trim() !== '')
+          .map((name, index) => ({
+            "Task Name": name.trim(),
+            "Progress": "Not started" as const,
+            "Parent Task ID": newTask.id,
+            user_id: authUser.id,
+            sort_order: index
+          }));
+
+        if (subtasksToInsert.length > 0) {
+          const { error: subtaskError } = await supabase
+            .from('subtasks')
+            .insert(subtasksToInsert);
+            
+          if (subtaskError) {
+            console.error('Error creating subtasks:', subtaskError);
+          }
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
+      
+      toast.success('Task added successfully');
+    } catch (error) {
+      console.error('Error adding quick task:', error);
+      toast.error('Failed to add task');
+    }
+  };
+
+  const pageBackground = isNightMode
     ? 'linear-gradient(135deg, #000000 0%, #1f1001 100%)'
     : 'linear-gradient(135deg, #001f3f 0%, #003366 50%, #004080 100%)';
 
@@ -754,6 +865,18 @@ export function TaskView() {
                         variant="ghost"
                         size="sm"
                         className="text-white hover:bg-white/20"
+                        onClick={() => handleQuickAddTask({
+                          taskListId: list?.id,
+                          listName: list?.name
+                        })}
+                        title="Add single task"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-white hover:bg-white/20"
                         onClick={() => {
                           setSelectedListId(list?.id || null);
                           setShowRecurringModal(true);
@@ -816,10 +939,22 @@ export function TaskView() {
                         </div>
                         <div className="flex items-center gap-2">
                           {project.date_started && project.date_due && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted-foreground">
                               {formatDateShort(project.date_started)} - {formatDateShort(project.date_due)}
                             </span>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleQuickAddTask({
+                              projectId: project.id,
+                              taskListId: project.task_list_id,
+                              projectName: project["Project Name"]
+                            })}
+                            title="Add single task"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"

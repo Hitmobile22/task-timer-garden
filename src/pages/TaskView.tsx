@@ -61,7 +61,16 @@ export function TaskView() {
   const [showArchived, setShowArchived] = useState(false);
   const [showSubtaskPresetModal, setShowSubtaskPresetModal] = useState(false);
   const [showCSVUploadModal, setShowCSVUploadModal] = useState(false);
+  const [collapsedLists, setCollapsedLists] = useState<number[]>([]);
   const { archiveCompletedTasks, archiveTaskList, archiveProject } = useArchiveActions();
+
+  const toggleListCollapse = (listId: number) => {
+    setCollapsedLists(prev => 
+      prev.includes(listId) 
+        ? prev.filter(id => id !== listId)
+        : [...prev, listId]
+    );
+  };
 
   const { data: taskLists } = useQuery({
     queryKey: ['task-lists'],
@@ -845,31 +854,40 @@ export function TaskView() {
               <div key={listId} className="mb-8">
                 {list && (
                   <div 
-                    className="mb-4 p-2 rounded flex items-center justify-between"
+                    className="mb-4 p-2 rounded flex items-center justify-between cursor-pointer"
                     style={{
                       background: list?.color || DEFAULT_LIST_COLOR,
                       color: 'white'
                     }}
+                    onClick={() => list?.id && toggleListCollapse(list.id)}
                   >
-                    {editingListId === list?.id ? (
-                      <Input
-                        value={editingListName}
-                        onChange={(e) => setEditingListName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            updateListNameMutation.mutate({ 
-                              listId: list.id, 
-                              name: editingListName 
-                            });
-                          }
-                        }}
-                        className="bg-white/10 border-none text-white placeholder:text-white/60"
-                        autoFocus
-                      />
-                    ) : (
-                      <h3 className="text-lg font-semibold text-white">{list?.name}</h3>
-                    )}
                     <div className="flex items-center gap-2">
+                      {collapsedLists.includes(list?.id) ? (
+                        <ChevronRight className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                      {editingListId === list?.id ? (
+                        <Input
+                          value={editingListName}
+                          onChange={(e) => setEditingListName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              updateListNameMutation.mutate({ 
+                                listId: list.id, 
+                                name: editingListName 
+                              });
+                            }
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="bg-white/10 border-none text-white placeholder:text-white/60"
+                          autoFocus
+                        />
+                      ) : (
+                        <h3 className="text-lg font-semibold text-white">{list?.name}</h3>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -931,6 +949,7 @@ export function TaskView() {
                   </div>
                 )}
                 
+                {!collapsedLists.includes(list?.id) && (
                 <div className="space-y-4">
                   {listProjects?.map(project => (
                     <div key={project.id} className="border rounded-lg p-4">
@@ -1085,6 +1104,7 @@ export function TaskView() {
                     </SortableContext>
                   )}
                 </div>
+                )}
               </div>
             ))}
           </DndContext>

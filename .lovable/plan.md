@@ -1,183 +1,117 @@
 
-## Plan: Fix Recurring Task Toggle Disconnect and Implement Fulfillment Logic
+## Plan: Fix Project Rename Bug and Add Overdue Toggle
 
-### Background
+### Problem Summary
 
-After thorough research, I've identified two distinct issues:
+**Issue 1: Project rename not working**
+When a user edits a project name in the ProjectModal (e.g., changing "Winkler Game (overdue)" to "Winkler FPS"), the name does not persist.
 
-**Issue 1: Potential Toggle State Disconnect**
-While the "Art!" case appears to be expected behavior (tasks generated when enabled, then disabled afterward), there IS a potential source of disconnect: the system maintains **multiple settings rows** per task list, and the edge function might query stale enabled settings that weren't properly cleaned up.
+**Root Cause:** Double-update race condition. The ProjectModal saves the new name directly to the database, then calls `onUpdateProject`. The parent component (`TaskView.tsx`) receives this callback and triggers `updateProjectMutation`, which tries to extract the name using `projectData.name` - but the data uses `projectData["Project Name"]`. This causes the mutation to overwrite the newly-saved name with `undefined` or the old value.
 
-**Issue 2: Fulfillment Logic (New Feature)**
-Currently, task lists and their contained projects generate recurring tasks **independently**. The user wants task lists to consider tasks from their projects as "fulfilling" the list's recurring task quota.
+**Issue 2: Automatic "(overdue)" suffix**
+The system automatically appends `(overdue)` to project names when they're past due. Users cannot remove this or opt out, making it impossible to rename projects to remove the suffix.
 
 ---
 
-### Part A: Ensure Toggle State Consistency
+### Part A: Fix Project Rename Bug
 
-**Problem:** The current implementation creates a NEW row for each settings change. While it disables old enabled settings before inserting, there could be edge cases (race conditions, failed updates) where old enabled settings remain.
+The fix requires removing the duplicate update. Since the `ProjectModal` already saves directly to the database (lines 438-451), the `updateProjectMutation` call in `TaskView.tsx` is redundant and causes the overwrite.
 
-**Fix 1: Add Defensive Query in Edge Function**
-
-Update `supabase/functions/check-recurring-tasks/index.ts` to explicitly only use the **most recent** enabled setting per task list, ignoring any older enabled settings.
-
-Current behavior (line ~570-614): The function queries all enabled settings, then filters to keep only the most recent per list. This is correct but relies on `created_at` ordering. 
-
-Proposed change: Add an explicit check to verify the setting being used is truly the most recent one for that task list, and log warnings if multiple enabled settings are found.
-
-**Location:** Lines ~570-632 of `check-recurring-tasks/index.ts`
+**File: `src/pages/TaskView.tsx`**
 
 **Changes:**
-1. After fetching enabled settings, add validation to detect and warn about multiple enabled settings per list
-2. Log a warning if multiple enabled settings exist for the same list (indicates sync issue)
-3. Add a cleanup step that disables any "orphaned" enabled settings (older settings that should have been disabled)
+1. Modify `handleProjectSubmit` to skip calling `updateProjectMutation` for existing projects, since the modal already saved the data
+2. Only use the callback to refresh the local query cache
 
----
-
-### Part B: Implement Fulfillment Logic for Task Lists
-
-**Concept Clarification:**
-- A task list has a recurring task goal (e.g., 3 tasks/day for Art!)
-- Projects within that list may also have recurring tasks (e.g., Painting Project generates 3 tasks)
-- **New behavior:** Tasks from projects within the list should count toward the list's daily goal
-- If projects already generate enough tasks, no additional "list-level" tasks should spawn
-
-**Example:**
-- Art! list: 3 recurring tasks/day goal
-- Painting Project (in Art!): 3 recurring tasks
-- Agora Gallery (in Art!): 1 recurring task
-- Total from projects: 4 tasks
-- Since 4 >= 3, Art! list should NOT spawn additional list-level tasks
-
-**Fix 2: Count Project Tasks Toward List Goal**
-
-Update `supabase/functions/check-recurring-tasks/index.ts` to:
-1. When processing a task list's recurring settings, count ALL active tasks in that list (including those from projects)
-2. Only generate additional list-level tasks if the total count is below the daily goal
-
-**Location:** Lines ~760-782 of `check-recurring-tasks/index.ts` (the task counting section)
-
-**Current code logic:**
-```
-const taskCounts = await countAllTasksForDaily(supabaseClient, setting.task_list_id);
-if ((taskCounts.total >= setting.daily_task_count) && !forceCheck) {
-  // Skip - already has enough tasks
-}
-```
-
-**Analysis:** The current `countAllTasksForDaily` function already counts ALL tasks in the list (including those from projects). Looking at lines 342-391:
-- It counts active tasks with `Progress IN ('Not started', 'In progress')` for the task_list_id
-- It counts completed tasks from today
-
-This SHOULD already work. Let me verify why it didn't in this case...
-
-**Root Cause Identified:** 
-Looking at the task creation times:
-- Art! list tasks: created at 16:57:46 (date_started: 2026-01-28 01:31)
-- Project tasks: created at 17:43:42 (date_started: 2026-01-27 20:01)
-
-The **Art! list tasks were created BEFORE the project tasks**. At 16:57, there were no project tasks yet, so the system correctly created list tasks. Then at 17:43, the project check ran and created project tasks.
-
-**The Real Problem:** Task lists and projects are checked at DIFFERENT times by DIFFERENT hooks:
-- `useUnifiedRecurringTasksCheck` triggers list-level task generation
-- `useRecurringProjectsCheck` triggers project-level task generation
-
-These don't coordinate with each other.
-
-**Fix 3: Add Cross-Source Awareness**
-
-Modify the task list recurring check to be aware of project recurring settings:
-
-**In `check-recurring-tasks/index.ts`**, before generating list-level tasks:
-1. Query all recurring projects in this task list
-2. Calculate expected tasks from projects for today
-3. Add those to the "already fulfilled" count
-4. Only generate list-level tasks to fill the gap
-
-**New Logic (pseudo-code):**
-```
-// Get recurring projects in this list
-const recurringProjects = await getRecurringProjectsInList(taskListId);
-let expectedProjectTasks = 0;
-
-for (const project of recurringProjects) {
-  if (shouldRunToday(project)) {
-    expectedProjectTasks += project.recurringTaskCount;
-  }
-}
-
-// Count existing tasks
-const existingTasks = await countAllTasksForDaily(taskListId);
-
-// Calculate effective total (existing + expected from projects)
-const effectiveTotal = existingTasks.total;
-
-// If expected from projects alone meets/exceeds list goal, skip list generation
-if (expectedProjectTasks >= setting.daily_task_count) {
-  console.log(`Projects in list ${taskListId} will generate ${expectedProjectTasks} tasks, ` +
-              `meeting list goal of ${setting.daily_task_count}. Skipping list-level generation.`);
-  continue;
-}
-
-// Generate only enough list tasks to fill the gap
-const tasksNeededFromList = Math.max(0, setting.daily_task_count - expectedProjectTasks - existingTasks.total);
-```
-
----
-
-### Implementation Details
-
-**File 1: `supabase/functions/check-recurring-tasks/index.ts`**
-
-1. **Add function to get recurring projects in a list** (around line 340):
 ```typescript
-async function getRecurringProjectsInList(
-  supabaseClient: any, 
-  taskListId: number, 
-  currentDay: string
-): Promise<{projectId: number, recurringCount: number}[]> {
-  const { data: projects, error } = await supabaseClient
-    .from('Projects')
-    .select(`
-      id,
-      recurringTaskCount,
-      isRecurring,
-      recurring_project_settings!inner(days_of_week)
-    `)
-    .eq('task_list_id', taskListId)
-    .eq('isRecurring', true)
-    .neq('progress', 'Completed');
-  
-  if (error) {
-    console.error('Error fetching recurring projects for list:', error);
-    return [];
+// Current (broken):
+const handleProjectSubmit = (projectData: any) => {
+  console.log("Project data submitted:", projectData);
+  if (projectData.id) {
+    updateProjectMutation.mutate(projectData);  // ← This overwrites with wrong field
+  } else {
+    createProjectMutation.mutate({...});
   }
-  
-  const normalizedCurrentDay = normalizeDay(currentDay);
-  
-  return (projects || [])
-    .filter(p => {
-      const settings = p.recurring_project_settings?.[0];
-      if (!settings?.days_of_week) return true; // All days if not specified
-      const projectDays = settings.days_of_week.map(normalizeDay);
-      return projectDays.includes(normalizedCurrentDay);
-    })
-    .map(p => ({
-      projectId: p.id,
-      recurringCount: p.recurringTaskCount || 1
-    }));
+  setShowProjectModal(false);
+  setEditingProject(null);
+};
+
+// Fixed:
+const handleProjectSubmit = (projectData: any) => {
+  console.log("Project data submitted:", projectData);
+  if (projectData.id) {
+    // Modal already saved to DB, just refresh queries
+    queryClient.invalidateQueries({ queryKey: ['projects'] });
+    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+  } else {
+    createProjectMutation.mutate({...});
+  }
+  setShowProjectModal(false);
+  setEditingProject(null);
+};
+```
+
+---
+
+### Part B: Add Overdue Toggle (Default OFF)
+
+**Database Change:**
+Add a new boolean column `show_overdue_suffix` to the `Projects` table with default value `false`.
+
+```sql
+ALTER TABLE "Projects" 
+ADD COLUMN show_overdue_suffix boolean DEFAULT false;
+```
+
+**File: `src/hooks/recurring/useRecurringProjectsCheck.tsx`**
+
+**Changes (lines 110-133):**
+Modify the overdue logic to check the new `show_overdue_suffix` flag before adding the suffix.
+
+```typescript
+// Current:
+if (!project['Project Name'].includes('(overdue)')) {
+  // Always adds suffix
+  await supabase.from('Projects')
+    .update({ 'Project Name': `${project['Project Name']} (overdue)` })
+    .eq('id', project.id);
+}
+
+// Fixed:
+// Only add suffix if show_overdue_suffix is true
+if (project.show_overdue_suffix && !project['Project Name'].includes('(overdue)')) {
+  await supabase.from('Projects')
+    .update({ 'Project Name': `${project['Project Name']} (overdue)` })
+    .eq('id', project.id);
 }
 ```
 
-2. **Modify the main processing loop** (around lines 760-790):
-   - Before deciding how many list-level tasks to create, query recurring projects
-   - Calculate expected project tasks for today
-   - If projects satisfy the list goal, skip list-level generation
-   - If not, only create the difference
+**File: `src/components/project/ProjectModal.tsx`**
 
-3. **Add toggle state validation** (around lines 570-632):
-   - Detect multiple enabled settings per list
-   - Log warning and clean up orphaned settings
+**Changes:**
+1. Add state for the toggle: `const [showOverdueSuffix, setShowOverdueSuffix] = useState(false);`
+2. Load the value from project data in useEffect
+3. Include the toggle in the Details tab UI
+4. Save the value when updating/creating projects
+
+**UI Addition (in Details tab):**
+```tsx
+<div className="flex items-center space-x-2">
+  <Switch
+    id="show-overdue-suffix"
+    checked={showOverdueSuffix}
+    onCheckedChange={setShowOverdueSuffix}
+  />
+  <Label htmlFor="show-overdue-suffix" className="text-sm">
+    Add "(overdue)" to name when past due
+  </Label>
+</div>
+```
+
+**File: `src/hooks/recurring/useProjectsQuery.tsx`**
+
+**Changes:**
+Ensure the `show_overdue_suffix` field is included in the query select.
 
 ---
 
@@ -185,42 +119,41 @@ async function getRecurringProjectsInList(
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/check-recurring-tasks/index.ts` | Add project awareness to fulfillment logic, add toggle validation |
+| `src/pages/TaskView.tsx` | Remove duplicate update call in `handleProjectSubmit` |
+| `src/components/project/ProjectModal.tsx` | Add toggle state, UI, and save logic for `show_overdue_suffix` |
+| `src/hooks/recurring/useRecurringProjectsCheck.tsx` | Check `show_overdue_suffix` before adding suffix |
+| `src/hooks/recurring/useProjectsQuery.tsx` | Include new field in query |
+| Database migration | Add `show_overdue_suffix` column to Projects table |
 
 ---
 
 ### What This Does NOT Change
 
-- No changes to the RecurringTasksModal UI
-- No changes to project recurring task generation (check-recurring-projects)
-- No changes to subtask handling or progressive mode
-- No styling changes
-- No changes to the client-side hooks structure
+- No changes to task list recurring logic
+- No styling changes beyond adding the toggle
+- No changes to how subtasks work
+- No changes to progressive mode
+- No changes to fulfillment logic
 
 ---
 
 ### Testing Plan
 
-1. **Toggle State Test:**
-   - Toggle recurring off for a list
-   - Verify no tasks spawn for that list
-   - Check edge function logs for any "orphaned enabled settings" warnings
+1. **Rename Test:**
+   - Open project modal for "Winkler Game (overdue)"
+   - Change name to "Winkler FPS"
+   - Save and verify the name persists
 
-2. **Fulfillment Logic Test:**
-   - Set up a task list with 3 daily recurring tasks
-   - Add a project in that list with 3 recurring tasks
-   - Wait for the next check cycle
-   - Verify only project tasks are created, not list-level tasks
+2. **Overdue Toggle OFF (default):**
+   - Create a new project with a past due date
+   - Verify "(overdue)" is NOT automatically added
+   - Toggle should show as OFF
 
-3. **Partial Fulfillment Test:**
-   - List goal: 3 tasks
-   - Project generates: 1 task
-   - Expected: 2 list-level tasks + 1 project task = 3 total
+3. **Overdue Toggle ON:**
+   - Enable the toggle on a project
+   - Set a past due date
+   - Trigger the recurring check
+   - Verify "(overdue)" is added
 
----
-
-### Technical Notes
-
-- The edge function already uses 3 AM EST day boundaries for counting
-- Generation logs track what was created, so this change is additive
-- The fix ensures backward compatibility - if no projects exist, behavior is unchanged
+4. **Manual Name Edit:**
+   - User can freely edit project name to add/remove "(overdue)" text regardless of toggle state

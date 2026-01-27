@@ -390,6 +390,131 @@ const countAllTasksForDaily = async (supabaseClient: any, taskListId: number) =>
   }
 };
 
+// Get recurring projects in a task list that are scheduled to run today
+async function getRecurringProjectsInList(
+  supabaseClient: any,
+  taskListId: number,
+  currentDay: string
+): Promise<{ projectId: number; recurringCount: number }[]> {
+  try {
+    // Get all recurring projects in this task list
+    const { data: projects, error } = await supabaseClient
+      .from('Projects')
+      .select(`
+        id,
+        recurringTaskCount,
+        isRecurring,
+        recurring_project_settings(days_of_week)
+      `)
+      .eq('task_list_id', taskListId)
+      .eq('isRecurring', true)
+      .neq('progress', 'Completed');
+    
+    if (error) {
+      console.error(`Error fetching recurring projects for list ${taskListId}:`, error);
+      return [];
+    }
+    
+    if (!projects || projects.length === 0) {
+      return [];
+    }
+    
+    const normalizedCurrentDay = normalizeDay(currentDay);
+    
+    // Filter to only projects scheduled for today
+    const todayProjects = (projects || [])
+      .filter(p => {
+        // Get the project's recurring settings
+        const settings = p.recurring_project_settings?.[0];
+        
+        // If no settings or no days_of_week, assume all days
+        if (!settings?.days_of_week || !Array.isArray(settings.days_of_week) || settings.days_of_week.length === 0) {
+          return true;
+        }
+        
+        // Normalize project days and check if today is included
+        const projectDays = settings.days_of_week.map(normalizeDay);
+        return projectDays.includes(normalizedCurrentDay);
+      })
+      .map(p => ({
+        projectId: p.id,
+        recurringCount: p.recurringTaskCount || 1
+      }));
+    
+    console.log(`Found ${todayProjects.length} recurring projects scheduled for today (${currentDay}) in list ${taskListId}`);
+    
+    return todayProjects;
+  } catch (error) {
+    console.error(`Error in getRecurringProjectsInList for list ${taskListId}:`, error);
+    return [];
+  }
+}
+
+// Validate toggle state and clean up orphaned enabled settings
+async function validateAndCleanupToggleState(
+  supabaseClient: any,
+  taskListId: number,
+  currentSettingId: number
+): Promise<boolean> {
+  try {
+    // Check for multiple enabled settings for this list
+    const { data: allEnabledSettings, error: fetchError } = await supabaseClient
+      .from('recurring_task_settings')
+      .select('id, created_at, enabled')
+      .eq('task_list_id', taskListId)
+      .eq('enabled', true)
+      .order('created_at', { ascending: false });
+    
+    if (fetchError) {
+      console.error(`Error checking toggle state for list ${taskListId}:`, fetchError);
+      return true; // Continue processing on error
+    }
+    
+    if (!allEnabledSettings || allEnabledSettings.length <= 1) {
+      // Normal state - 0 or 1 enabled setting
+      return true;
+    }
+    
+    // Multiple enabled settings found - this indicates a sync issue
+    console.warn(`⚠️ TOGGLE STATE WARNING: Found ${allEnabledSettings.length} enabled settings for task list ${taskListId}`);
+    console.warn(`Settings IDs: [${allEnabledSettings.map(s => s.id).join(', ')}]`);
+    console.warn(`Current setting ID being used: ${currentSettingId}`);
+    
+    // Verify the current setting is the most recent one
+    const mostRecentSettingId = allEnabledSettings[0].id;
+    if (currentSettingId !== mostRecentSettingId) {
+      console.warn(`⚠️ Current setting ${currentSettingId} is NOT the most recent! Most recent is ${mostRecentSettingId}`);
+      console.warn(`Skipping task generation for this stale setting`);
+      return false; // Don't process stale settings
+    }
+    
+    // Disable orphaned settings (all except the most recent)
+    const orphanedSettingIds = allEnabledSettings
+      .slice(1)
+      .map(s => s.id);
+    
+    if (orphanedSettingIds.length > 0) {
+      console.log(`Cleaning up ${orphanedSettingIds.length} orphaned enabled settings: [${orphanedSettingIds.join(', ')}]`);
+      
+      const { error: cleanupError } = await supabaseClient
+        .from('recurring_task_settings')
+        .update({ enabled: false })
+        .in('id', orphanedSettingIds);
+      
+      if (cleanupError) {
+        console.error(`Error cleaning up orphaned settings:`, cleanupError);
+      } else {
+        console.log(`Successfully disabled orphaned settings for list ${taskListId}`);
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`Error in validateAndCleanupToggleState for list ${taskListId}:`, error);
+    return true; // Continue processing on error
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -583,8 +708,17 @@ Deno.serve(async (req) => {
         // For each task list, only keep the most recent setting
         const latestSettingsByList = new Map<number, RecurringTaskSetting>();
         
+        // Track lists with multiple enabled settings for validation
+        const enabledSettingsByList = new Map<number, RecurringTaskSetting[]>();
+        
         for (const setting of allSettings) {
           if (!setting.task_list_id) continue;
+          
+          // Track all enabled settings per list
+          if (!enabledSettingsByList.has(setting.task_list_id)) {
+            enabledSettingsByList.set(setting.task_list_id, []);
+          }
+          enabledSettingsByList.get(setting.task_list_id)!.push(setting);
           
           // Double-check days of week - stricter validation
           if (!setting.days_of_week || !Array.isArray(setting.days_of_week)) {
@@ -608,6 +742,14 @@ Deno.serve(async (req) => {
               !setting.created_at ||
               new Date(setting.created_at) > new Date(existingSetting.created_at)) {
             latestSettingsByList.set(setting.task_list_id, setting);
+          }
+        }
+        
+        // Log warnings for lists with multiple enabled settings (indicates sync issue)
+        for (const [listId, listSettings] of enabledSettingsByList) {
+          if (listSettings.length > 1) {
+            console.warn(`⚠️ TOGGLE STATE WARNING: Found ${listSettings.length} enabled settings for task list ${listId}`);
+            console.warn(`Settings IDs: [${listSettings.map(s => s.id).join(', ')}]`);
           }
         }
         
@@ -643,6 +785,23 @@ Deno.serve(async (req) => {
             task_list_id: setting?.task_list_id || null, 
             status: 'skipped', 
             reason: 'invalid_setting' 
+          });
+          continue;
+        }
+        
+        // TOGGLE VALIDATION: Ensure this setting is valid and clean up orphans
+        const isValidSetting = await validateAndCleanupToggleState(
+          supabaseClient,
+          setting.task_list_id,
+          setting.id
+        );
+        
+        if (!isValidSetting) {
+          console.log(`Skipping stale setting ${setting.id} for list ${setting.task_list_id}`);
+          results.push({
+            task_list_id: setting.task_list_id,
+            status: 'skipped',
+            reason: 'stale_setting'
           });
           continue;
         }
@@ -741,7 +900,39 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Get all recurring projects associated with this task list
+        // FULFILLMENT LOGIC: Get recurring projects scheduled for today and calculate expected tasks
+        const recurringProjectsToday = await getRecurringProjectsInList(
+          supabaseClient,
+          setting.task_list_id,
+          dayOfWeek
+        );
+        
+        // Calculate total expected tasks from projects today
+        const expectedProjectTasks = recurringProjectsToday.reduce(
+          (sum, p) => sum + p.recurringCount, 
+          0
+        );
+        
+        console.log(`Expected tasks from projects in list ${setting.task_list_id} for today: ${expectedProjectTasks}`);
+        
+        // If projects alone will fulfill the list's daily goal, skip list-level task generation
+        if (expectedProjectTasks >= setting.daily_task_count && !forceCheck) {
+          console.log(`✅ FULFILLMENT: Projects in list ${setting.task_list_id} will generate ${expectedProjectTasks} tasks, meeting/exceeding list goal of ${setting.daily_task_count}. Skipping list-level generation.`);
+          
+          // Add to cache to prevent duplicate processing
+          generationCache.set(cacheKey, true);
+          
+          results.push({
+            task_list_id: setting.task_list_id,
+            status: 'skipped',
+            reason: 'fulfilled_by_projects',
+            expected_project_tasks: expectedProjectTasks,
+            list_goal: setting.daily_task_count
+          });
+          continue;
+        }
+
+        // Get all recurring projects associated with this task list (for direct task creation)
         const { data: taskListProjects, error: projectsError } = await supabaseClient
           .from('Projects')
           .select('id, "Project Name", isRecurring, recurringTaskCount, task_list_id, user_id')
@@ -911,10 +1102,12 @@ Deno.serve(async (req) => {
         
         console.log(`List ${setting.task_list_id} has ${nonProjectActiveCount} active non-project tasks and ${nonProjectCompletedCount} completed today`);
         
-        // Determine how many additional tasks we need for the list itself
-        const additionalListTasksToCreate = Math.max(0, setting.daily_task_count - taskCounts.total - projectTasksCreated);
+        // FULFILLMENT LOGIC: Account for expected project tasks when calculating list tasks needed
+        // Only create enough list-level tasks to fill the gap between what projects will provide and the list goal
+        const effectiveExistingTasks = taskCounts.total + expectedProjectTasks;
+        const additionalListTasksToCreate = Math.max(0, setting.daily_task_count - effectiveExistingTasks - projectTasksCreated);
         
-        console.log(`List ${setting.task_list_id} needs ${additionalListTasksToCreate} more direct tasks`);
+        console.log(`List ${setting.task_list_id} needs ${additionalListTasksToCreate} more direct tasks (existing: ${taskCounts.total}, expected from projects: ${expectedProjectTasks}, goal: ${setting.daily_task_count})`);
         
         // Create remaining tasks directly for the task list (not assigned to any project)
         if (additionalListTasksToCreate > 0) {

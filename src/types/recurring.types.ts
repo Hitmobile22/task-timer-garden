@@ -17,6 +17,7 @@ export interface RecurringProject {
   date_started: string | null;
   date_due: string | null;
   progress: string;
+  show_overdue_suffix?: boolean;
   recurring_settings?: RecurringProjectSettings[];
   [key: string]: any; // For other project properties
 }

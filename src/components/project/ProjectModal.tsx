@@ -81,6 +81,7 @@ export const ProjectModal = ({
   const [respawnIntervalValue, setRespawnIntervalValue] = useState(1);
   const [respawnDaysOfWeek, setRespawnDaysOfWeek] = useState<string[]>([]);
   const [descriptionContent, setDescriptionContent] = useState<any>(null);
+  const [showOverdueSuffix, setShowOverdueSuffix] = useState(false);
   
   useEffect(() => {
     if (taskLists.length > 0 && !taskListId) {
@@ -102,6 +103,7 @@ export const ProjectModal = ({
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
       setTaskListId(project.task_list_id || taskLists[0]?.id);
+      setShowOverdueSuffix(project.show_overdue_suffix || false);
       
       // Load description content from project details
       if (project.details) {
@@ -184,6 +186,7 @@ export const ProjectModal = ({
       setRespawnIntervalValue(1);
       setRespawnDaysOfWeek([]);
       setDescriptionContent(null);
+      setShowOverdueSuffix(false);
     }
   }, [project, taskLists]);
   
@@ -446,7 +449,8 @@ export const ProjectModal = ({
             recurringTaskCount: recurringTaskCount,
             task_list_id: taskListId,
             user_id: user?.id,
-            details: detailsObject
+            details: detailsObject,
+            show_overdue_suffix: showOverdueSuffix
           })
           .eq('id', project.id);
         
@@ -566,7 +570,8 @@ export const ProjectModal = ({
             task_list_id: taskListId,
             sort_order: 0,
             user_id: user?.id,
-            details: { description: descriptionContent }
+            details: { description: descriptionContent },
+            show_overdue_suffix: showOverdueSuffix
           }])
           .select()
           .single();
@@ -845,6 +850,22 @@ export const ProjectModal = ({
                       <SelectItem value="Backlog">Backlog</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="showOverdueSuffix" className="text-right">
+                    Overdue Label
+                  </Label>
+                  <div className="col-span-3 flex items-center gap-2">
+                    <Switch
+                      id="showOverdueSuffix"
+                      checked={showOverdueSuffix}
+                      onCheckedChange={setShowOverdueSuffix}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {showOverdueSuffix ? 'Add "(overdue)" to name when past due' : 'No automatic overdue label'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-4 items-center gap-4">

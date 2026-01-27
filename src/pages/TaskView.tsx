@@ -601,7 +601,9 @@ export function TaskView() {
   const handleProjectSubmit = (projectData: any) => {
     console.log("Project data submitted:", projectData);
     if (projectData.id) {
-      updateProjectMutation.mutate(projectData);
+      // ProjectModal already saved to DB directly, just refresh queries to update UI
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     } else {
       createProjectMutation.mutate({
         name: projectData["Project Name"] || projectData.name,

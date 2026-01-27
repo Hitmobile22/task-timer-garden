@@ -112,9 +112,10 @@ export const useRecurringProjectsCheck = () => {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           if (dueDate < today) {
-            console.log(`Project ${project.id} (${project['Project Name']}) due date ${dueDate.toISOString()} is in the past, updating name if needed`);
+            console.log(`Project ${project.id} (${project['Project Name']}) due date ${dueDate.toISOString()} is in the past`);
             
-            if (!project['Project Name'].includes('(overdue)')) {
+            // Only add (overdue) suffix if show_overdue_suffix is enabled for this project
+            if (project.show_overdue_suffix && !project['Project Name'].includes('(overdue)')) {
               try {
                 const { error } = await supabase
                   .from('Projects')
@@ -124,11 +125,13 @@ export const useRecurringProjectsCheck = () => {
                 if (error) {
                   console.error(`Error updating overdue project ${project.id}:`, error);
                 } else {
-                  console.log(`Marked project ${project.id} as overdue`);
+                  console.log(`Marked project ${project.id} as overdue (show_overdue_suffix is enabled)`);
                 }
               } catch (err) {
                 console.error(`Error updating overdue project:`, err);
               }
+            } else if (!project.show_overdue_suffix) {
+              console.log(`Project ${project.id} has show_overdue_suffix disabled, skipping overdue name update`);
             }
           }
         }

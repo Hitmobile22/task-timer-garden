@@ -230,6 +230,7 @@ export type Database = {
           "Project Name": string
           project_order: number | null
           recurringTaskCount: number | null
+          show_overdue_suffix: boolean | null
           sort_order: number
           task_list_id: number | null
           user_id: string
@@ -247,6 +248,7 @@ export type Database = {
           "Project Name": string
           project_order?: number | null
           recurringTaskCount?: number | null
+          show_overdue_suffix?: boolean | null
           sort_order?: number
           task_list_id?: number | null
           user_id: string
@@ -264,6 +266,7 @@ export type Database = {
           "Project Name"?: string
           project_order?: number | null
           recurringTaskCount?: number | null
+          show_overdue_suffix?: boolean | null
           sort_order?: number
           task_list_id?: number | null
           user_id?: string

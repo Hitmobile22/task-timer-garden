@@ -84,10 +84,11 @@ export const ProjectModal = ({
   const [showOverdueSuffix, setShowOverdueSuffix] = useState(false);
   
   useEffect(() => {
-    if (taskLists.length > 0 && !taskListId) {
+    // Only set default task list for new projects (when project is null)
+    if (taskLists.length > 0 && !taskListId && !project) {
       setTaskListId(taskLists[0].id);
     }
-  }, [taskLists, taskListId]);
+  }, [taskLists, taskListId, project]);
 
   useEffect(() => {
     loadAvailableTasks();

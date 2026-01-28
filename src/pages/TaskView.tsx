@@ -133,7 +133,7 @@ export function TaskView() {
         .from('Projects')
         .select('*')
         .eq('archived', showArchived)
-        .order('sort_order', { ascending: true });
+        .order('date_due', { ascending: true, nullsFirst: false });
       
       if (error) throw error;
       return data;

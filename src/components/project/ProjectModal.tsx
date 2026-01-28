@@ -103,7 +103,9 @@ export const ProjectModal = ({
       setProgress((project.progress || project.status || 'Not started') as 'Not started' | 'In progress' | 'Completed' | 'Backlog');
       setIsRecurring(project.isRecurring || false);
       setRecurringTaskCount(project.recurringTaskCount || 1);
-      setTaskListId(project.task_list_id || taskLists[0]?.id);
+      // Support both DB-shaped projects (task_list_id) and UI-shaped ones (taskListId)
+      // so the edit modal always reflects the project's current list.
+      setTaskListId(project.task_list_id ?? project.taskListId ?? taskLists[0]?.id ?? null);
       setShowOverdueSuffix(project.show_overdue_suffix || false);
       
       // Load description content from project details

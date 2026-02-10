@@ -18,6 +18,7 @@ import {
   shouldRateLimitCheck,
   isDayMatch
 } from '@/utils/recurringUtils';
+import { toZonedTime } from 'date-fns-tz';
 import { RecurringProject, RecurringProjectSettings, ProjectForEdgeFunction } from '@/types/recurring.types';
 import { getCurrentDayName } from '@/lib/utils';
 

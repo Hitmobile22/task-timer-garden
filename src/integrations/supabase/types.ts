@@ -674,7 +674,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_schedule_summary: {
+        Args: { target_date?: string; target_user_id: string }
+        Returns: {
+          completed_count: number
+          overdue_count: number
+          pending_count: number
+          task_count: number
+        }[]
+      }
     }
     Enums: {
       status: "Not started" | "In progress" | "Completed" | "Backlog"

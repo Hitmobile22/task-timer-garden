@@ -497,6 +497,20 @@ Deno.serve(async (req) => {
           }
         }
         
+        // Skip projects whose start date hasn't arrived yet (compare in EST)
+        if (project.date_started && !forceCheck) {
+          const projectStartDate = new Date(project.date_started);
+          if (projectStartDate > estNow) {
+            console.log(`Project ${project.id} (${project['Project Name']}) start date ${project.date_started} is in the future (EST now: ${estNow.toISOString()}), skipping`);
+            results.push({
+              project_id: project.id,
+              status: 'skipped',
+              reason: 'start_date_future'
+            });
+            continue;
+          }
+        }
+        
         // Check for existing generation log for today (using 3 AM EST boundaries)
         const { data: existingLog, error: logError } = await supabaseClient
           .from('recurring_task_generation_logs')

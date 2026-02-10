@@ -101,8 +101,19 @@ export const useRecurringProjectsCheck = () => {
             settings.days_of_week?.join(', ') || 'all days',
             `- Should run today (${currentDayOfWeek}): ${shouldRunToday}`);
           
-          if (!shouldRunToday && !forceCheck) {
+        if (!shouldRunToday && !forceCheck) {
             console.log(`Project ${project.id} not scheduled for today (${currentDayOfWeek}), skipping`);
+            continue;
+          }
+        }
+        
+        // Skip projects whose start date hasn't arrived yet (compare in EST)
+        if (project.date_started && !forceCheck) {
+          const projectStartDate = new Date(project.date_started);
+          const nowEST = toZonedTime(new Date(), 'America/New_York');
+          const startDateEST = toZonedTime(projectStartDate, 'America/New_York');
+          if (startDateEST > nowEST) {
+            console.log(`Project ${project.id} (${project['Project Name']}) start date ${project.date_started} is in the future, skipping`);
             continue;
           }
         }

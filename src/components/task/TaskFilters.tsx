@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ChevronDown, Filter, Plus, Search, ListChecks, Upload, Archive, ArchiveRestore } from "lucide-react";
+import { ChevronDown, Filter, Plus, Search, ListChecks, Upload, Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -32,6 +32,7 @@ interface TaskFiltersProps {
   onArchiveCompleted?: () => void;
   onToggleArchiveView?: () => void;
   showArchived?: boolean;
+  onDeleteArchivedSubtasks?: () => void;
 }
 
 export const TaskFilters: React.FC<TaskFiltersProps> = ({
@@ -53,6 +54,7 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
   onArchiveCompleted,
   onToggleArchiveView,
   showArchived,
+  onDeleteArchivedSubtasks,
 }) => {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-4 w-full">
@@ -119,6 +121,19 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
                 <span>Archived</span>
               </>
             )}
+          </Button>
+        )}
+
+        {showArchived && onDeleteArchivedSubtasks && (
+          <Button 
+            variant="outline" 
+            onClick={onDeleteArchivedSubtasks}
+            className="flex items-center gap-2 text-xs sm:text-sm"
+            size="sm"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Delete Archived</span>
+            <span>Subtasks</span>
           </Button>
         )}
 

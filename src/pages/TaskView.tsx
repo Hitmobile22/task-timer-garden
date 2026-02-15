@@ -191,22 +191,39 @@ export function TaskView() {
 
   const deleteArchivedSubtasksMutation = useMutation({
     mutationFn: async () => {
-      const { data: archivedTasks, error: fetchError } = await supabase
-        .from('Tasks')
-        .select('id')
-        .eq('archived', true);
+      // Fetch ALL archived task IDs using pagination (default limit is 1000)
+      let allArchivedTaskIds: number[] = [];
+      let from = 0;
+      const pageSize = 1000;
       
-      if (fetchError) throw fetchError;
-      if (!archivedTasks || archivedTasks.length === 0) return;
+      while (true) {
+        const { data, error } = await supabase
+          .from('Tasks')
+          .select('id')
+          .eq('archived', true)
+          .range(from, from + pageSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allArchivedTaskIds = allArchivedTaskIds.concat(data.map(t => t.id));
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
 
-      const archivedTaskIds = archivedTasks.map(t => t.id);
-      
-      const { error } = await supabase
-        .from('subtasks')
-        .delete()
-        .in('Parent Task ID', archivedTaskIds);
-      
-      if (error) throw error;
+      if (allArchivedTaskIds.length === 0) return;
+
+      // Delete subtasks in batches of 500 (Supabase .in() has limits)
+      const batchSize = 500;
+      for (let i = 0; i < allArchivedTaskIds.length; i += batchSize) {
+        const batch = allArchivedTaskIds.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from('subtasks')
+          .delete()
+          .in('Parent Task ID', batch);
+        
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });

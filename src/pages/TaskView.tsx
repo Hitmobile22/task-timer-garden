@@ -162,6 +162,15 @@ export function TaskView() {
 
   const deleteMutation = useMutation({
     mutationFn: async (taskId: number) => {
+      // Delete associated subtasks first
+      const { error: subtaskError } = await supabase
+        .from('subtasks')
+        .delete()
+        .eq('Parent Task ID', taskId);
+      
+      if (subtaskError) throw subtaskError;
+
+      // Then delete the task
       const { error } = await supabase
         .from('Tasks')
         .delete()
@@ -177,6 +186,35 @@ export function TaskView() {
     onError: (error) => {
       toast.error('Failed to delete task');
       console.error('Delete error:', error);
+    },
+  });
+
+  const deleteArchivedSubtasksMutation = useMutation({
+    mutationFn: async () => {
+      const { data: archivedTasks, error: fetchError } = await supabase
+        .from('Tasks')
+        .select('id')
+        .eq('archived', true);
+      
+      if (fetchError) throw fetchError;
+      if (!archivedTasks || archivedTasks.length === 0) return;
+
+      const archivedTaskIds = archivedTasks.map(t => t.id);
+      
+      const { error } = await supabase
+        .from('subtasks')
+        .delete()
+        .in('Parent Task ID', archivedTaskIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      toast.success('Archived task subtasks deleted successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to delete archived subtasks');
+      console.error('Delete archived subtasks error:', error);
     },
   });
 
@@ -846,6 +884,7 @@ export function TaskView() {
               onArchiveCompleted={handleArchiveCompletedTasks}
               onToggleArchiveView={toggleArchiveView}
               showArchived={showArchived}
+              onDeleteArchivedSubtasks={() => deleteArchivedSubtasksMutation.mutate()}
             />
           </div>
 

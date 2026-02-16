@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, useRoutes } from 'react-router-dom';
 import { router } from './router';
@@ -7,12 +7,17 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from './hooks/useAuth';
 import { InitializationComponent } from './components/goals/InitializationComponent';
 import { ThemeProvider } from './components/ThemeProvider';
+import { initNativeNotifications } from './lib/nativeNotifications';
 import './App.css';
 
 // Create a client
 const queryClient = new QueryClient();
 
 const App = () => {
+  useEffect(() => {
+    initNativeNotifications();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>

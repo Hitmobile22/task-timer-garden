@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { daysBetween } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { isNativePlatform, scheduleProjectRemindersSummary } from '@/lib/nativeNotifications';
 
 export interface ProjectNotification {
   id: number;
@@ -129,6 +130,19 @@ export function useProjectNotifications() {
         if (insertError) throw insertError;
         
         queryClient.invalidateQueries({ queryKey: ['project-notifications'] });
+
+        // Fire consolidated native notification with ALL unread reminders
+        if (isNativePlatform()) {
+          const { data: allUnread } = await supabase
+            .from('project_notifications')
+            .select('project_name, days_remaining')
+            .eq('is_read', false)
+            .eq('user_id', user.id);
+
+          if (allUnread && allUnread.length > 0) {
+            await scheduleProjectRemindersSummary(allUnread);
+          }
+        }
       }
     } catch (error) {
       console.error('Error checking projects due soon:', error);

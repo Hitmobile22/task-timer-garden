@@ -255,9 +255,19 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
           if (error) throw error;
         }
       }
+
+      // Check and update Progress Pulse items by name
+      if (subtask['Task Name']) {
+        await supabase
+          .from('progress_pulse_items')
+          .update({ is_completed: true })
+          .eq('item_name', subtask['Task Name'])
+          .eq('is_completed', false);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['pulse-items'] });
       toast.success('Subtask completed');
     },
   });

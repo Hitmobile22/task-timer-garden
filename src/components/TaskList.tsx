@@ -13,11 +13,12 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X, Minus } from 'lucide-react';
+import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X, Minus, Target, Lock } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
-import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask } from '@/utils/taskUtils';
+import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask, isProgressPulse, isPulseLocked } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { useTheme } from 'next-themes';
+import { useProgressPulse } from '@/hooks/useProgressPulse';
 
 interface SubtaskData {
   id: number;
@@ -44,7 +45,15 @@ interface TaskItemProps {
   onTaskStart?: (taskId: number) => void;
   isCurrentTask?: boolean;
   taskLists?: any[];
-  updateTaskOrderMutation?: any; // Add this prop to pass the mutation down
+  updateTaskOrderMutation?: any;
+  hasActivePulse?: boolean;
+  onAddToPulse?: (itemName: string, itemType: 'subtask' | 'task') => void;
+  pulseStyles?: React.CSSProperties;
+  pulseItems?: any[];
+  onLockPulse?: () => void;
+  pulseProgress?: number;
+  pulseTotalItems?: number;
+  pulseCompletedItems?: number;
 }
 
 const EditTaskModal = ({
@@ -321,7 +330,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onTaskStart,
   isCurrentTask,
   taskLists,
-  updateTaskOrderMutation
+  updateTaskOrderMutation,
+  hasActivePulse,
+  onAddToPulse,
+  pulseStyles,
+  pulseItems,
+  onLockPulse,
+  pulseProgress,
+  pulseTotalItems,
+  pulseCompletedItems,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -470,7 +487,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   // Theme-aware background colors
+  const isPulse = isProgressPulse(task);
   const getTaskBackground = () => {
+    if (isPulse) {
+      return ""; // Pulse uses inline styles for background
+    }
     if (isCurrentTask) {
       return isNightMode ? "bg-black" : "bg-white";
     }
@@ -489,11 +510,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
         className={cn(
           "flex items-start gap-3 p-4 rounded-lg transition-colors shadow-sm", 
           getTaskBackground(),
-          task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? "border-l-4" : ""
+          task.task_list_id && task.task_list_id !== 1 && !isCurrentTask && !isPulse ? "border-l-4" : ""
         )}
-        style={task.task_list_id && task.task_list_id !== 1 && !isCurrentTask ? {
-          borderLeftColor: borderColor
-        } : undefined}
+        style={{
+          ...(task.task_list_id && task.task_list_id !== 1 && !isCurrentTask && !isPulse ? { borderLeftColor: borderColor } : {}),
+          ...(isPulse && pulseStyles ? { ...pulseStyles, borderRadius: '0.5rem', color: 'white' } : {}),
+        }}
       >
         <div className="flex gap-2 flex-shrink-0">
           <Button size="icon" variant="ghost" className={cn(
@@ -532,19 +554,56 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </span>}
           </div>
         </div>
-        {!isTaskView && task.Progress !== 'Completed' && <Button size="icon" variant="ghost" className={cn(
+        {/* Add to Pulse button - shown on non-pulse tasks when an unlocked pulse exists */}
+        {!isPulse && hasActivePulse && !isTaskView && task.Progress !== 'Completed' && onAddToPulse && (
+          <Button size="icon" variant="ghost" className={cn(
+            "flex-shrink-0 h-8 w-8 rounded-full",
+            "bg-purple-500/20 text-purple-500 hover:bg-purple-500/30"
+          )} onClick={() => onAddToPulse(task["Task Name"], 'task')} title="Add to Progress Pulse">
+            <Target className="h-4 w-4" />
+          </Button>
+        )}
+        {/* Lock button - shown on unlocked pulse blocks */}
+        {isPulse && !isPulseLocked(task) && onLockPulse && (
+          <Button size="icon" variant="ghost" className={cn(
+            "flex-shrink-0 h-8 w-8 rounded-full",
+            "bg-white/20 text-white hover:bg-white/30"
+          )} onClick={onLockPulse} title="Lock Progress Pulse">
+            <Lock className="h-4 w-4" />
+          </Button>
+        )}
+        {!isTaskView && task.Progress !== 'Completed' && !isPulse && <Button size="icon" variant="ghost" className={cn(
           "flex-shrink-0 h-8 w-8 rounded-full",
           isNightMode && isCurrentTask ? "text-white hover:bg-white/20" : "hover:bg-primary/10"
         )} onClick={() => setIsEditing(true)}>
             <PencilIcon className="h-4 w-4" />
           </Button>}
-        {hasSubtasks && <Button size="icon" variant="ghost" className={cn(
+        {hasSubtasks && !isPulse && <Button size="icon" variant="ghost" className={cn(
           "flex-shrink-0 h-8 w-8 rounded-full",
           isNightMode && isCurrentTask ? "text-white hover:bg-white/20" : "hover:bg-primary/10"
         )} onClick={() => setIsExpanded(!isExpanded)}>
             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>}
       </div>
+
+      {/* Pulse items list */}
+      {isPulse && pulseItems && pulseItems.length > 0 && (
+        <div className="pl-12 space-y-1">
+          <div className="text-xs font-medium text-muted-foreground mb-1">
+            {pulseCompletedItems}/{pulseTotalItems} items completed ({Math.round((pulseProgress || 0) * 100)}%)
+          </div>
+          {pulseItems.map(item => (
+            <div key={item.id} className={cn(
+              "flex items-center gap-2 text-sm py-1 px-2 rounded",
+              item.is_completed ? "line-through text-muted-foreground" : "font-medium"
+            )}>
+              <Check className={cn("h-3 w-3", item.is_completed ? "text-green-500" : "text-muted-foreground/30")} />
+              <span>{item.item_name}</span>
+              <span className="text-xs text-muted-foreground">({item.item_type})</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <EditTaskModal isOpen={isEditing} onClose={() => setIsEditing(false)} task={task} subtasks={subtasks} onSave={handleEditSave} />
 
@@ -564,12 +623,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   <Check className="h-3 w-3" />
                 </Button>
                 <span className={cn(
-                  "text-sm font-bold break-words", 
+                  "text-sm font-bold break-words flex-grow", 
                   subtask.Progress === 'Completed' && `line-through ${taskNameCompletedColor}`,
                   isNightMode && subtask.Progress !== 'Completed' && "text-foreground"
                 )}>
                   {subtask["Task Name"]}
                 </span>
+                {/* Add subtask to Pulse button */}
+                {hasActivePulse && subtask.Progress !== 'Completed' && onAddToPulse && (
+                  <Button size="icon" variant="ghost" className={cn(
+                    "flex-shrink-0 h-6 w-6 rounded-full",
+                    "bg-purple-500/20 text-purple-500 hover:bg-purple-500/30"
+                  )} onClick={() => onAddToPulse(subtask["Task Name"], 'subtask')} title="Add to Progress Pulse">
+                    <Target className="h-3 w-3" />
+                  </Button>
+                )}
               </li>)}
         </ul>}
     </li>;
@@ -632,6 +700,9 @@ export const TaskList: React.FC<TaskListProps> = ({
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const isTaskView = location.pathname === '/tasks';
+
+  // Initialize pulse hook with today's tasks
+  const pulseHook = useProgressPulse(initialTasks);
   const sensors = useSensors(useSensor(MouseSensor, {
     activationConstraint: {
       distance: 10
@@ -1219,7 +1290,33 @@ export const TaskList: React.FC<TaskListProps> = ({
         queryKey: ['active-tasks']
       });
       toast.success('Task completed');
-    }
+    },
+    onMutate: async ({ id, isSubtask }) => {
+      // After completion, check pulse items (done in onSuccess to have the name)
+    },
+  });
+
+  // Wrap updateTaskProgress to also update pulse items
+  const updateTaskProgressWithPulse = useMutation({
+    mutationFn: async ({ id, isSubtask = false }: { id: number; isSubtask?: boolean }) => {
+      // Get the item name before completing
+      let itemName = '';
+      if (isSubtask) {
+        const { data } = await supabase.from('subtasks').select('"Task Name"').eq('id', id).single();
+        itemName = data?.["Task Name"] || '';
+      } else {
+        const { data } = await supabase.from('Tasks').select('"Task Name"').eq('id', id).single();
+        itemName = data?.["Task Name"] || '';
+      }
+
+      // Run the original completion logic
+      await updateTaskProgress.mutateAsync({ id, isSubtask });
+
+      // Check and update pulse items
+      if (itemName) {
+        await pulseHook.checkAndUpdatePulseCompletion(itemName);
+      }
+    },
   });
 
   if (!isTaskView) {
@@ -1236,11 +1333,28 @@ export const TaskList: React.FC<TaskListProps> = ({
                     <TaskItem 
                       task={task} 
                       subtasks={todaySubtasks} 
-                      updateTaskProgress={updateTaskProgress} 
+                      updateTaskProgress={updateTaskProgressWithPulse} 
                       onTaskStart={onTaskStart} 
                       isCurrentTask={task.id === activeTaskId}
                       taskLists={taskLists} 
-                      updateTaskOrderMutation={updateTaskOrderMutation} // Pass the mutation down
+                      updateTaskOrderMutation={updateTaskOrderMutation}
+                      hasActivePulse={pulseHook.hasActivePulse}
+                      onAddToPulse={(itemName, itemType) => {
+                        pulseHook.addItemToPulse.mutate({ itemName, itemType }, {
+                          onSuccess: () => toast.success(`Added "${itemName}" to Progress Pulse`),
+                          onError: (err: any) => toast.error(err.message || 'Failed to add to pulse'),
+                        });
+                      }}
+                      pulseStyles={isProgressPulse(task) ? pulseHook.getProgressStyles() : undefined}
+                      pulseItems={isProgressPulse(task) ? pulseHook.pulseItems : undefined}
+                      onLockPulse={isProgressPulse(task) ? () => {
+                        pulseHook.lockPulse.mutate(undefined, {
+                          onSuccess: () => toast.success('Progress Pulse locked!'),
+                        });
+                      } : undefined}
+                      pulseProgress={isProgressPulse(task) ? pulseHook.progress : undefined}
+                      pulseTotalItems={isProgressPulse(task) ? pulseHook.totalItems : undefined}
+                      pulseCompletedItems={isProgressPulse(task) ? pulseHook.completedItems : undefined}
                     />
                   </SortableTaskItem>
                 ))}

@@ -125,6 +125,36 @@ export type Database = {
         }
         Relationships: []
       }
+      progress_pulse_items: {
+        Row: {
+          created_at: string
+          id: number
+          is_completed: boolean
+          item_name: string
+          item_type: string
+          pulse_task_id: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          is_completed?: boolean
+          item_name: string
+          item_type?: string
+          pulse_task_id: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          is_completed?: boolean
+          item_name?: string
+          item_type?: string
+          pulse_task_id?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       project_goals: {
         Row: {
           created_at: string

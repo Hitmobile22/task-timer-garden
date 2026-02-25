@@ -125,3 +125,47 @@ export const canTaskBeRescheduled = (task: any): boolean => {
 export const isCurrentTask = (task: any): boolean => {
   return task?.Progress === 'In progress';
 };
+
+/**
+ * Checks if a task is a Progress Pulse time block
+ */
+export const isProgressPulse = (task: any): boolean => {
+  if (!task || !task.details) return false;
+  
+  if (typeof task.details === 'string') {
+    try {
+      const parsed = JSON.parse(task.details);
+      return Boolean(parsed.isTimeBlock) && Boolean(parsed.isProgressPulse);
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  if (typeof task.details === 'object' && task.details !== null) {
+    return Boolean(task.details.isTimeBlock) && Boolean(task.details.isProgressPulse);
+  }
+  
+  return false;
+};
+
+/**
+ * Checks if a Progress Pulse is locked
+ */
+export const isPulseLocked = (task: any): boolean => {
+  if (!isProgressPulse(task)) return false;
+  
+  if (typeof task.details === 'string') {
+    try {
+      const parsed = JSON.parse(task.details);
+      return Boolean(parsed.isLocked);
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  if (typeof task.details === 'object' && task.details !== null) {
+    return Boolean(task.details.isLocked);
+  }
+  
+  return false;
+};

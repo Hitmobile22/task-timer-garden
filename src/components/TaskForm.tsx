@@ -33,7 +33,7 @@ interface TimeBlockProps {
   duration: string;
 }
 
-type TimeBlockType = 'single' | 'week';
+type TimeBlockType = 'single' | 'week' | 'pulse';
 type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
 
 const DAYS_OF_WEEK: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -238,7 +238,7 @@ export const TaskForm = ({
       return;
     }
     
-    if (timeBlockType === 'single') {
+    if (timeBlockType === 'single' || timeBlockType === 'pulse') {
       if (!timeBlockDate) {
         toast.error("Please select a start time");
         return;
@@ -262,7 +262,9 @@ export const TaskForm = ({
             "Progress": "Not started",
             "date_started": startTime.toISOString(),
             "date_due": endTime.toISOString(),
-            "details": { isTimeBlock: true },
+            "details": timeBlockType === 'pulse' 
+              ? { isTimeBlock: true, isProgressPulse: true } 
+              : { isTimeBlock: true },
             "user_id": user?.id
           }])
           .select()
@@ -636,11 +638,12 @@ export const TaskForm = ({
                 <SelectContent>
                   <SelectItem value="single">Single</SelectItem>
                   <SelectItem value="week">Week</SelectItem>
+                  <SelectItem value="pulse">Progress Pulse</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
-            {timeBlockType === 'single' ? (
+            {(timeBlockType === 'single' || timeBlockType === 'pulse') ? (
               <div className="space-y-2">
                 <Label>Start Time</Label>
                 <Popover>

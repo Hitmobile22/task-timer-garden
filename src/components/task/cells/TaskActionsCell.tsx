@@ -120,7 +120,7 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
               variant="ghost"
               size="icon"
               onClick={handleSave}
-              disabled={isTimeBlock}
+              disabled={isTimeBlockLocked}
             >
               <Check className="h-4 w-4" />
             </Button>

@@ -574,6 +574,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
             <Lock className="h-4 w-4" />
           </Button>
         )}
+        {/* Unlock button - shown on locked pulse blocks */}
+        {isPulse && isPulseLocked(task) && onUnlockPulse && (
+          <Button size="icon" variant="ghost" className={cn(
+            "flex-shrink-0 h-8 w-8 rounded-full",
+            "bg-white/20 text-white hover:bg-white/30"
+          )} onClick={onUnlockPulse} title="Unlock Progress Pulse">
+            <Unlock className="h-4 w-4" />
+          </Button>
+        )}
         {!isTaskView && task.Progress !== 'Completed' && !isPulse && <Button size="icon" variant="ghost" className={cn(
           "flex-shrink-0 h-8 w-8 rounded-full",
           isNightMode && isCurrentTask ? "text-white hover:bg-white/20" : "hover:bg-primary/10"

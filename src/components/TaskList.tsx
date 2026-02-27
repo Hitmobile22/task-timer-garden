@@ -1363,6 +1363,11 @@ export const TaskList: React.FC<TaskListProps> = ({
                           onSuccess: () => toast.success('Progress Pulse locked!'),
                         });
                       } : undefined}
+                      onUnlockPulse={isProgressPulse(task) ? () => {
+                        pulseHook.unlockPulse.mutate(undefined, {
+                          onSuccess: () => toast.success('Progress Pulse unlocked!'),
+                        });
+                      } : undefined}
                       pulseProgress={isProgressPulse(task) ? pulseHook.progress : undefined}
                       pulseTotalItems={isProgressPulse(task) ? pulseHook.totalItems : undefined}
                       pulseCompletedItems={isProgressPulse(task) ? pulseHook.completedItems : undefined}

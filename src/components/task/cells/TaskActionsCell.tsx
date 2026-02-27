@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ListFilter, PencilIcon, Trash2, Check, X, Lock, Archive, ArchiveRestore } from "lucide-react";
 import { Task } from '@/types/task.types';
 import { isTaskTimeBlock } from '@/utils/taskUtils';
-import { useArchiveActions } from '@/hooks/useArchiveActions';
+import { useLocation } from 'react-router-dom';
 
 interface TaskActionsCellProps {
   task: Task;

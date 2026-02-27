@@ -8,6 +8,7 @@ import { TaskActionsCell } from './cells/TaskActionsCell';
 import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { cn } from '@/lib/utils';
+import { useLocation } from 'react-router-dom';
 
 interface TaskItemProps {
   task: Task;
@@ -58,6 +59,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   );
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
   const isTimeBlock = isTaskTimeBlock(task);
+  const location = useLocation();
+  const isTaskViewPage = location.pathname === '/tasks';
 
   const taskListColor = React.useMemo(() => {
     if (task.task_list_id && taskLists && taskLists.length > 0) {
@@ -77,8 +80,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   }, [task.date_started, task.date_due, task.Progress, editingTaskId]);
 
   const handleTimelineUpdate = (startDate?: Date, endDate?: Date) => {
-    // Don't update timeline for time blocks
-    if (isTimeBlock) return;
+    // Don't update timeline for time blocks on schedule page, but allow on /tasks page
+    if (isTimeBlock && !isTaskViewPage) return;
     
     setSelectedStartDate(startDate);
     setSelectedEndDate(endDate);
@@ -91,7 +94,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const isEditing = editingTaskId === task.id;
 
   const handleSave = () => {
-    if (selectedStartDate && selectedEndDate && !isTimeBlock) {
+    if (selectedStartDate && selectedEndDate && (!isTimeBlock || isTaskViewPage)) {
       onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     }
     if (tempProgress !== task.Progress) {
@@ -133,8 +136,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         <TaskTimelineCell
           startDate={selectedStartDate}
           endDate={selectedEndDate}
-          isEditing={isEditing && !isTimeBlock}
-          isTimeBlock={isTimeBlock}
+          isEditing={isEditing && (!isTimeBlock || isTaskViewPage)}
+          isTimeBlock={isTimeBlock && !isTaskViewPage}
           onTimelineUpdate={handleTimelineUpdate}
         />
         <TaskActionsCell

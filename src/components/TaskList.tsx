@@ -13,7 +13,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { DndContext, closestCenter, DragEndEvent, TouchSensor, MouseSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X, Minus, Target, Lock } from 'lucide-react';
+import { Check, Filter, Play, Clock, GripVertical, ChevronUp, ChevronDown, Circle, PencilIcon, Plus, X, Minus, Target, Lock, Unlock } from 'lucide-react';
 import { Task, Subtask } from '@/types/task.types';
 import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock, isCurrentTask, isProgressPulse, isPulseLocked } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
@@ -51,6 +51,7 @@ interface TaskItemProps {
   pulseStyles?: React.CSSProperties;
   pulseItems?: any[];
   onLockPulse?: () => void;
+  onUnlockPulse?: () => void;
   pulseProgress?: number;
   pulseTotalItems?: number;
   pulseCompletedItems?: number;
@@ -336,6 +337,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   pulseStyles,
   pulseItems,
   onLockPulse,
+  onUnlockPulse,
   pulseProgress,
   pulseTotalItems,
   pulseCompletedItems,
@@ -570,6 +572,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
             "bg-white/20 text-white hover:bg-white/30"
           )} onClick={onLockPulse} title="Lock Progress Pulse">
             <Lock className="h-4 w-4" />
+          </Button>
+        )}
+        {/* Unlock button - shown on locked pulse blocks */}
+        {isPulse && isPulseLocked(task) && onUnlockPulse && (
+          <Button size="icon" variant="ghost" className={cn(
+            "flex-shrink-0 h-8 w-8 rounded-full",
+            "bg-white/20 text-white hover:bg-white/30"
+          )} onClick={onUnlockPulse} title="Unlock Progress Pulse">
+            <Unlock className="h-4 w-4" />
           </Button>
         )}
         {!isTaskView && task.Progress !== 'Completed' && !isPulse && <Button size="icon" variant="ghost" className={cn(
@@ -1350,6 +1361,11 @@ export const TaskList: React.FC<TaskListProps> = ({
                       onLockPulse={isProgressPulse(task) ? () => {
                         pulseHook.lockPulse.mutate(undefined, {
                           onSuccess: () => toast.success('Progress Pulse locked!'),
+                        });
+                      } : undefined}
+                      onUnlockPulse={isProgressPulse(task) ? () => {
+                        pulseHook.unlockPulse.mutate(undefined, {
+                          onSuccess: () => toast.success('Progress Pulse unlocked!'),
                         });
                       } : undefined}
                       pulseProgress={isProgressPulse(task) ? pulseHook.progress : undefined}

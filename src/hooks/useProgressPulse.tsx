@@ -135,6 +135,29 @@ export const useProgressPulse = (todayTasks?: any[]) => {
     },
   });
 
+  // Unlock the pulse
+  const unlockPulse = useMutation({
+    mutationFn: async () => {
+      if (!anyPulse) throw new Error('No pulse to unlock');
+      
+      const details = typeof anyPulse.details === 'string'
+        ? JSON.parse(anyPulse.details)
+        : { ...anyPulse.details };
+      
+      details.isLocked = false;
+
+      const { error } = await supabase
+        .from('Tasks')
+        .update({ details })
+        .eq('id', anyPulse.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+    },
+  });
+
   // Mark matching pulse items as completed (call after completing a task/subtask)
   const checkAndUpdatePulseCompletion = async (itemName: string) => {
     if (!pulseTaskId || !user?.id) return;
@@ -164,6 +187,7 @@ export const useProgressPulse = (todayTasks?: any[]) => {
     addItemToPulse,
     removeItemFromPulse,
     lockPulse,
+    unlockPulse,
     checkAndUpdatePulseCompletion,
     hasActivePulse: !!activePulse,
     hasAnyPulse: !!anyPulse,

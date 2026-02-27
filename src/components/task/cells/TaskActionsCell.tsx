@@ -78,7 +78,7 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
       <div className="flex items-center gap-2">
         {isEditing ? (
           <>
-            {isTimeBlock ? (
+            {isTimeBlockLocked ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Lock className="h-4 w-4" />
                 <span>Time block (locked)</span>

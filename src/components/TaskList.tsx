@@ -337,6 +337,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   pulseStyles,
   pulseItems,
   onLockPulse,
+  onUnlockPulse,
   pulseProgress,
   pulseTotalItems,
   pulseCompletedItems,

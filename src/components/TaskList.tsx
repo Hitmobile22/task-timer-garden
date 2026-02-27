@@ -51,6 +51,7 @@ interface TaskItemProps {
   pulseStyles?: React.CSSProperties;
   pulseItems?: any[];
   onLockPulse?: () => void;
+  onUnlockPulse?: () => void;
   pulseProgress?: number;
   pulseTotalItems?: number;
   pulseCompletedItems?: number;

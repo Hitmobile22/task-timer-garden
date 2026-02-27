@@ -94,7 +94,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const isEditing = editingTaskId === task.id;
 
   const handleSave = () => {
-    if (selectedStartDate && selectedEndDate && !isTimeBlock) {
+    if (selectedStartDate && selectedEndDate && (!isTimeBlock || isTaskViewPage)) {
       onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     }
     if (tempProgress !== task.Progress) {

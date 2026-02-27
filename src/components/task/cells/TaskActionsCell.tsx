@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ListFilter, PencilIcon, Trash2, Check, X, Lock, Archive, ArchiveRestore } from "lucide-react";
 import { Task } from '@/types/task.types';
 import { isTaskTimeBlock } from '@/utils/taskUtils';
+import { useLocation } from 'react-router-dom';
 import { useArchiveActions } from '@/hooks/useArchiveActions';
 
 interface TaskActionsCellProps {
@@ -36,6 +37,9 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   const currentList = taskLists?.find(list => list.id === task.task_list_id);
   const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
   const isTimeBlock = isTaskTimeBlock(task);
+  const location = useLocation();
+  const isTaskViewPage = location.pathname === '/tasks';
+  const isTimeBlockLocked = isTimeBlock && !isTaskViewPage;
   const { archiveTask } = useArchiveActions();
 
   React.useEffect(() => {
@@ -75,7 +79,7 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
       <div className="flex items-center gap-2">
         {isEditing ? (
           <>
-            {isTimeBlock ? (
+            {isTimeBlockLocked ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Lock className="h-4 w-4" />
                 <span>Time block (locked)</span>
@@ -117,7 +121,7 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
               variant="ghost"
               size="icon"
               onClick={handleSave}
-              disabled={isTimeBlock}
+              disabled={isTimeBlockLocked}
             >
               <Check className="h-4 w-4" />
             </Button>

@@ -29,6 +29,21 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
   const [startDateOpen, setStartDateOpen] = React.useState(false);
   const [endDateOpen, setEndDateOpen] = React.useState(false);
 
+  // Compute original duration to preserve when start date changes
+  const originalDurationMs = React.useMemo(() => {
+    if (selectedStartDate && selectedEndDate) {
+      return selectedEndDate.getTime() - selectedStartDate.getTime();
+    }
+    return null;
+  }, [selectedStartDate, selectedEndDate]);
+
+  const updateStartAndShiftEnd = (newStart: Date) => {
+    setTempStartDate(newStart);
+    if (originalDurationMs !== null && originalDurationMs > 0) {
+      setTempEndDate(new Date(newStart.getTime() + originalDurationMs));
+    }
+  };
+
   React.useEffect(() => {
     if (tempStartDate !== selectedStartDate || tempEndDate !== selectedEndDate) {
       onTimelineUpdate(tempStartDate, tempEndDate);
@@ -99,7 +114,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                       newDate.setHours(new Date().getHours());
                       newDate.setMinutes(new Date().getMinutes());
                     }
-                    setTempStartDate(newDate);
+                    updateStartAndShiftEnd(newDate);
                     setStartDateOpen(false);
                   }
                 }}
@@ -115,7 +130,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                       const newDate = new Date(tempStartDate);
                       newDate.setHours(parseInt(hours));
                       newDate.setMinutes(parseInt(minutes));
-                      setTempStartDate(newDate);
+                      updateStartAndShiftEnd(newDate);
                     }
                   }}
                 />

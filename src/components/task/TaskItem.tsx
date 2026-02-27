@@ -8,6 +8,7 @@ import { TaskActionsCell } from './cells/TaskActionsCell';
 import { getTaskListColor, extractSolidColorFromGradient, isTaskTimeBlock } from '@/utils/taskUtils';
 import { DEFAULT_LIST_COLOR } from '@/constants/taskColors';
 import { cn } from '@/lib/utils';
+import { useLocation } from 'react-router-dom';
 
 interface TaskItemProps {
   task: Task;

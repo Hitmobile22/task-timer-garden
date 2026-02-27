@@ -7,6 +7,7 @@ import { ListFilter, PencilIcon, Trash2, Check, X, Lock, Archive, ArchiveRestore
 import { Task } from '@/types/task.types';
 import { isTaskTimeBlock } from '@/utils/taskUtils';
 import { useLocation } from 'react-router-dom';
+import { useArchiveActions } from '@/hooks/useArchiveActions';
 
 interface TaskActionsCellProps {
   task: Task;

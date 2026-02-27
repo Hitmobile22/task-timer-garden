@@ -130,7 +130,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                       const newDate = new Date(tempStartDate);
                       newDate.setHours(parseInt(hours));
                       newDate.setMinutes(parseInt(minutes));
-                      setTempStartDate(newDate);
+                      updateStartAndShiftEnd(newDate);
                     }
                   }}
                 />

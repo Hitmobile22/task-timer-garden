@@ -187,6 +187,7 @@ export const useProgressPulse = (todayTasks?: any[]) => {
     addItemToPulse,
     removeItemFromPulse,
     lockPulse,
+    unlockPulse,
     checkAndUpdatePulseCompletion,
     hasActivePulse: !!activePulse,
     hasAnyPulse: !!anyPulse,

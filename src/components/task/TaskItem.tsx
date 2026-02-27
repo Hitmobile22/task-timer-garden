@@ -59,6 +59,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   );
   const [tempProgress, setTempProgress] = React.useState<Task['Progress']>(task.Progress);
   const isTimeBlock = isTaskTimeBlock(task);
+  const location = useLocation();
+  const isTaskViewPage = location.pathname === '/tasks';
 
   const taskListColor = React.useMemo(() => {
     if (task.task_list_id && taskLists && taskLists.length > 0) {

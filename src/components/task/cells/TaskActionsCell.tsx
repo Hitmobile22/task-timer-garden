@@ -36,6 +36,9 @@ export const TaskActionsCell: React.FC<TaskActionsCellProps> = ({
   const currentList = taskLists?.find(list => list.id === task.task_list_id);
   const [tempListId, setTempListId] = React.useState<number | null>(task.task_list_id);
   const isTimeBlock = isTaskTimeBlock(task);
+  const location = useLocation();
+  const isTaskViewPage = location.pathname === '/tasks';
+  const isTimeBlockLocked = isTimeBlock && !isTaskViewPage;
   const { archiveTask } = useArchiveActions();
 
   React.useEffect(() => {

@@ -80,8 +80,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   }, [task.date_started, task.date_due, task.Progress, editingTaskId]);
 
   const handleTimelineUpdate = (startDate?: Date, endDate?: Date) => {
-    // Don't update timeline for time blocks
-    if (isTimeBlock) return;
+    // Don't update timeline for time blocks on schedule page, but allow on /tasks page
+    if (isTimeBlock && !isTaskViewPage) return;
     
     setSelectedStartDate(startDate);
     setSelectedEndDate(endDate);

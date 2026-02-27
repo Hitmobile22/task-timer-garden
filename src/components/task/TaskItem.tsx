@@ -136,8 +136,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         <TaskTimelineCell
           startDate={selectedStartDate}
           endDate={selectedEndDate}
-          isEditing={isEditing && !isTimeBlock}
-          isTimeBlock={isTimeBlock}
+          isEditing={isEditing && (!isTimeBlock || isTaskViewPage)}
+          isTimeBlock={isTimeBlock && !isTaskViewPage}
           onTimelineUpdate={handleTimelineUpdate}
         />
         <TaskActionsCell

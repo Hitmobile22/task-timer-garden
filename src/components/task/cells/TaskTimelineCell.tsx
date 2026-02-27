@@ -114,7 +114,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
                       newDate.setHours(new Date().getHours());
                       newDate.setMinutes(new Date().getMinutes());
                     }
-                    setTempStartDate(newDate);
+                    updateStartAndShiftEnd(newDate);
                     setStartDateOpen(false);
                   }
                 }}

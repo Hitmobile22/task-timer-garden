@@ -208,6 +208,8 @@ export const useRecurringProjectsCheck = () => {
         console.log('Tasks were created, invalidating task queries');
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
         queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
+        queryClient.invalidateQueries({ queryKey: ['subtasks'] });
         
         toast.success('Created new recurring tasks');
         

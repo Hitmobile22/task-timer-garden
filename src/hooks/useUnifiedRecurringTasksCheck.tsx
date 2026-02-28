@@ -359,6 +359,8 @@ export const useUnifiedRecurringTasksCheck = () => {
       if (tasksCreated) {
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
         queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
+        queryClient.invalidateQueries({ queryKey: ['subtasks'] });
         
         if (!forceCheck) {
           toast('Created new recurring tasks for today');

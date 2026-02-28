@@ -287,6 +287,91 @@ export const RecurringTasksModal = ({
         console.log('Successfully saved new settings record:', data[0]);
       }
 
+      // Sync subtasks on today's incomplete tasks to match the new template
+      const newSubtaskNames = settings.subtaskNames.filter(name => name.trim() !== '');
+      if (newSubtaskNames.length > 0) {
+        try {
+          // Get today's EST boundaries
+          const now = new Date();
+          const estNow = toZonedTime(now, 'America/New_York');
+          const estHour = estNow.getHours();
+          const isEveningMode = estHour >= 21 || estHour < 3;
+          
+          let startBoundary: Date;
+          if (isEveningMode) {
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            yesterday.setUTCHours(5, 0, 0, 0);
+            startBoundary = yesterday;
+          } else {
+            const todayStart = new Date(now);
+            todayStart.setUTCHours(5, 0, 0, 0);
+            startBoundary = todayStart;
+          }
+
+          // Find today's incomplete tasks for this list
+          const { data: todayTasks } = await supabase
+            .from('Tasks')
+            .select('id')
+            .eq('task_list_id', listId)
+            .in('Progress', ['Not started', 'In progress'])
+            .gte('date_started', startBoundary.toISOString());
+
+          if (todayTasks && todayTasks.length > 0) {
+            const taskIds = todayTasks.map(t => t.id);
+            const { data: { user } } = await supabase.auth.getUser();
+
+            for (const taskId of taskIds) {
+              // Get existing subtasks for this task
+              const { data: existingSubtasks } = await supabase
+                .from('subtasks')
+                .select('*')
+                .eq('Parent Task ID', taskId)
+                .order('sort_order', { ascending: true });
+
+              const existingNames = (existingSubtasks || []).map(s => s["Task Name"]);
+              const completedNames = (existingSubtasks || [])
+                .filter(s => s.Progress === 'Completed')
+                .map(s => s["Task Name"]);
+
+              // Delete subtasks that are no longer in the template (and not completed)
+              const toDelete = (existingSubtasks || []).filter(
+                s => !newSubtaskNames.includes(s["Task Name"] || '') && s.Progress !== 'Completed'
+              );
+              if (toDelete.length > 0) {
+                await supabase.from('subtasks').delete().in('id', toDelete.map(s => s.id));
+              }
+
+              // Add subtasks that are in the new template but not yet on this task
+              // For progressive mode, skip names that were already completed
+              const toAdd = newSubtaskNames.filter(name => {
+                if (existingNames.includes(name)) return false;
+                if (settings.subtaskMode === 'progressive' && completedNames.includes(name)) return false;
+                return true;
+              });
+
+              if (toAdd.length > 0) {
+                const maxOrder = (existingSubtasks || []).reduce((max, s) => Math.max(max, s.sort_order || 0), -1);
+                const newSubtasks = toAdd.map((name, idx) => ({
+                  "Task Name": name,
+                  "Parent Task ID": taskId,
+                  sort_order: maxOrder + 1 + idx,
+                  user_id: user?.id || '',
+                  Progress: 'Not started' as const,
+                }));
+                await supabase.from('subtasks').insert(newSubtasks);
+              }
+            }
+
+            // Invalidate subtask queries
+            queryClient.invalidateQueries({ queryKey: ['today-subtasks'] });
+            queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+          }
+        } catch (syncError) {
+          console.error('Error syncing subtasks with new template:', syncError);
+        }
+      }
+
       onSubmit(settings);
       toast.success('Recurring task settings saved');
 

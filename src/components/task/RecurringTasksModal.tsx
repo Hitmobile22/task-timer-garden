@@ -24,7 +24,9 @@ import { Plus, Minus } from "lucide-react";
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { getCurrentDayName, getTodayISOString, getTomorrowISOString } from '@/lib/utils';
+import { toZonedTime } from 'date-fns-tz';
 
 interface RecurringTasksModalProps {
   open: boolean;

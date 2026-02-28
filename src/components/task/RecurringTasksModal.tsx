@@ -127,6 +127,7 @@ export const RecurringTasksModal = ({
   const [currentSettingId, setCurrentSettingId] = useState<number | null>(null);
   const [settingsChanged, setSettingsChanged] = useState(false);
   const [isCheckingTasks, setIsCheckingTasks] = useState(false);
+  const queryClient = useQueryClient();
 
   const checkTodayLog = async (settingId: number) => {
     if (!settingId) return null;

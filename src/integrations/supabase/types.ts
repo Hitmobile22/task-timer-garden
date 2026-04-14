@@ -24,7 +24,7 @@ export type Database = {
           project_goal_id: number
           project_id: number
           reward: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           completed_at?: string
@@ -35,7 +35,7 @@ export type Database = {
           project_goal_id: number
           project_id: number
           reward?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           completed_at?: string
@@ -46,7 +46,7 @@ export type Database = {
           project_goal_id?: number
           project_id?: number
           reward?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {

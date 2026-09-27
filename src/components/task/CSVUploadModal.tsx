@@ -1,4 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import { formatInTimeZone } from 'date-fns-tz';
+import {
+  parseFullImport,
+  toDetails,
+  downloadFullExampleCSV,
+  FullImportResult,
+  FullTask,
+} from '@/utils/csvFullImportUtils';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -35,6 +43,10 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [fullFile, setFullFile] = useState<File | null>(null);
+  const [fullResult, setFullResult] = useState<FullImportResult | null>(null);
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -57,12 +69,24 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
   }, []);
 
   const handleFileSelect = async (selectedFile: File) => {
-    if (!selectedFile.name.endsWith('.csv')) {
+    if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
       toast.error('Please select a CSV file');
       return;
     }
 
+    if (activeTabRef.current === 'all') {
+      setFullFile(selectedFile);
+      try {
+        setFullResult(parseFullImport(await selectedFile.text(), taskLists));
+      } catch (error) {
+        console.error('Error parsing CSV:', error);
+        toast.error('Failed to parse CSV file');
+      }
+      return;
+    }
+
     setFile(selectedFile);
+    
     
     try {
       const text = await selectedFile.text();
@@ -202,10 +226,85 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
     }
   };
 
+  const handleFullImport = async () => {
+    if (!fullResult) return;
+    setIsImporting(true);
+    let failed = 0;
+    const done = { projects: 0, tasks: 0, subtasks: 0 };
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast.error('You must be logged in to import'); return; }
+
+      const insertTasks = async (tasks: FullTask[], projectId: number | null) => {
+        for (let i = 0; i < tasks.length; i++) {
+          const t = tasks[i];
+          const { data: newTask, error } = await supabase.from('Tasks').insert({
+            'Task Name': t.name,
+            Progress: t.progress,
+            date_started: t.start.toISOString(),
+            date_due: t.due.toISOString(),
+            project_id: projectId,
+            task_list_id: t.listId,
+            details: toDetails(t.description),
+            user_id: user.id,
+            order: i,
+            sort_order: i,
+          }).select('id').single();
+          if (error || !newTask) { console.error(error); failed++; continue; }
+          done.tasks++;
+          if (t.subtasks.length) {
+            const { error: subErr } = await supabase.from('subtasks').insert(
+              t.subtasks.map((s, k) => ({
+                'Task Name': s.name, 'Parent Task ID': newTask.id,
+                Progress: s.progress, sort_order: k, user_id: user.id,
+              }))
+            );
+            if (subErr) { console.error(subErr); failed += t.subtasks.length; }
+            else done.subtasks += t.subtasks.length;
+          }
+        }
+      };
+
+      for (const p of fullResult.projects) {
+        const { data: newProject, error } = await supabase.from('Projects').insert({
+          'Project Name': p.name,
+          progress: p.progress,
+          date_started: p.start.toISOString(),
+          date_due: p.due.toISOString(),
+          task_list_id: p.listId,
+          details: toDetails(p.description),
+          user_id: user.id,
+          sort_order: 0,
+        }).select('id').single();
+        if (error || !newProject) { console.error(error); failed++; continue; }
+        done.projects++;
+        await insertTasks(p.tasks, newProject.id);
+      }
+      await insertTasks(fullResult.standaloneTasks, null);
+
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries();
+
+      toast.success(`Imported ${done.projects} projects, ${done.tasks} tasks, ${done.subtasks} subtasks`);
+      if (failed > 0) toast.error(`${failed} item${failed > 1 ? 's' : ''} failed to import`);
+      resetState();
+      onOpenChange(false);
+    } catch (e) {
+      console.error('Full import error:', e);
+      toast.error('Import failed');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const resetState = () => {
     setFile(null);
     setParsedRows([]);
     setParseErrors([]);
+    setFullFile(null);
+    setFullResult(null);
   };
 
   return (
@@ -224,13 +323,85 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
             <TabsTrigger value="projects">Projects/Events</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="all" className="mt-4">
-            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg border-muted-foreground/25">
-              <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <p className="text-muted-foreground text-center">
-                Full import (Lists, Projects, Tasks, Subtasks) coming soon.
+          <TabsContent value="all" className="mt-4 flex flex-col gap-4">
+            <div className="bg-muted/50 rounded-lg p-4 text-sm">
+              <h4 className="font-semibold mb-2">How to use:</h4>
+              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                <li>Each row is a Project, Task, or Subtask (set in the "Type" column)</li>
+                <li>Tasks link to a project by its name in "Project" (leave it blank for a standalone task)</li>
+                <li>Subtasks link to a task by its name in "Task"</li>
+                <li>Tasks without dates are scheduled one after another using "Duration" (minutes, default 25)</li>
+              </ol>
+              <div className="mt-3 p-2 bg-background rounded border">
+                <p className="font-medium text-xs mb-1">Columns:</p>
+                <p className="text-xs text-muted-foreground">
+                  <strong>Type</strong> (required) | <strong>Name</strong> (required) | Project | Task | List | Start Date | Due Date | Duration | Progress | Description
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Dates: YYYY-MM-DD or MM/DD/YYYY, optionally with time (e.g. 2026-10-01 09:00, Eastern time). Progress: Not started, In progress, Completed, Backlog. Use quotes around text that contains commas.
+                </p>
+              </div>
+            </div>
+
+            <Button variant="outline" onClick={downloadFullExampleCSV} className="w-fit">
+              <Download className="h-4 w-4 mr-2" />
+              Download Example CSV
+            </Button>
+
+            <div
+              className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileInputChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <Upload className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+              <p className="text-sm text-muted-foreground">
+                {fullFile ? fullFile.name : 'Drag and drop a CSV file, or click to select'}
               </p>
             </div>
+
+            {fullResult && (
+              <ScrollArea className="h-[220px] rounded-lg border">
+                <div className="p-4 space-y-4">
+                  {fullResult.errors.length > 0 && (
+                    <div className="space-y-1">
+                      <h4 className="font-medium text-destructive flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" /> Errors ({fullResult.errors.length})
+                      </h4>
+                      {fullResult.errors.map((e, i) => <p key={i} className="text-sm text-destructive">{e}</p>)}
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-primary flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Ready: {fullResult.counts.projects} projects, {fullResult.counts.tasks} tasks, {fullResult.counts.subtasks} subtasks
+                    </h4>
+                    {fullResult.projects.map((p, i) => (
+                      <div key={i} className="text-sm p-2 bg-muted/50 rounded">
+                        <div className="font-medium flex items-center gap-2"><FileText className="h-3 w-3" />{p.name}</div>
+                        {p.warnings.length > 0 && <div className="text-xs text-muted-foreground mt-1">⚠️ {p.warnings.join(', ')}</div>}
+                        {p.tasks.map((t, j) => <TaskPreview key={j} task={t} />)}
+                      </div>
+                    ))}
+                    {fullResult.standaloneTasks.length > 0 && (
+                      <div className="text-sm p-2 bg-muted/50 rounded">
+                        <div className="font-medium">Standalone tasks</div>
+                        {fullResult.standaloneTasks.map((t, j) => <TaskPreview key={j} task={t} />)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </ScrollArea>
+            )}
           </TabsContent>
 
           <TabsContent value="projects" className="mt-4 flex flex-col gap-4">
@@ -341,14 +512,37 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleImport} 
-            disabled={parsedRows.length === 0 || isImporting || activeTab === 'all'}
-          >
-            {isImporting ? 'Importing...' : `Import ${parsedRows.length} Project${parsedRows.length !== 1 ? 's' : ''}`}
-          </Button>
+          {activeTab === 'all' ? (
+            <Button
+              onClick={handleFullImport}
+              disabled={!fullResult || (fullResult.counts.projects + fullResult.counts.tasks) === 0 || isImporting}
+            >
+              {isImporting
+                ? 'Importing...'
+                : `Import ${fullResult?.counts.projects ?? 0} projects, ${fullResult?.counts.tasks ?? 0} tasks, ${fullResult?.counts.subtasks ?? 0} subtasks`}
+            </Button>
+          ) : (
+            <Button onClick={handleImport} disabled={parsedRows.length === 0 || isImporting}>
+              {isImporting ? 'Importing...' : `Import ${parsedRows.length} Project${parsedRows.length !== 1 ? 's' : ''}`}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function TaskPreview({ task }: { task: FullTask }) {
+  return (
+    <div className="ml-4 mt-1 text-xs">
+      <div>
+        • {task.name}{' '}
+        <span className="text-muted-foreground">
+          ({formatInTimeZone(task.start, 'America/New_York', 'MMM d h:mm a')} – {formatInTimeZone(task.due, 'America/New_York', 'h:mm a')})
+        </span>
+      </div>
+      {task.warnings.length > 0 && <div className="ml-3 text-muted-foreground">⚠️ {task.warnings.join(', ')}</div>}
+      {task.subtasks.map((s, k) => <div key={k} className="ml-6 text-muted-foreground">– {s.name}</div>)}
+    </div>
   );
 }

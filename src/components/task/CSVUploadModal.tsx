@@ -47,6 +47,19 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
   const [fullResult, setFullResult] = useState<FullImportResult | null>(null);
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
+  // Always read the latest task lists (avoids stale empty list from memoized drop handler)
+  const taskListsRef = useRef(taskLists);
+  taskListsRef.current = taskLists;
+
+  // Re-parse the All-tab file once task lists finish loading
+  React.useEffect(() => {
+    if (!fullFile || taskLists.length === 0) return;
+    let cancelled = false;
+    fullFile.text().then(text => {
+      if (!cancelled) setFullResult(parseFullImport(text, taskLists));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [taskLists, fullFile]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -77,7 +90,7 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
     if (activeTabRef.current === 'all') {
       setFullFile(selectedFile);
       try {
-        setFullResult(parseFullImport(await selectedFile.text(), taskLists));
+        setFullResult(parseFullImport(await selectedFile.text(), taskListsRef.current));
       } catch (error) {
         console.error('Error parsing CSV:', error);
         toast.error('Failed to parse CSV file');

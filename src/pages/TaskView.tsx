@@ -513,12 +513,54 @@ export function TaskView() {
 
   const deleteProjectMutation = useMutation({
     mutationFn: async (projectId: number) => {
-      const { error: tasksError } = await supabase
+      // Turn off recurring so nothing regenerates for this project
+      const { error: recurErr } = await supabase
+        .from('Projects')
+        .update({ isRecurring: false })
+        .eq('id', projectId);
+      if (recurErr) throw recurErr;
+
+      // Find all tasks belonging to this project
+      const { data: projectTasks, error: fetchErr } = await supabase
         .from('Tasks')
+        .select('id')
+        .eq('project_id', projectId);
+      if (fetchErr) throw fetchErr;
+      const taskIds = (projectTasks || []).map(t => t.id);
+
+      // Delete dependents of tasks in batches, then the tasks
+      for (let i = 0; i < taskIds.length; i += 200) {
+        const batch = taskIds.slice(i, i + 200);
+        const { error: subErr } = await supabase
+          .from('subtasks').delete().in('Parent Task ID', batch);
+        if (subErr) throw subErr;
+        const { error: calErr } = await supabase
+          .from('synced_calendar_events').delete().in('task_id', batch);
+        if (calErr) throw calErr;
+        const { error: delErr } = await supabase
+          .from('Tasks').delete().in('id', batch);
+        if (delErr) throw delErr;
+      }
+
+      // Remove project-linked records that would block deletion
+      const cleanups = await Promise.all([
+        supabase.from('recurring_project_settings').delete().eq('project_id', projectId),
+        supabase.from('synced_calendar_events').delete().eq('project_id', projectId),
+        supabase.from('goal_completion_notifications').delete().eq('project_id', projectId),
+        supabase.from('project_notifications').delete().eq('project_id', projectId),
+      ]);
+      const cleanupErr = cleanups.find(r => r.error)?.error;
+      if (cleanupErr) throw cleanupErr;
+
+      const { error: goalsErr } = await supabase
+        .from('project_goals').delete().eq('project_id', projectId);
+      if (goalsErr) throw goalsErr;
+
+      // Generation logs can't be deleted under RLS; detach them instead
+      await supabase
+        .from('recurring_task_generation_logs')
         .update({ project_id: null })
         .eq('project_id', projectId);
-
-      if (tasksError) throw tasksError;
 
       const { error: projectError } = await supabase
         .from('Projects')

@@ -617,39 +617,80 @@ export function TaskView() {
 
   const isLoading = tasksLoading || subtasksLoading;
 
+  // Debounced search text used for visual-only ranking/filtering
+  const [activeQuery, setActiveQuery] = React.useState("");
+  React.useEffect(() => {
+    const t = setTimeout(() => setActiveQuery(searchQuery.trim()), 150);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+  const isSearching = activeQuery.length > 0;
+
+  // Per-item search scores (only computed while searching)
+  const searchScores = React.useMemo(() => {
+    const taskScores = new Map<number, number>();
+    const subtaskParentIds = new Set<number>();
+    if (!isSearching || !tasks) return { taskScores, subtaskParentIds };
+    const subScoreByParent = new Map<number, number>();
+    subtasks?.forEach(st => {
+      const s = scoreMatch(st["Task Name"], activeQuery);
+      if (s > 0) {
+        subtaskParentIds.add(st["Parent Task ID"]);
+        subScoreByParent.set(st["Parent Task ID"], Math.max(s, subScoreByParent.get(st["Parent Task ID"]) || 0));
+      }
+    });
+    tasks.forEach(task => {
+      const project = task.project_id ? projects?.find(p => p.id === task.project_id) : undefined;
+      const list = taskLists?.find(l => l.id === task.task_list_id);
+      taskScores.set(task.id, Math.max(
+        scoreMatch(task["Task Name"], activeQuery),
+        subScoreByParent.get(task.id) || 0,
+        scoreMatch(project?.["Project Name"], activeQuery),
+        scoreMatch(list?.name, activeQuery),
+      ));
+    });
+    return { taskScores, subtaskParentIds };
+  }, [isSearching, activeQuery, tasks, subtasks, projects, taskLists]);
+
   const getSortedAndFilteredTasks = React.useCallback((tasks: Task[] | undefined) => {
     if (!tasks) return [];
     
     let filteredTasks = [...tasks];
     
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
-      filteredTasks = filteredTasks.filter(task => 
-        task["Task Name"]?.toLowerCase().includes(searchLower)
-      );
+    if (isSearching) {
+      filteredTasks = filteredTasks.filter(task => (searchScores.taskScores.get(task.id) || 0) > 0);
     }
     
     if (progressFilter !== "all") {
       filteredTasks = filteredTasks.filter(task => task.Progress === progressFilter);
     }
     
+    let sorted: Task[];
     switch (sortBy) {
       case 'date':
-        return filteredTasks.sort((a, b) => {
+        sorted = filteredTasks.sort((a, b) => {
           const aDate = a.date_started ? new Date(a.date_started) : new Date(0);
           const bDate = b.date_started ? new Date(b.date_started) : new Date(0);
           return aDate.getTime() - bDate.getTime();
         });
+        break;
       case 'list':
-        return filteredTasks.sort((a, b) => {
+        sorted = filteredTasks.sort((a, b) => {
           const aListName = taskLists?.find(l => l.id === a.task_list_id)?.name || '';
           const bListName = taskLists?.find(l => l.id === b.task_list_id)?.name || '';
           return aListName.localeCompare(bListName);
         });
+        break;
       default:
-        return filteredTasks;
+        sorted = filteredTasks;
     }
-  }, [progressFilter, searchQuery, sortBy, taskLists]);
+    if (isSearching) {
+      // Stable sort: best match first, ties keep existing order
+      sorted = [...sorted].sort((a, b) =>
+        (searchScores.taskScores.get(b.id) || 0) - (searchScores.taskScores.get(a.id) || 0)
+      );
+    }
+    return sorted;
+  }, [progressFilter, isSearching, searchScores, sortBy, taskLists]);
 
   const filteredAndGroupedTasks = React.useMemo(() => {
     if (!tasks || (!taskLists && sortBy === 'list') || (!projects && sortBy === 'project')) {
@@ -659,30 +700,47 @@ export function TaskView() {
     
     const filteredTasks = getSortedAndFilteredTasks(tasks);
     const grouped = new Map();
+    const bestTaskScore = (list: Task[]) =>
+      list.reduce((m, t) => Math.max(m, searchScores.taskScores.get(t.id) || 0), 0);
     
     if (sortBy === 'list') {
+      const entries: { key: any; value: any; score: number }[] = [];
       taskLists?.forEach(list => {
         const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
         if (listTasks.length > 0) {
-          grouped.set(list.id, {
-            list,
-            tasks: listTasks
-          });
+          entries.push({ key: list.id, value: { list, tasks: listTasks }, score: bestTaskScore(listTasks) });
         }
       });
+      if (isSearching) entries.sort((a, b) => b.score - a.score);
+      entries.forEach(e => grouped.set(e.key, e.value));
     } else if (sortBy === 'project') {
+      const entries: { key: any; value: any; score: number }[] = [];
       taskLists?.forEach(list => {
         const listTasks = filteredTasks.filter(task => task.task_list_id === list.id);
-        const listProjects = projects?.filter(p => p.task_list_id === list.id) || [];
+        let listProjects = projects?.filter(p => p.task_list_id === list.id) || [];
+        let score = 0;
         
-        if (listProjects.length > 0 || listTasks.length > 0) {
-          grouped.set(list.id, {
-            list,
-            projects: listProjects,
-            tasks: listTasks
-          });
+        if (isSearching) {
+          const listScore = scoreMatch(list.name, activeQuery);
+          const scored = listProjects.map(p => {
+            const pTasks = filteredTasks.filter(t => t.project_id === p.id);
+            return {
+              p,
+              s: Math.max(scoreMatch(p["Project Name"], activeQuery), listScore, bestTaskScore(pTasks)),
+            };
+          }).filter(x => x.s > 0);
+          scored.sort((a, b) => b.s - a.s);
+          listProjects = scored.map(x => x.p);
+          score = Math.max(listScore, scored[0]?.s || 0, bestTaskScore(listTasks));
+          if (listScore === 0 && listProjects.length === 0 && listTasks.length === 0) return;
+        }
+        
+        if (listProjects.length > 0 || listTasks.length > 0 || (isSearching && score > 0)) {
+          entries.push({ key: list.id, value: { list, projects: listProjects, tasks: listTasks }, score });
         }
       });
+      if (isSearching) entries.sort((a, b) => b.score - a.score);
+      entries.forEach(e => grouped.set(e.key, e.value));
     } else {
       grouped.set('all', {
         tasks: filteredTasks
@@ -690,7 +748,34 @@ export function TaskView() {
     }
     
     return grouped;
-  }, [tasks, taskLists, projects, getSortedAndFilteredTasks, sortBy]);
+  }, [tasks, taskLists, projects, getSortedAndFilteredTasks, sortBy, isSearching, activeQuery, searchScores]);
+
+  // Tasks shown inside a project: ranked/filtered while searching, unchanged otherwise
+  const searchFilteredTasks = React.useMemo(
+    () => (isSearching ? getSortedAndFilteredTasks(tasks) : []),
+    [isSearching, getSortedAndFilteredTasks, tasks]
+  );
+  const getProjectTasks = (projectId: number) => {
+    if (!isSearching) return tasks?.filter(t => t.project_id === projectId) || [];
+    const project = projects?.find(p => p.id === projectId);
+    const list = taskLists?.find(l => l.id === project?.task_list_id);
+    // If the project or its list name matches, show all of its tasks
+    if (scoreMatch(project?.["Project Name"], activeQuery) > 0 || scoreMatch(list?.name, activeQuery) > 0) {
+      const all = tasks?.filter(t => t.project_id === projectId) || [];
+      return progressFilter === 'all' ? all : all.filter(t => t.Progress === progressFilter);
+    }
+    return searchFilteredTasks.filter(t => t.project_id === projectId);
+  };
+
+  // Visual-only open state while searching; real state is untouched
+  const effectiveCollapsedLists = isSearching ? [] : collapsedLists;
+  const effectiveExpandedTasks = React.useMemo(() => {
+    if (!isSearching) return expandedTasks;
+    const ids = new Set(expandedTasks);
+    filteredAndGroupedTasks.forEach((g: any) => g.projects?.forEach((p: any) => ids.add(p.id)));
+    searchScores.subtaskParentIds.forEach(id => ids.add(id));
+    return Array.from(ids);
+  }, [isSearching, expandedTasks, filteredAndGroupedTasks, searchScores]);
 
   const handleMoveTask = (taskId: number, listId: number) => {
     console.log('TaskView: handleMoveTask called with:', { taskId, listId });

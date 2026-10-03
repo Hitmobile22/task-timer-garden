@@ -22,7 +22,8 @@ interface TaskListProps {
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
-  onUnarchiveTask?: (taskId: number) => void; // Add optional unarchive handler
+  onUnarchiveTask?: (taskId: number) => void;
+  highlightQuery?: string;
 }
 
 export const TaskListComponent: React.FC<TaskListProps> = ({
@@ -43,6 +44,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onDeleteTask,
   onTimelineEdit,
   onUnarchiveTask,
+  highlightQuery,
 }) => {
   console.log('TaskListComponent: Received onMoveTask function:', !!onMoveTask);
   console.log('TaskListComponent: Received tasks:', tasks.length, 'items');
@@ -78,6 +80,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               onDeleteTask={onDeleteTask}
               onTimelineEdit={onTimelineEdit}
               onUnarchiveTask={onUnarchiveTask}
+              highlightQuery={highlightQuery}
             />
             {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
               <SubtaskItem
@@ -91,6 +94,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
                 onEditNameChange={onEditNameChange}
                 onUpdateProgress={onUpdateProgress}
                 onDeleteTask={onDeleteTask}
+                highlightQuery={highlightQuery}
               />
             ))}
           </React.Fragment>

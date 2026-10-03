@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { PencilIcon, Check, X, Trash2 } from "lucide-react";
 import { Task, Subtask } from '@/types/task.types';
+import { highlightMatch } from '@/utils/taskSearchUtils';
 
 interface SubtaskItemProps {
   subtask: Subtask;
@@ -20,6 +21,7 @@ interface SubtaskItemProps {
     | ((taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void);
   onDeleteTask?: (taskId: number) => void;
   onDelete?: () => void;
+  highlightQuery?: string;
 }
 
 export const SubtaskItem: React.FC<SubtaskItemProps> = ({
@@ -33,6 +35,7 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
   onUpdateProgress,
   onDeleteTask,
   onDelete,
+  highlightQuery,
 }) => {
   const handleProgressChange = (value: Task['Progress']) => {
     if (typeof onUpdateProgress === 'function') {
@@ -92,7 +95,7 @@ export const SubtaskItem: React.FC<SubtaskItemProps> = ({
             >
               <Check className="h-4 w-4" />
             </div>
-            <span>└─ {subtask["Task Name"]}</span>
+            <span>└─ {highlightMatch(subtask["Task Name"], highlightQuery)}</span>
             {onEditStart && (
               <Button
                 variant="ghost"

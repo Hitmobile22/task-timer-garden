@@ -13,6 +13,7 @@ import { TaskListComponent } from '@/components/task/TaskList';
 import { TaskFilters } from '@/components/task/TaskFilters';
 import { useArchiveActions } from '@/hooks/useArchiveActions';
 import { generateRandomColor } from '@/utils/taskUtils';
+import { scoreMatch, highlightMatch } from "@/utils/taskSearchUtils";
 import { Input } from "@/components/ui/input";
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
@@ -1033,6 +1034,9 @@ export function TaskView() {
           </div>
 
           <DndContext collisionDetection={closestCenter}>
+            {isSearching && filteredAndGroupedTasks.size === 0 && (
+              <p className="text-center text-muted-foreground py-8">No matches for "{activeQuery}"</p>
+            )}
             {Array.from(filteredAndGroupedTasks.entries()).map(([listId, { list, tasks: listTasks, projects: listProjects }]) => (
               <div key={listId} className="mb-8">
                 {list && (
@@ -1045,7 +1049,7 @@ export function TaskView() {
                     onClick={() => list?.id && toggleListCollapse(list.id)}
                   >
                     <div className="flex items-center gap-2">
-                      {collapsedLists.includes(list?.id) ? (
+                      {effectiveCollapsedLists.includes(list?.id) ? (
                         <ChevronRight className="h-4 w-4" />
                       ) : (
                         <ChevronDown className="h-4 w-4" />
@@ -1067,7 +1071,7 @@ export function TaskView() {
                           autoFocus
                         />
                       ) : (
-                        <h3 className="text-lg font-semibold text-white">{list?.name}</h3>
+                        <h3 className="text-lg font-semibold text-white">{highlightMatch(list?.name || "", activeQuery)}</h3>
                       )}
                     </div>
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -1132,18 +1136,18 @@ export function TaskView() {
                   </div>
                 )}
                 
-                {!collapsedLists.includes(list?.id) && (
+                {!effectiveCollapsedLists.includes(list?.id) && (
                 <div className="space-y-4">
                   {listProjects?.map(project => (
                     <div key={project.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
-                          {expandedTasks.includes(project.id) ? (
+                          {effectiveExpandedTasks.includes(project.id) ? (
                             <ChevronDown className="h-4 w-4 cursor-pointer" onClick={() => toggleTaskExpansion(project.id)} />
                           ) : (
                             <ChevronRight className="h-4 w-4 cursor-pointer" onClick={() => toggleTaskExpansion(project.id)} />
                           )}
-                          <span className="font-medium">{project["Project Name"]}</span>
+                          <span className="font-medium">{highlightMatch(project["Project Name"], activeQuery)}</span>
                           {project.isRecurring && (
                             <span className="text-xs text-blue-500 px-1 py-0.5 rounded-full bg-blue-100">Recurring</span>
                           )}
@@ -1219,13 +1223,14 @@ export function TaskView() {
                         </div>
                       </div>
                       
-                      {expandedTasks.includes(project.id) && (
+                      {effectiveExpandedTasks.includes(project.id) && (
                         <div className="pl-6">
-                          <SortableContext items={tasks?.filter(t => t.project_id === project.id).map(t => t.id) || []} strategy={verticalListSortingStrategy}>
+                          <SortableContext items={getProjectTasks(project.id).map(t => t.id)} strategy={verticalListSortingStrategy}>
                             <TaskListComponent
-                              tasks={tasks?.filter(t => t.project_id === project.id) || []}
+                              tasks={getProjectTasks(project.id)}
                               subtasks={subtasks}
-                              expandedTasks={expandedTasks}
+                              expandedTasks={effectiveExpandedTasks}
+                              highlightQuery={activeQuery}
                               editingTaskId={editingTaskId}
                               editingTaskName={editingTaskName}
                               taskLists={taskLists}
@@ -1260,7 +1265,8 @@ export function TaskView() {
                       <TaskListComponent
                         tasks={listTasks.filter(t => sortBy === 'project' ? !t.project_id : true)}
                         subtasks={subtasks}
-                        expandedTasks={expandedTasks}
+                        expandedTasks={effectiveExpandedTasks}
+                              highlightQuery={activeQuery}
                         editingTaskId={editingTaskId}
                         editingTaskName={editingTaskName}
                         taskLists={taskLists}

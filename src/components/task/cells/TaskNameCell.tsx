@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Task, Subtask } from '@/types/task.types';
 import { TaskEditModal } from '../TaskEditModal';
+import { highlightMatch } from '@/utils/taskSearchUtils';
 
 interface TaskNameCellProps {
   task: Task;
@@ -22,6 +23,7 @@ interface TaskNameCellProps {
   onUpdateProgress: (taskId: number, progress: Task['Progress']) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  highlightQuery?: string;
 }
 
 export const TaskNameCell: React.FC<TaskNameCellProps> = ({
@@ -39,6 +41,7 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
   onUpdateProgress,
   onMoveTask,
   onTimelineEdit,
+  highlightQuery,
 }) => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [currentTaskId, setCurrentTaskId] = React.useState<number | null>(null);
@@ -118,7 +121,7 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
             className="cursor-pointer hover:text-blue-600 transition-colors"
             onClick={handleTaskClick}
           >
-            {task["Task Name"] || "Unnamed Task"}
+            {highlightMatch(task["Task Name"] || "Unnamed Task", highlightQuery)}
           </span>
         )}
       </div>

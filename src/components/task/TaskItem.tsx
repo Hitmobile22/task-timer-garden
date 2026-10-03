@@ -28,7 +28,8 @@ interface TaskItemProps {
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
   onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
-  onUnarchiveTask?: (taskId: number) => void; // Add optional unarchive handler
+  onUnarchiveTask?: (taskId: number) => void;
+  highlightQuery?: string;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -50,6 +51,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onDeleteTask,
   onTimelineEdit,
   onUnarchiveTask,
+  highlightQuery,
 }) => {
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
@@ -127,6 +129,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           onUpdateProgress={onUpdateProgress}
           onMoveTask={onMoveTask}
           onTimelineEdit={onTimelineEdit}
+          highlightQuery={highlightQuery}
         />
         <TaskProgressCell
           task={{...task, Progress: tempProgress}}

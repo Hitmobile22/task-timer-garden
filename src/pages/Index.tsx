@@ -153,6 +153,7 @@ const Index = () => {
   
   return (
     <>
+      <PhaseCelebration />
       <TaskScheduler onShuffleTasks={handleShuffleTasks} />
       <GoalNotificationsPanel 
         notifications={goalNotifications} 

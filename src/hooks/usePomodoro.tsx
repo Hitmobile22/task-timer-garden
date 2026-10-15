@@ -292,6 +292,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['phased-tasks'] });
       toast.success('Task completed');
     },
     onError: (error) => {

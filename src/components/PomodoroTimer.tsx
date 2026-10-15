@@ -1,5 +1,9 @@
-import React, { useRef, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useRef, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePhaseGate } from '@/hooks/usePhaseGate';
+import { setTimerMuted } from '@/utils/phaseUtils';
+import { PhaseProgressBadge } from './phase/PhaseProgressBadge';
+import { MomentumDialog } from './phase/MomentumDialog';
 import { supabase } from "@/integrations/supabase/client";
 import { TimerControls } from './pomodoro/TimerControls';
 import { usePomodoroSounds } from '@/hooks/usePomodoroSounds';
@@ -141,6 +145,56 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     };
   }, [isRunning, isBreak, timeLeft, isMuted, isVisible, playSound, soundSettings.tick]);
 
+  // ---- Phase system ----
+  const queryClient = useQueryClient();
+  const { states: phaseStates, phaseById } = usePhaseGate();
+  const [momentumOpen, setMomentumOpen] = useState(false);
+  const momentumShownFor = useRef<number | null>(null);
+  useEffect(() => { setTimerMuted(isMuted); }, [isMuted]);
+  const currentPhase = currentTask ? phaseById.get(currentTask.id) : undefined;
+  const phaseState = currentTask?.project_id && currentPhase ? phaseStates.get(currentTask.project_id) : undefined;
+  const upcoming = currentTask
+    ? (getTodayTasks(activeTasks || []) as any[])
+        .filter(t => t.id !== currentTask.id && t.date_started && new Date(t.date_started) >= new Date(currentTask.date_started || 0))
+        .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime())
+    : [];
+
+  useEffect(() => {
+    if (timeLeft !== 0 || isBreak || !currentTask || !currentPhase) return;
+    if (momentumShownFor.current === currentTask.id) return;
+    const unfinished = (subtasks || []).some((s: any) => s.Progress !== 'Completed');
+    if (unfinished) { momentumShownFor.current = currentTask.id; setMomentumOpen(true); }
+  }, [timeLeft, isBreak, currentTask, currentPhase, subtasks]);
+
+  const refreshAfterMomentum = () => {
+    setMomentumOpen(false);
+    ['active-tasks', 'tasks', 'phased-tasks'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+  };
+  const durOf = (t: any) => {
+    if (t.date_started && t.date_due) return Math.max(5 * 60000, new Date(t.date_due).getTime() - new Date(t.date_started).getTime());
+    return 25 * 60000;
+  };
+  const handleExtend = async () => {
+    if (!currentTask) return;
+    await supabase.from('Tasks').update({ date_due: new Date(Date.now() + 10 * 60000).toISOString() }).eq('id', currentTask.id);
+    momentumShownFor.current = null;
+    refreshAfterMomentum();
+  };
+  const handleMoveBehind = async (n: number) => {
+    if (!currentTask) return;
+    let cursor = Date.now();
+    for (const t of upcoming.slice(0, n)) {
+      const d = durOf(t);
+      await supabase.from('Tasks').update({ date_started: new Date(cursor).toISOString(), date_due: new Date(cursor + d).toISOString() }).eq('id', t.id);
+      cursor += d;
+    }
+    const d = durOf(currentTask);
+    await supabase.from('Tasks').update({
+      Progress: 'Not started', date_started: new Date(cursor).toISOString(), date_due: new Date(cursor + d).toISOString(),
+    }).eq('id', currentTask.id);
+    refreshAfterMomentum();
+  };
+
   useEffect(() => {
     if (timeLeft === 0) {
       if (isBreak) {
@@ -209,6 +263,17 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         getNextTask={getNextTask}
         isCountdownToNextTask={isCountdownToNextTask}
         projectColor={projectColor}
+      />
+
+ {phaseState && <PhaseProgressBadge state={phaseState} />}
+
+      <MomentumDialog
+        open={momentumOpen}
+        taskName={currentTask?.['Task Name'] || 'this task'}
+        upcomingCount={upcoming.length}
+        onExtend={handleExtend}
+        onMoveBehind={handleMoveBehind}
+        onLeave={() => setMomentumOpen(false)}
       />
 
       <SubtaskDisplay 

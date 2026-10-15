@@ -1,3 +1,4 @@
+import { usePhaseGate } from '@/hooks/usePhaseGate';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +8,7 @@ import { calculateTimeUntilTaskStart, shouldShowCountdownForTask } from '@/utils
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
+  const { filterUnlocked } = usePhaseGate();
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -412,7 +414,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const getTodayTasks = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return [];
     
-    tasks = tasks.filter(task => task.Progress !== 'Backlog');
+    tasks = filterUnlocked(tasks.filter(task => task.Progress !== 'Backlog'));
     
     const now = new Date();
     

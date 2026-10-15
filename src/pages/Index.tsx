@@ -10,6 +10,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { resetToastStateAtMidnight } from '@/utils/recurringUtils';
+import { usePhaseFeed } from '@/hooks/usePhaseGate';
+import { PhaseCelebration } from '@/components/phase/PhaseCelebration';
 
 const Index = () => {
   const { user } = useAuth();
@@ -18,6 +20,7 @@ const Index = () => {
   const initialResetRef = useRef(false);
   
   const queryClient = useQueryClient();
+  usePhaseFeed();
   const { data: goalNotifications = [], isLoading: isLoadingNotifications } = useGoalNotifications();
   const recurringTasksChecker = useUnifiedRecurringTasksCheck();
   
@@ -150,6 +153,7 @@ const Index = () => {
   
   return (
     <>
+      <PhaseCelebration />
       <TaskScheduler onShuffleTasks={handleShuffleTasks} />
       <GoalNotificationsPanel 
         notifications={goalNotifications} 

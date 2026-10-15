@@ -254,7 +254,9 @@ export type Database = {
           date_started: string | null
           details: Json | null
           id: number
+          is_phased: boolean | null
           isRecurring: boolean | null
+          phase_rewards: Json | null
           position: number | null
           progress: Database["public"]["Enums"]["status"] | null
           "Project Name": string
@@ -272,7 +274,9 @@ export type Database = {
           date_started?: string | null
           details?: Json | null
           id?: number
+          is_phased?: boolean | null
           isRecurring?: boolean | null
+          phase_rewards?: Json | null
           position?: number | null
           progress?: Database["public"]["Enums"]["status"] | null
           "Project Name": string
@@ -290,7 +294,9 @@ export type Database = {
           date_started?: string | null
           details?: Json | null
           id?: number
+          is_phased?: boolean | null
           isRecurring?: boolean | null
+          phase_rewards?: Json | null
           position?: number | null
           progress?: Database["public"]["Enums"]["status"] | null
           "Project Name"?: string
@@ -638,6 +644,7 @@ export type Database = {
           details: Json | null
           id: number
           order: number
+          phase: number | null
           position: number | null
           Progress: Database["public"]["Enums"]["status"] | null
           project_id: number | null
@@ -656,6 +663,7 @@ export type Database = {
           details?: Json | null
           id?: number
           order?: number
+          phase?: number | null
           position?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
           project_id?: number | null
@@ -674,6 +682,7 @@ export type Database = {
           details?: Json | null
           id?: number
           order?: number
+          phase?: number | null
           position?: number | null
           Progress?: Database["public"]["Enums"]["status"] | null
           project_id?: number | null

@@ -1,3 +1,4 @@
+import { usePhaseGate } from '@/hooks/usePhaseGate';
 import React, { useState } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -705,6 +706,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   activeTaskId,
   updateTaskOrderMutation: externalMutation
 }) => {
+  const { filterUnlocked } = usePhaseGate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -791,7 +793,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   const getTodayTasks = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return [];
     
-    tasks = tasks.filter(task => task.Progress !== 'Backlog');
+    tasks = filterUnlocked(tasks.filter(task => task.Progress !== 'Backlog'));
     
     const now = new Date();
     const estNow = toZonedTime(now, 'America/New_York');

@@ -1,3 +1,4 @@
+import { usePhaseGate } from '@/hooks/usePhaseGate';
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -31,6 +32,7 @@ interface TaskSchedulerProps {
 }
 
 export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) => {
+  const { filterUnlocked } = usePhaseGate();
   const [tasks, setTasks] = useState<NewTask[]>([]);
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
@@ -657,7 +659,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   const getTodayTasks = (tasks: any[]) => {
     if (!tasks || tasks.length === 0) return [];
     
-    tasks = tasks.filter(task => task.Progress !== 'Backlog');
+    tasks = filterUnlocked(tasks.filter(task => task.Progress !== 'Backlog'));
     
     const now = new Date();
     const estNow = toZonedTime(now, 'America/New_York');

@@ -262,6 +262,7 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
             user_id: user.id,
             order: i,
             sort_order: i,
+            ...(t.phase != null ? { phase: t.phase } : {}),
           }).select('id').single();
           if (error || !newTask) { console.error(error); failed++; continue; }
           done.tasks++;
@@ -288,6 +289,9 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
           details: toDetails(p.description),
           user_id: user.id,
           sort_order: 0,
+          ...(p.tasks.some(t => t.phase != null)
+            ? { is_phased: true, phase_rewards: Object.keys(p.phaseRewards).length ? p.phaseRewards : null }
+            : {}),
         }).select('id').single();
         if (error || !newProject) { console.error(error); failed++; continue; }
         done.projects++;
@@ -344,11 +348,13 @@ export function CSVUploadModal({ open, onOpenChange, taskLists }: CSVUploadModal
                 <li>Tasks link to a project by its name in "Project" (leave it blank for a standalone task)</li>
                 <li>Subtasks link to a task by its name in "Task"</li>
                 <li>Tasks without dates are scheduled one after another using "Duration" (minutes, default 25)</li>
+                <li>Optional "Phase" (1, 2, 3...) on project tasks: later phases unlock on the timer page when earlier ones are done. Leave blank for tasks that always show</li>
+                <li>Optional "Reward": on a Project row it's the reward for finishing everything; on a phase's task row it's that phase's reward</li>
               </ol>
               <div className="mt-3 p-2 bg-background rounded border">
                 <p className="font-medium text-xs mb-1">Columns:</p>
                 <p className="text-xs text-muted-foreground">
-                  <strong>Type</strong> (required) | <strong>Name</strong> (required) | Project | Task | List | Start Date | Due Date | Duration | Progress | Description
+                  <strong>Type</strong> (required) | <strong>Name</strong> (required) | Project | Task | List | Start Date | Due Date | Duration | Progress | Description | Phase | Reward
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Dates: YYYY-MM-DD or MM/DD/YYYY, optionally with time (e.g. 2026-10-01 09:00, Eastern time). Progress: Not started, In progress, Completed, Backlog. Use quotes around text that contains commas.

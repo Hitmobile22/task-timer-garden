@@ -10,10 +10,14 @@ export interface FullSubtask { name: string; progress: Progress; }
 export interface FullTask {
   name: string; progress: Progress; description: string | null;
   start: Date; due: Date; listId: number | null; subtasks: FullSubtask[]; warnings: string[];
+  /** Optional phase number (Phase column). null = regular task. */
+  phase: number | null;
 }
 export interface FullProject {
   name: string; progress: Progress; description: string | null;
   start: Date; due: Date; listId: number | null; tasks: FullTask[]; warnings: string[];
+  /** Rewards keyed by phase number; key "0" = whole-project reward. */
+  phaseRewards: Record<string, string>;
 }
 export interface FullImportResult {
   projects: FullProject[]; standaloneTasks: FullTask[]; errors: string[];
@@ -120,6 +124,7 @@ export function parseFullImport(
       const p: FullProject = {
         name, progress: normProgress(r['progress'], warnings), description: r['description'] || null,
         start, due, listId: listFor(r['list'], null, warnings), tasks: [], warnings,
+        phaseRewards: r['reward'] ? { '0': r['reward'] } : {},
       };
       projects.push(p); projectByName.set(name.toLowerCase(), p);
     } else if (type === 'task') {
@@ -161,10 +166,20 @@ export function parseFullImport(
     if (r['due date'] && !due) warnings.push('Invalid due date, using start + duration');
     if (!due || due <= start) due = addMinutes(start, dur);
     cursor.set(key, due);
+    let phase: number | null = null;
+    if (r['phase']) {
+      const ph = parseInt(r['phase'], 10);
+      if (isNaN(ph) || ph <= 0 || String(ph) !== r['phase'].trim()) warnings.push(`Invalid phase "${r['phase']}", ignoring`);
+      else if (!project) warnings.push('Phase ignored: task has no project');
+      else {
+        phase = ph;
+        if (r['reward'] && !project.phaseRewards[String(ph)]) project.phaseRewards[String(ph)] = r['reward'];
+      }
+    }
     const task: FullTask = {
       name: r['name'], progress: normProgress(r['progress'], warnings),
       description: r['description'] || null, start, due,
-      listId: listFor(r['list'], project?.listId ?? null, warnings), subtasks: [], warnings,
+      listId: listFor(r['list'], project?.listId ?? null, warnings), subtasks: [], warnings, phase,
     };
     (project ? project.tasks : standaloneTasks).push(task);
     builtTasks.push({ task, row: t.row });
@@ -203,14 +218,15 @@ export function toDetails(description: string | null) {
 
 export function downloadFullExampleCSV(): void {
   const csv = [
-    'Type,Name,Project,Task,List,Start Date,Due Date,Duration,Progress,Description',
-    'Project,Website Launch,,,Default,2026-10-01,2026-10-15,,,Launch the new site',
-    'Task,Design mockups,Website Launch,,,2026-10-01 09:00,,60,,"Homepage, about page"',
-    'Subtask,Homepage,,Design mockups,,,,,,',
-    'Subtask,About page,,Design mockups,,,,,,',
-    'Task,Build pages,Website Launch,,,2026-10-03 09:00,,90,,',
-    'Subtask,Header,,Build pages,,,,,,',
-    'Task,Review copy,,,Default,,,30,Not started,A standalone task',
+    'Type,Name,Project,Task,List,Start Date,Due Date,Duration,Progress,Description,Phase,Reward',
+    'Project,Website Launch,,,Default,2026-10-01,2026-10-15,,,Launch the new site,,Weekend getaway',
+    'Task,Design mockups,Website Launch,,,2026-10-01 09:00,,60,,"Homepage, about page",1,Coffee on the patio',
+    'Subtask,Homepage,,Design mockups,,,,,,,,',
+    'Subtask,About page,,Design mockups,,,,,,,,',
+    'Task,Build pages,Website Launch,,,2026-10-03 09:00,,90,,,2,New notebook',
+    'Subtask,Header,,Build pages,,,,,,,,',
+    'Task,Daily check-in,Website Launch,,,,,15,,Dependable task with no phase,,',
+    'Task,Review copy,,,Default,,,30,Not started,A standalone task,,',
   ].join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
   const a = document.createElement('a');

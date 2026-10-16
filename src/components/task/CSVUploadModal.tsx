@@ -556,6 +556,7 @@ function TaskPreview({ task }: { task: FullTask }) {
     <div className="ml-4 mt-1 text-xs">
       <div>
         • {task.name}{' '}
+        {task.phase != null && <span className="text-primary font-medium">P{task.phase} </span>}
         <span className="text-muted-foreground">
           ({formatInTimeZone(task.start, 'America/New_York', 'MMM d h:mm a')} – {formatInTimeZone(task.due, 'America/New_York', 'h:mm a')})
         </span>

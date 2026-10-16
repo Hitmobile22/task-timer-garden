@@ -1,3 +1,4 @@
+// @ts-ignore bun's built-in test runner (run with: bun test)
 import { describe, expect, test } from 'bun:test';
 import { computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween } from './phaseUtils';
 

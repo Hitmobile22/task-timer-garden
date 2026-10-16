@@ -122,6 +122,7 @@ export const TaskNameCell: React.FC<TaskNameCellProps> = ({
             onClick={handleTaskClick}
           >
             {highlightMatch(task["Task Name"] || "Unnamed Task", highlightQuery)}
+            {(task as any).phase != null && <span className="ml-2 text-[10px] rounded px-1 py-0.5 bg-primary/15 text-primary align-middle">P{(task as any).phase}</span>}
           </span>
         )}
       </div>

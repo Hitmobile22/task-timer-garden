@@ -1,0 +1,1 @@
+- Phase gating lives in src/utils/phaseUtils.ts + src/hooks/usePhaseGate.tsx and is applied inside each getTodayTasks; keeps phase logic out of the recurring engine and edge functions.

@@ -82,6 +82,65 @@ export const ProjectModal = ({
   const [respawnDaysOfWeek, setRespawnDaysOfWeek] = useState<string[]>([]);
   const [descriptionContent, setDescriptionContent] = useState<any>(null);
   const [showOverdueSuffix, setShowOverdueSuffix] = useState(false);
+  const [copySources, setCopySources] = useState<{ key: string; name: string; subtasks: string[] }[]>([]);
+  const [pendingCopy, setPendingCopy] = useState<string[] | null>(null);
+
+  // Load this project's tasks that have subtasks, for "Copy subtasks from task"
+  useEffect(() => {
+    const projectId = project?.id;
+    if (!projectId) { setCopySources([]); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: tasks } = await supabase
+        .from('Tasks')
+        .select('id, "Task Name"')
+        .eq('project_id', projectId)
+        .eq('archived', false);
+      if (!tasks || tasks.length === 0) { if (!cancelled) setCopySources([]); return; }
+      const ids = tasks.map(t => t.id);
+      const { data: subs } = await supabase
+        .from('subtasks')
+        .select('"Task Name", "Parent Task ID", sort_order')
+        .in('Parent Task ID', ids)
+        .order('sort_order', { ascending: true });
+      const byParent = new Map<number, string[]>();
+      (subs || []).forEach((s: any) => {
+        const n = (s['Task Name'] || '').trim();
+        if (!n) return;
+        const arr = byParent.get(s['Parent Task ID']) || [];
+        arr.push(n);
+        byParent.set(s['Parent Task ID'], arr);
+      });
+      const seen = new Set<string>();
+      const sources: { key: string; name: string; subtasks: string[] }[] = [];
+      tasks.forEach((t: any) => {
+        const list = byParent.get(t.id);
+        const name = t['Task Name'] || 'Untitled';
+        if (!list || list.length === 0 || seen.has(name)) return;
+        seen.add(name);
+        sources.push({ key: String(t.id), name, subtasks: list });
+      });
+      if (!cancelled) setCopySources(sources);
+    })();
+    return () => { cancelled = true; };
+  }, [project?.id]);
+
+  const applyCopy = (names: string[], mode: 'replace' | 'append') => {
+    if (mode === 'replace') {
+      setSubtaskNames([...names]);
+    } else {
+      const existing = new Set(subtaskNames.map(n => n.trim().toLowerCase()));
+      setSubtaskNames([...subtaskNames, ...names.filter(n => !existing.has(n.trim().toLowerCase()))]);
+    }
+    setPendingCopy(null);
+  };
+
+  const handleCopySelect = (key: string) => {
+    const src = copySources.find(s => s.key === key);
+    if (!src) return;
+    if (subtaskNames.some(n => n.trim() !== '')) setPendingCopy(src.subtasks);
+    else applyCopy(src.subtasks, 'replace');
+  };
   
   useEffect(() => {
     // Only set default task list for new projects (when project is null)
@@ -907,6 +966,30 @@ export const ProjectModal = ({
                     <div className="grid grid-cols-4 items-start gap-4">
                       <Label className="text-right pt-2">Subtasks</Label>
                       <div className="col-span-3 space-y-2">
+                        {project?.id && (
+                          <div className="space-y-2">
+                            <Select value="" onValueChange={handleCopySelect} disabled={copySources.length === 0}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder={copySources.length === 0 ? 'No tasks with subtasks' : 'Copy subtasks from task'} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {copySources.map(s => (
+                                  <SelectItem key={s.key} value={s.key}>
+                                    {s.name} ({s.subtasks.length} subtask{s.subtasks.length === 1 ? '' : 's'})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {pendingCopy && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-muted-foreground">Existing subtasks:</span>
+                                <Button type="button" size="sm" variant="outline" onClick={() => applyCopy(pendingCopy, 'replace')}>Replace</Button>
+                                <Button type="button" size="sm" variant="outline" onClick={() => applyCopy(pendingCopy, 'append')}>Add to end</Button>
+                                <Button type="button" size="sm" variant="ghost" onClick={() => setPendingCopy(null)}>Cancel</Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <div className="flex items-center gap-2">
                           <Button
                             type="button"

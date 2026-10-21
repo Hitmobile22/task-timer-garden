@@ -4,6 +4,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { supabase } from '@/integrations/supabase/client';
 import {
   computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween, rewardFor, PhaseTask,
+  withSubtaskCompletion,
 } from '@/utils/phaseUtils';
 
 const TZ = 'America/New_York';
@@ -28,6 +29,24 @@ export const usePhaseGate = () => {
     },
     refetchInterval: 30000,
   });
+  // A phased task only counts as done when its subtasks are done too.
+  const phasedTaskIds = useMemo(() => phasedTasks.map(t => t.id), [phasedTasks]);
+  const { data: phasedSubtasks = [] } = useQuery({
+    queryKey: ['phased-subtasks', phasedTaskIds],
+    enabled: phasedTaskIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('subtasks')
+        .select('"Parent Task ID", Progress')
+        .in('Parent Task ID', phasedTaskIds);
+      if (error) throw error;
+      return (data || []) as { 'Parent Task ID': number; Progress: string | null }[];
+    },
+    refetchInterval: 30000,
+  });
+  const gatedTasks = useMemo(
+    () => withSubtaskCompletion(phasedTasks, phasedSubtasks),
+    [phasedTasks, phasedSubtasks]);
+
   const projectIds = useMemo(
     () => [...new Set(phasedTasks.map(t => t.project_id).filter(Boolean))] as number[], [phasedTasks]);
   const { data: projects = [] } = useQuery({

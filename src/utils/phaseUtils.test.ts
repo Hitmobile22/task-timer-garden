@@ -1,6 +1,6 @@
 // @ts-ignore bun's built-in test runner (run with: bun test)
 import { describe, expect, test } from 'bun:test';
-import { computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween } from './phaseUtils';
+import { computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween, withSubtaskCompletion } from './phaseUtils';
 
 const t = (id: number, phase: number | null, Progress = 'Not started', h = id) =>
   ({ id, project_id: 1, phase, Progress, date_started: `2026-10-15T${String(h).padStart(2, '0')}:00:00Z` });
@@ -37,5 +37,21 @@ describe('phase system', () => {
     const next = computePhaseStates([t(1, 1, 'Completed'), t(2, 1, 'Completed'), t(4, 2)]);
     expect(next.get(1)!.activePhase).toBe(2);
     expect(completedPhasesBetween(1, next.get(1)!)).toEqual([1]);
+  });
+
+  test('a completed task with unfinished subtasks does not advance the phase', () => {
+    const base = [t(1, 1, 'Completed'), t(2, 1, 'Completed'), t(4, 2)];
+    const subs = [{ 'Parent Task ID': 2, Progress: 'Not started' }];
+    const gated = withSubtaskCompletion(base, subs);
+    const next = computePhaseStates(gated);
+    expect(next.get(1)!.activePhase).toBe(1);
+    expect(isPhaseTaskUnlocked(gated[2], next, () => 5)).toBe(false);
+  });
+
+  test('a completed task with all subtasks done advances the phase', () => {
+    const base = [t(1, 1, 'Completed'), t(2, 1, 'Completed'), t(4, 2)];
+    const subs = [{ 'Parent Task ID': 2, Progress: 'Completed' }];
+    const next = computePhaseStates(withSubtaskCompletion(base, subs));
+    expect(next.get(1)!.activePhase).toBe(2);
   });
 });

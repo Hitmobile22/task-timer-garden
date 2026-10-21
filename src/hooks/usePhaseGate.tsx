@@ -60,11 +60,11 @@ export const usePhaseGate = () => {
     },
   });
 
-  const states = useMemo(() => computePhaseStates(phasedTasks), [phasedTasks]);
+  const states = useMemo(() => computePhaseStates(gatedTasks), [gatedTasks]);
   const projectMap = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects]);
   const pace = useCallback((pid: number) => paceFor(projectMap.get(pid)?.recurringTaskCount), [projectMap]);
   // Phase column may be missing on rows from older queries; look it up by id.
-  const phaseById = useMemo(() => new Map(phasedTasks.map(t => [t.id, t])), [phasedTasks]);
+  const phaseById = useMemo(() => new Map(gatedTasks.map(t => [t.id, t])), [gatedTasks]);
 
   const filterUnlocked = useCallback(<T extends { id: number }>(tasks: T[]): T[] =>
     tasks.filter(task => {

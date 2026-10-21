@@ -46,6 +46,21 @@ export function computePhaseStates(tasks: PhaseTask[]): Map<number, ProjectPhase
   return out;
 }
 
+/**
+ * A task with unfinished subtasks is not done, even if its own Progress says Completed.
+ * Returns task copies with Progress downgraded to 'Not started' where subtasks are incomplete.
+ */
+export function withSubtaskCompletion<T extends PhaseTask>(
+  tasks: T[], subtasks: { 'Parent Task ID': number; Progress?: string | null }[]
+): T[] {
+  const incompleteParents = new Set<number>();
+  for (const s of subtasks) {
+    if (s.Progress !== 'Completed') incompleteParents.add(s['Parent Task ID']);
+  }
+  return tasks.map(t =>
+    t.Progress === 'Completed' && incompleteParents.has(t.id) ? { ...t, Progress: 'Not started' } : t);
+}
+
 /** Daily pace for a project; defaults to 1 when unset or invalid. */
 export function paceFor(recurringTaskCount?: number | null): number {
   return recurringTaskCount && recurringTaskCount > 0 ? recurringTaskCount : 1;

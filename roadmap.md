@@ -1,0 +1,3 @@
+- [ ] Correct phased expiry using current saved subtask completion, without changing other timers or table structures.
+- [ ] Add popup action to complete the task and all its subtasks, with error handling.
+- [ ] Run focused regression tests and verify the popup interaction.

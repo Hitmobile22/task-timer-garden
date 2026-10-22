@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePhaseGate } from '@/hooks/usePhaseGate';
 import { setTimerMuted } from '@/utils/phaseUtils';
@@ -55,7 +55,10 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
     isTransitioning,
     getTodayTasks,
     activeTasks,
-    isCountdownToNextTask
+    isCountdownToNextTask,
+    momentumTaskId,
+    dismissMomentum,
+    completeMomentumTask,
   } = usePomodoro(activeTaskId, autoStart);
 
   const { data: taskLists } = useQuery({
@@ -148,8 +151,6 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   // ---- Phase system ----
   const queryClient = useQueryClient();
   const { states: phaseStates, phaseById } = usePhaseGate();
-  const [momentumOpen, setMomentumOpen] = useState(false);
-  const momentumShownFor = useRef<number | null>(null);
   useEffect(() => { setTimerMuted(isMuted); }, [isMuted]);
   const currentPhase = currentTask ? phaseById.get(currentTask.id) : undefined;
   const phaseState = currentTask?.project_id && currentPhase ? phaseStates.get(currentTask.project_id) : undefined;
@@ -159,15 +160,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime())
     : [];
 
-  useEffect(() => {
-    if (timeLeft !== 0 || isBreak || !currentTask || !currentPhase) return;
-    if (momentumShownFor.current === currentTask.id) return;
-    const unfinished = (subtasks || []).some((s: any) => s.Progress !== 'Completed');
-    if (unfinished) { momentumShownFor.current = currentTask.id; setMomentumOpen(true); }
-  }, [timeLeft, isBreak, currentTask, currentPhase, subtasks]);
-
   const refreshAfterMomentum = () => {
-    setMomentumOpen(false);
+    dismissMomentum();
     ['active-tasks', 'tasks', 'phased-tasks'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
   };
   const durOf = (t: any) => {
@@ -177,8 +171,8 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
   const handleExtend = async () => {
     if (!currentTask) return;
     await supabase.from('Tasks').update({ date_due: new Date(Date.now() + 10 * 60000).toISOString() }).eq('id', currentTask.id);
-    momentumShownFor.current = null;
     refreshAfterMomentum();
+    setIsRunning(true);
   };
   const handleMoveBehind = async (n: number) => {
     if (!currentTask) return;
@@ -268,12 +262,14 @@ export const PomodoroTimer: React.FC<PomodoroTimerProps> = ({
  {phaseState && <PhaseProgressBadge state={phaseState} />}
 
       <MomentumDialog
-        open={momentumOpen}
+        open={momentumTaskId != null && momentumTaskId === currentTask?.id}
         taskName={currentTask?.['Task Name'] || 'this task'}
         upcomingCount={upcoming.length}
         onExtend={handleExtend}
         onMoveBehind={handleMoveBehind}
-        onLeave={() => setMomentumOpen(false)}
+        onLeave={dismissMomentum}
+        onCompleteAll={() => { if (currentTask) completeMomentumTask.mutate(currentTask.id); }}
+        isCompleting={completeMomentumTask.isPending}
       />
 
       <SubtaskDisplay 

@@ -1,4 +1,5 @@
 import { usePhaseGate } from '@/hooks/usePhaseGate';
+import { completeMomentumItems, needsPhaseMomentum } from '@/utils/phaseMomentum';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -21,6 +22,8 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const fullscreenRetryCount = useRef(0);
   const maxFullscreenRetries = 3;
   const queryClient = useQueryClient();
+  const [momentumTaskId, setMomentumTaskId] = useState<number | null>(null);
+  const expiryCheck = useRef<{ key: string; status: 'checking' | 'ready' | 'momentum' | 'error' } | null>(null);
   
   const { data: activeTasks } = useQuery({
     queryKey: ['active-tasks'],
@@ -39,6 +42,14 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const currentTask = activeTaskId
     ? activeTasks?.find(t => t.id === activeTaskId && !isTaskInFuture(t) && !isTaskInBacklog(t))
     : activeTasks?.find(t => (t.Progress === 'In progress' || t.Progress === 'Not started') && !isTaskInFuture(t) && !isTaskInBacklog(t));
+
+  const currentTaskRef = useRef(currentTask);
+  currentTaskRef.current = currentTask;
+  const expiryKey = currentTask ? `${currentTask.id}:${currentTask.date_due}` : null;
+  useEffect(() => {
+    expiryCheck.current = null;
+    setMomentumTaskId(null);
+  }, [expiryKey]);
 
   const { data: subtasks } = useQuery({
     queryKey: ['subtasks', currentTask?.id],
@@ -269,6 +280,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['phased-subtasks'] });
       queryClient.invalidateQueries({ queryKey: ['pulse-items'] });
       toast.success('Subtask completed');
     },
@@ -299,6 +311,30 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       console.error('Error completing task:', error);
       toast.error('Cannot complete this task - it may be in backlog or scheduled for a future date');
     }
+  });
+
+  const completeMomentumTask = useMutation({
+    mutationFn: async (taskId: number) => {
+      await completeMomentumItems(async () => {
+        const { error } = await supabase.from('subtasks')
+          .update({ Progress: 'Completed' }).eq('Parent Task ID', taskId);
+        if (error) throw error;
+      }, async () => {
+        await updateTaskProgress.mutateAsync(taskId);
+      });
+    },
+    onSuccess: () => {
+      setMomentumTaskId(null);
+      setIsBreak(true);
+      setIsCountdownToNextTask(false);
+      setTimeLeft(5 * 60);
+      setIsRunning(true);
+    },
+    onSettled: () => {
+      ['subtasks', 'phased-subtasks', 'phased-tasks', 'tasks', 'active-tasks'].forEach(k =>
+        queryClient.invalidateQueries({ queryKey: [k] }));
+    },
+    onError: () => toast.error('Could not complete everything. Please try again.'),
   });
 
   const getTaskDurationFromDetails = (task: any) => {
@@ -657,6 +693,39 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
 
     if (isRunning && timeLeft !== null) {
       interval = setInterval(() => {
+        // Read saved completion at expiry, not a stale display/query snapshot.
+        if (!isBreak && timeLeft <= 1 && currentTask && currentTask.phase != null) {
+          const key = `${currentTask.id}:${currentTask.date_due}`;
+          if (expiryCheck.current?.key !== key || expiryCheck.current.status !== 'ready') {
+            if (expiryCheck.current?.key === key) return;
+            expiryCheck.current = { key, status: 'checking' };
+            setIsRunning(false);
+            setTimeLeft(0);
+            void (async () => {
+              try {
+                // Wait for an in-flight checkmark to finish saving before reading.
+                while (queryClient.isMutating() > 0) {
+                  await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                const { data, error } = await supabase.from('subtasks')
+                  .select('Progress').eq('Parent Task ID', currentTask.id);
+                if (error) throw error;
+                const latest = currentTaskRef.current;
+                if (!latest || `${latest.id}:${latest.date_due}` !== key || expiryCheck.current?.key !== key) return;
+                const needsMomentum = needsPhaseMomentum(latest.phase, data || []);
+                expiryCheck.current = { key, status: needsMomentum ? 'momentum' : 'ready' };
+                if (needsMomentum) setMomentumTaskId(latest.id);
+                else setIsRunning(true); // Continue through the unchanged normal completion/break path.
+              } catch {
+                if (expiryCheck.current?.key !== key) return;
+                expiryCheck.current = { key, status: 'error' };
+                toast.error('Could not check subtask completion. Resume the timer to retry.');
+                expiryCheck.current = null;
+              }
+            })();
+            return;
+          }
+        }
         setTimeLeft((prev) => {
           if (!prev || prev <= 1) {
             isTransitioning.current = true;
@@ -701,17 +770,6 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
               }
             } else if (currentTask) {
               if (currentTask.Progress !== 'Backlog' && !isTaskInFuture(currentTask)) {
-                // Phased task with open subtasks: don't auto-complete or start a break.
-                // Hold at 0:00 so the Keep Momentum dialog can offer extend/reschedule options.
-                // (subtasks query only returns non-completed rows, so length > 0 means unfinished.)
-                if (phaseById.has(currentTask.id) && (subtasks?.length ?? 0) > 0) {
-                  toast.info("Time's up — subtasks still open. Choose how to keep momentum.");
-                  setIsRunning(false);
-                  transitionTimeoutRef.current = setTimeout(() => {
-                    isTransitioning.current = false;
-                  }, 500);
-                  return 0;
-                }
                 updateTaskProgress.mutate(currentTask.id);
                 
                 const nextTask = getNextTask();
@@ -796,6 +854,8 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
       return;
     }
 
+    expiryCheck.current = null;
+    setMomentumTaskId(null);
     if (!isBreak) {
       const taskDuration = getTaskDuration(currentTask);
       setTimeLeft(taskDuration * 60);
@@ -829,6 +889,9 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     isTransitioning,
     getTodayTasks,
     activeTasks,
-    isCountdownToNextTask
+    isCountdownToNextTask,
+    momentumTaskId,
+    dismissMomentum: () => setMomentumTaskId(null),
+    completeMomentumTask,
   };
 };

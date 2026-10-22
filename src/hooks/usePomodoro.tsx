@@ -8,7 +8,7 @@ import { calculateTimeUntilTaskStart, shouldShowCountdownForTask } from '@/utils
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
-  const { filterUnlocked } = usePhaseGate();
+  const { filterUnlocked, phaseById } = usePhaseGate();
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -701,6 +701,17 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
               }
             } else if (currentTask) {
               if (currentTask.Progress !== 'Backlog' && !isTaskInFuture(currentTask)) {
+                // Phased task with open subtasks: don't auto-complete or start a break.
+                // Hold at 0:00 so the Keep Momentum dialog can offer extend/reschedule options.
+                // (subtasks query only returns non-completed rows, so length > 0 means unfinished.)
+                if (phaseById.has(currentTask.id) && (subtasks?.length ?? 0) > 0) {
+                  toast.info("Time's up — subtasks still open. Choose how to keep momentum.");
+                  setIsRunning(false);
+                  transitionTimeoutRef.current = setTimeout(() => {
+                    isTransitioning.current = false;
+                  }, 500);
+                  return 0;
+                }
                 updateTaskProgress.mutate(currentTask.id);
                 
                 const nextTask = getNextTask();

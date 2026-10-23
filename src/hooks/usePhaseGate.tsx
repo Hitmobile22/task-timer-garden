@@ -4,7 +4,7 @@ import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { supabase } from '@/integrations/supabase/client';
 import {
   computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween, rewardFor, PhaseTask,
-  withSubtaskCompletion,
+  withSubtaskCompletion, filterPhaseTimerTasks,
 } from '@/utils/phaseUtils';
 
 const TZ = 'America/New_York';
@@ -18,7 +18,7 @@ export interface PhaseCelebrationDetail { projectName: string; phase: number; re
 
 /** Loads phase data and exposes a filter that hides locked phased tasks from Today queues. */
 export const usePhaseGate = () => {
-  const { data: phasedTasks = [] } = useQuery({
+  const { data: phasedTasks = [], isSuccess: tasksReady } = useQuery({
     queryKey: ['phased-tasks'],
     queryFn: async () => {
       const { data, error } = await supabase.from('Tasks')
@@ -31,7 +31,7 @@ export const usePhaseGate = () => {
   });
   // A phased task only counts as done when its subtasks are done too.
   const phasedTaskIds = useMemo(() => phasedTasks.map(t => t.id), [phasedTasks]);
-  const { data: phasedSubtasks = [] } = useQuery({
+  const { data: phasedSubtasks = [], isSuccess: subtasksReady } = useQuery({
     queryKey: ['phased-subtasks', phasedTaskIds],
     enabled: phasedTaskIds.length > 0,
     queryFn: async () => {
@@ -49,7 +49,7 @@ export const usePhaseGate = () => {
 
   const projectIds = useMemo(
     () => [...new Set(phasedTasks.map(t => t.project_id).filter(Boolean))] as number[], [phasedTasks]);
-  const { data: projects = [] } = useQuery({
+  const { data: projects = [], isSuccess: projectsReady } = useQuery({
     queryKey: ['phased-projects', projectIds],
     enabled: projectIds.length > 0,
     queryFn: async () => {
@@ -72,7 +72,12 @@ export const usePhaseGate = () => {
       return !p || isPhaseTaskUnlocked(p, states, pace);
     }), [phaseById, states, pace]);
 
-  return { states, projectMap, phaseById, filterUnlocked, pace, phasedTasks };
+  const ready = tasksReady && (phasedTaskIds.length === 0 || subtasksReady)
+    && (projectIds.length === 0 || projectsReady);
+  const filterTimerUnlocked = useCallback(<T extends PhaseTask>(tasks: T[]): T[] =>
+    filterPhaseTimerTasks(tasks, states, pace, phaseById, ready), [states, pace, phaseById, ready]);
+
+  return { states, projectMap, phaseById, filterUnlocked, filterTimerUnlocked, pace, phasedTasks };
 };
 
 /** Runs on the timer page: feeds unlocked tasks into today and announces finished phases. */

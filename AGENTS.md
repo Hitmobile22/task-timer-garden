@@ -1,2 +1,3 @@
 - Phase gating lives in src/utils/phaseUtils.ts + src/hooks/usePhaseGate.tsx and is applied inside each getTodayTasks; keeps phase logic out of the recurring engine and edge functions.
 - The Pomodoro hook owns phased expiry and momentum state, checks saved subtasks before expiry, and completes children before the parent; this prevents stale display data from triggering prompts or advancing phases.
+- Timer current/next selection, manual starts, and page shuffle use the shared readiness-aware phase timer filter; this keeps locked tasks out without altering unphased date rules.

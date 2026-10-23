@@ -1,11 +1,24 @@
 // @ts-ignore bun's built-in test runner (run with: bun test)
 import { describe, expect, test } from 'bun:test';
-import { computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween, withSubtaskCompletion } from './phaseUtils';
+import { computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween, withSubtaskCompletion, filterPhaseTimerTasks } from './phaseUtils';
 
 const t = (id: number, phase: number | null, Progress = 'Not started', h = id) =>
   ({ id, project_id: 1, phase, Progress, date_started: `2026-10-15T${String(h).padStart(2, '0')}:00:00Z` });
 
 describe('phase system', () => {
+  test('phase 4 cannot be timed while phase 2 is unfinished', () => {
+    const rows = [t(1, 2), t(2, 4), t(3, null)];
+    const states = computePhaseStates(rows);
+    expect(filterPhaseTimerTasks(rows, states, () => 4, new Map(), true).map(t => t.id)).toEqual([1, 3]);
+  });
+  test('locked future phase is excluded from countdown candidates too', () => {
+    const rows = [t(1, 2), t(2, 4)];
+    expect(filterPhaseTimerTasks([rows[1]], computePhaseStates(rows), () => 4, new Map(), true)).toEqual([]);
+  });
+  test('phase timers wait for loading, while non-phased timers remain available', () => {
+    const rows = [t(1, 2), t(2, null)];
+    expect(filterPhaseTimerTasks(rows, new Map(), () => 4, new Map(), false).map(t => t.id)).toEqual([2]);
+  });
   const tasks = [t(1, 1, 'Completed'), t(2, 1), t(3, 1), t(4, 2), t(5, null)];
   const states = computePhaseStates(tasks);
 

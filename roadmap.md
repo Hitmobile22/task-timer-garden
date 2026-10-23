@@ -1,4 +1,4 @@
 - [x] Correct phased expiry using current saved subtask completion, without changing other timers or table structures.
 - [x] Add popup action to complete the task and all its subtasks, with error handling.
-- [x] Run 15 focused regression tests and verify expiry/popup interactions with isolated browser test tasks; live-account verification unavailable for externally managed sign-in.
-- [ ] Prevent locked later-phase tasks, including Draft final response email, from entering the timer or next-task countdown.
+- [x] Run 18 focused regression tests and verify expiry/popup interactions with isolated browser test tasks; live-account verification unavailable for externally managed sign-in.
+- [x] Prevent locked later-phase tasks, including Draft final response email, from entering the timer or next-task countdown; guard manual starts and page shuffle too.

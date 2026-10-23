@@ -419,14 +419,18 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   
   const handleTaskStart = async (taskId: number) => {
     try {
-      const targetTask = activeTasks?.find(t => t.id === taskId);
+      const eligibleTasks = filterTimerUnlocked(activeTasks || []);
+      if (!eligibleTasks.some(t => t.id === taskId)) {
+        toast.info('This task is not unlocked yet.');
+        return;
+      }
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
-      const tasksToReschedule = activeTasks?.filter(t => {
+      const tasksToReschedule = eligibleTasks.filter(t => {
         if (isTaskTimeBlock(t)) {
           return false;
         }

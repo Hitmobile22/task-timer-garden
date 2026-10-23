@@ -10,7 +10,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useUnifiedRecurringTasksCheck } from '@/hooks/useUnifiedRecurringTasksCheck';
 import { useRecurringProjectsCheck } from '@/hooks/useRecurringProjectsCheck';
 import { resetToastStateAtMidnight } from '@/utils/recurringUtils';
-import { usePhaseFeed } from '@/hooks/usePhaseGate';
+import { usePhaseFeed, usePhaseGate } from '@/hooks/usePhaseGate';
 import { PhaseCelebration } from '@/components/phase/PhaseCelebration';
 
 const Index = () => {
@@ -21,6 +21,7 @@ const Index = () => {
   
   const queryClient = useQueryClient();
   usePhaseFeed();
+  const { filterTimerUnlocked } = usePhaseGate();
   const { data: goalNotifications = [], isLoading: isLoadingNotifications } = useGoalNotifications();
   const recurringTasksChecker = useUnifiedRecurringTasksCheck();
   
@@ -58,6 +59,7 @@ const Index = () => {
         toast.error("No tasks available to shuffle");
         return;
       }
+      const eligibleTasks = filterTimerUnlocked(activeTasks);
       
       const now = new Date();
       const today = new Date(now);
@@ -80,13 +82,13 @@ const Index = () => {
         const tomorrow3AMUTC = new Date(tomorrow);
         tomorrow3AMUTC.setUTCHours(8, 0, 0, 0);
         
-        todayTasks = activeTasks.filter(task => {
+        todayTasks = eligibleTasks.filter(task => {
           const taskDate = task.date_started ? new Date(task.date_started) : null;
           if (!taskDate) return false;
           return taskDate >= today && taskDate <= tomorrow3AMUTC;
         });
       } else {
-        todayTasks = activeTasks.filter(task => {
+        todayTasks = eligibleTasks.filter(task => {
           const taskDate = task.date_started ? new Date(task.date_started) : null;
           if (!taskDate) return false;
           return taskDate >= today && taskDate < tomorrow;

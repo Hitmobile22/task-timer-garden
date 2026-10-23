@@ -9,7 +9,7 @@ import { calculateTimeUntilTaskStart, shouldShowCountdownForTask } from '@/utils
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
-  const { filterUnlocked, phaseById } = usePhaseGate();
+  const { filterUnlocked } = usePhaseGate();
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);

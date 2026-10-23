@@ -32,7 +32,7 @@ interface TaskSchedulerProps {
 }
 
 export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) => {
-  const { filterUnlocked } = usePhaseGate();
+  const { filterUnlocked, filterTimerUnlocked } = usePhaseGate();
   const [tasks, setTasks] = useState<NewTask[]>([]);
   const [showTimer, setShowTimer] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
@@ -308,20 +308,20 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
   });
   
   useEffect(() => {
-    if (activeTasks && activeTasks.length > 0) {
+    const timerTasks = filterTimerUnlocked(activeTasks || []);
+    if (timerTasks.length > 0) {
       setShowTimer(true);
-      const inProgressTask = activeTasks.find(task => task.Progress === 'In progress');
+      const inProgressTask = timerTasks.find(task => task.Progress === 'In progress');
       setTimerStarted(!!inProgressTask);
       
-      const firstTask = activeTasks.find(task => !isTaskInFuture(task) && task.Progress !== 'Backlog');
-      if (firstTask) {
-        setActiveTaskId(firstTask.id);
-      }
+      const firstTask = timerTasks.find(task => !isTaskInFuture(task) && task.Progress !== 'Backlog');
+      setActiveTaskId(firstTask?.id);
     } else {
       setShowTimer(true);
       setTimerStarted(false);
+      setActiveTaskId(undefined);
     }
-  }, [activeTasks, activeTaskId]);
+  }, [activeTasks, filterTimerUnlocked]);
   
   const handleTasksCreate = async (newTasks: NewTask[]) => {
     try {

@@ -78,6 +78,18 @@ export function isPhaseTaskUnlocked(
   return idx !== -1 && idx < pace(task.project_id);
 }
 
+/** Timer selection fails closed for phased tasks until phase/subtask data is ready. */
+export function filterPhaseTimerTasks<T extends PhaseTask>(
+  tasks: T[], states: Map<number, ProjectPhaseState>, pace: (projectId: number) => number,
+  phaseById: Map<number, PhaseTask>, ready: boolean,
+): T[] {
+  return tasks.filter(task => {
+    const phased = phaseById.get(task.id) ?? task;
+    if (phased.phase == null) return true;
+    return ready && isPhaseTaskUnlocked(phased, states, pace);
+  });
+}
+
 /** Phases whose completion just happened, comparing previous vs current active phase. */
 export function completedPhasesBetween(prev: number | null | undefined, curr: ProjectPhaseState): number[] {
   if (prev == null) return [];

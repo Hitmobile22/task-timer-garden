@@ -9,7 +9,7 @@ import { calculateTimeUntilTaskStart, shouldShowCountdownForTask } from '@/utils
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
-  const { filterUnlocked } = usePhaseGate();
+  const { filterUnlocked, filterTimerUnlocked } = usePhaseGate();
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isBreak, setIsBreak] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -39,9 +39,10 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     },
   });
 
+  const timerTasks = filterTimerUnlocked(activeTasks || []);
   const currentTask = activeTaskId
-    ? activeTasks?.find(t => t.id === activeTaskId && !isTaskInFuture(t) && !isTaskInBacklog(t))
-    : activeTasks?.find(t => (t.Progress === 'In progress' || t.Progress === 'Not started') && !isTaskInFuture(t) && !isTaskInBacklog(t));
+    ? timerTasks.find(t => t.id === activeTaskId && !isTaskInFuture(t) && !isTaskInBacklog(t))
+    : timerTasks.find(t => (t.Progress === 'In progress' || t.Progress === 'Not started') && !isTaskInFuture(t) && !isTaskInBacklog(t));
 
   const currentTaskRef = useRef(currentTask);
   currentTaskRef.current = currentTask;
@@ -404,7 +405,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
 
     const now = new Date();
     
-    const sortedFutureTasks = [...activeTasks]
+    const sortedFutureTasks = filterTimerUnlocked(activeTasks)
       .filter(task => {
         if (task.Progress === 'Backlog' || task.Progress === 'Completed') return false;
         if (!task.date_started) return false;
@@ -670,7 +671,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
 
   useEffect(() => {
     if ((autoStart || activeTaskId) && activeTasks && activeTasks.length > 0 && !isRunning) {
-      const validTaskExists = activeTasks.some(t => 
+      const validTaskExists = timerTasks.some(t => 
         t.Progress !== 'Backlog' && !isTaskInFuture(t)
       );
       
@@ -686,7 +687,7 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
         }
       }
     }
-  }, [autoStart, activeTaskId, activeTasks?.length]);
+  }, [autoStart, activeTaskId, activeTasks?.length, currentTask?.id]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;

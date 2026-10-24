@@ -66,6 +66,12 @@ export function paceFor(recurringTaskCount?: number | null): number {
   return recurringTaskCount && recurringTaskCount > 0 ? recurringTaskCount : 1;
 }
 
+/** Recover only existing tasks in this project's current phase, never new placeholders. */
+export function activePhaseRecoveryIds(tasks: PhaseTask[], subtasks: { 'Parent Task ID': number; Progress?: string | null }[], projectId: number, count?: number | null): number[] {
+  const states = computePhaseStates(withSubtaskCompletion(tasks, subtasks));
+  return states.get(projectId)?.queue.slice(0, paceFor(count)) ?? [];
+}
+
 /** Unphased tasks always pass. Phased tasks pass only if in the active phase and within the daily pace. */
 export function isPhaseTaskUnlocked(
   task: PhaseTask, states: Map<number, ProjectPhaseState>, pace: (projectId: number) => number

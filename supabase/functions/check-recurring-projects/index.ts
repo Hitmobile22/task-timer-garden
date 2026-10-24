@@ -530,7 +530,8 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        if (existingLog && !forceCheck) {
+        // regenerateToday: single-project manual regenerate; skips only today's log check
+        if (existingLog && !forceCheck && !body.regenerateToday) {
           console.log(`Already generated ${existingLog.tasks_generated} tasks for project ${project.id} today, skipping`);
           results.push({
             project_id: project.id,

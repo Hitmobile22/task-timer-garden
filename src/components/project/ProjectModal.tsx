@@ -21,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type Goal } from '@/types/goals.types';
 import { RichTextEditor } from '../task/editor/RichTextEditor';
+import { activePhaseRecoveryIds } from '@/utils/phaseUtils';
 
 // Subtask mode type
 type SubtaskMode = 'on_task_creation' | 'progressive' | 'daily' | 'every_x_days' | 'every_x_weeks' | 'days_of_week';
@@ -79,6 +80,39 @@ export const ProjectModal = ({
     if (!project?.id) return;
     setIsRegenerating(true);
     try {
+      // Read the saved project: Task View passes modal-shaped names/dates, not a DB row.
+      const { data: savedProject, error: projectError } = await supabase.from('Projects')
+        .select('*').eq('id', project.id).single();
+      if (projectError) throw projectError;
+      const { data: phaseTasks, error: phaseError } = await supabase.from('Tasks')
+        .select('*').eq('project_id', project.id).eq('archived', false).not('phase', 'is', null);
+      if (phaseError) throw phaseError;
+      if (phaseTasks?.length) {
+        const { data: children, error: childrenError } = await supabase.from('subtasks')
+          .select('"Parent Task ID", Progress').in('Parent Task ID', phaseTasks.map(t => t.id));
+        if (childrenError) throw childrenError;
+        const ids = activePhaseRecoveryIds(phaseTasks, children || [], project.id, savedProject.recurringTaskCount);
+        let cursor = Date.now();
+        for (const id of ids) {
+          const task = phaseTasks.find(t => t.id === id);
+          if (!task) continue;
+          const details = typeof task.details === 'string' ? JSON.parse(task.details) : task.details;
+          const configured = details && typeof details === 'object' && 'taskDuration' in details ? Number(details.taskDuration) : 25;
+          const duration = task.date_started && task.date_due
+            ? Math.max(5, (new Date(task.date_due).getTime() - new Date(task.date_started).getTime()) / 60000)
+            : (Number.isFinite(configured) && configured > 0 ? configured : 25);
+          const end = cursor + duration * 60000;
+          const { error: updateError } = await supabase.from('Tasks').update({
+            date_started: new Date(cursor).toISOString(), date_due: new Date(end).toISOString(),
+            Progress: task.Progress === 'Completed' ? 'Not started' : task.Progress,
+          }).eq('id', id);
+          if (updateError) throw updateError;
+          cursor = end;
+        }
+        if (ids.length) toast.success(`Scheduled ${ids.length} active-phase task(s) for today`);
+        else toast.info('All phases are complete. Reopen the tasks you want to continue first.');
+        return;
+      }
       const { data: settings } = await supabase
         .from('recurring_project_settings')
         .select('days_of_week')
@@ -89,14 +123,14 @@ export const ProjectModal = ({
           regenerateToday: true,
           projects: [{
             id: project.id,
-            "Project Name": project["Project Name"],
-            task_list_id: project.task_list_id,
+            "Project Name": savedProject["Project Name"],
+            task_list_id: savedProject.task_list_id,
             isRecurring: true,
-            recurringTaskCount: project.recurringTaskCount || 1,
-            date_started: project.date_started,
-            date_due: project.date_due,
-            progress: project.progress,
-            details: project.details,
+            recurringTaskCount: savedProject.recurringTaskCount || 1,
+            date_started: savedProject.date_started,
+            date_due: savedProject.date_due,
+            progress: savedProject.progress,
+            details: savedProject.details,
             recurring_settings: settings ? { days_of_week: settings.days_of_week || [] } : null,
           }],
         },
@@ -118,6 +152,8 @@ export const ProjectModal = ({
       console.error('Regenerate for today failed:', err);
       toast.error('Failed to regenerate tasks for today');
     } finally {
+      ['tasks', 'active-tasks', 'today-subtasks', 'subtasks', 'phased-tasks', 'phased-subtasks', 'phased-projects'].forEach(k =>
+        queryClient.invalidateQueries({ queryKey: [k] }));
       setIsRegenerating(false);
     }
   };

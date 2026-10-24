@@ -104,7 +104,7 @@ export const ProjectModal = ({
       if (error) throw error;
       const result = data?.results?.[0];
       if (result?.status === 'created') {
-        toast.success(`Added ${result.tasks_created ?? result.count ?? ''} task(s) for today`.replace('  ', ' '));
+        toast.success(`Added ${result.tasks_created} task(s) for today`);
       } else if (result?.reason === 'enough_tasks' || result?.reason === 'no_tasks_needed') {
         toast.info('This project already has enough open tasks for today');
       } else if (result?.reason) {

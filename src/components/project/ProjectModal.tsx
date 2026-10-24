@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,57 @@ export const ProjectModal = ({
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Re-run today's recurring generation for THIS project only (skips today's log check,
+  // still respects the daily task count so it only fills missing slots).
+  const handleRegenerateToday = async () => {
+    if (!project?.id) return;
+    setIsRegenerating(true);
+    try {
+      const { data: settings } = await supabase
+        .from('recurring_project_settings')
+        .select('days_of_week')
+        .eq('project_id', project.id)
+        .maybeSingle();
+      const { data, error } = await supabase.functions.invoke('check-recurring-projects', {
+        body: {
+          regenerateToday: true,
+          projects: [{
+            id: project.id,
+            "Project Name": project["Project Name"],
+            task_list_id: project.task_list_id,
+            isRecurring: true,
+            recurringTaskCount: project.recurringTaskCount || 1,
+            date_started: project.date_started,
+            date_due: project.date_due,
+            progress: project.progress,
+            details: project.details,
+            recurring_settings: settings ? { days_of_week: settings.days_of_week || [] } : null,
+          }],
+        },
+      });
+      if (error) throw error;
+      const result = data?.results?.[0];
+      if (result?.status === 'created') {
+        toast.success(`Added ${result.tasks_created ?? result.count ?? ''} task(s) for today`.replace('  ', ' '));
+      } else if (result?.reason === 'enough_tasks' || result?.reason === 'no_tasks_needed') {
+        toast.info('This project already has enough open tasks for today');
+      } else if (result?.reason) {
+        toast.info(`Nothing generated (${result.reason.replace(/_/g, ' ')})`);
+      } else {
+        toast.info(data?.message || 'Nothing generated');
+      }
+      ['tasks', 'active-tasks', 'today-subtasks', 'subtasks'].forEach(k =>
+        queryClient.invalidateQueries({ queryKey: [k] }));
+    } catch (err) {
+      console.error('Regenerate for today failed:', err);
+      toast.error('Failed to regenerate tasks for today');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringTaskCount, setRecurringTaskCount] = useState(1);
   const [isLoadingGoals, setIsLoadingGoals] = useState(false);
@@ -943,6 +995,19 @@ export const ProjectModal = ({
                     <span className="text-sm">
                       {isRecurring ? "Enabled" : "Disabled"}
                     </span>
+                    {isRecurring && project?.id && project?.isRecurring && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto"
+                        disabled={isRegenerating}
+                        onClick={handleRegenerateToday}
+                      >
+                        <Repeat className="h-3 w-3 mr-1" />
+                        {isRegenerating ? "Regenerating..." : "Regenerate for Today"}
+                      </Button>
+                    )}
                   </div>
                 </div>
 

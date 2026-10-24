@@ -35,6 +35,8 @@ import { syncGoogleCalendar } from '@/components/task/GoogleCalendarIntegration'
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from 'next-themes';
+import { TaskBulkToolbar } from '@/components/task/TaskBulkToolbar';
+import { selectedTaskIds, phasedDateClearIds } from '@/utils/taskBulkUtils';
 
 export function TaskView() {
   const { user } = useAuth();
@@ -63,6 +65,8 @@ export function TaskView() {
   const [showSubtaskPresetModal, setShowSubtaskPresetModal] = useState(false);
   const [showCSVUploadModal, setShowCSVUploadModal] = useState(false);
   const [collapsedLists, setCollapsedLists] = useState<number[]>([]);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkSelection, setBulkSelection] = useState<number[]>([]);
   const { archiveCompletedTasks, archiveTaskList, archiveProject } = useArchiveActions();
 
   const toggleListCollapse = (listId: number) => {
@@ -345,12 +349,12 @@ export function TaskView() {
   });
 
   const updateTaskTimelineMutation = useMutation({
-    mutationFn: async ({ taskId, start, end }: { taskId: number; start: Date; end: Date }) => {
+    mutationFn: async ({ taskId, start, end }: { taskId: number; start?: Date; end?: Date }) => {
       const { error } = await supabase
         .from('Tasks')
         .update({
-          date_started: start.toISOString(),
-          date_due: end.toISOString()
+          date_started: start?.toISOString() ?? null,
+          date_due: end?.toISOString() ?? null
         })
         .eq('id', taskId);
       
@@ -768,6 +772,44 @@ export function TaskView() {
     return searchFilteredTasks.filter(t => t.project_id === projectId);
   };
 
+  // Selection is scoped to the actual rendered hierarchy, including current filters.
+  const bulkCandidates: Task[] = [];
+  filteredAndGroupedTasks.forEach((group: any) => {
+    if (group.list && effectiveListCollapsed(group.list.id)) return;
+    group.projects?.forEach((p: any) => {
+      if (isSearching || expandedTasks.includes(p.id)) bulkCandidates.push(...getProjectTasks(p.id));
+    });
+    bulkCandidates.push(...(group.tasks || []).filter((t: Task) => sortBy !== 'project' || !t.project_id));
+  });
+  function effectiveListCollapsed(id: number) { return !isSearching && collapsedLists.includes(id); }
+  const selectedIds = selectedTaskIds(bulkCandidates, bulkSelection);
+  const clearDateIds = phasedDateClearIds(bulkCandidates, bulkSelection);
+  const toggleBulkSelection = (id: number) => setBulkSelection(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
+  const bulkMutation = useMutation({
+    mutationFn: async (action: { status: Task['Progress']; includeSubtasks: boolean } | { clearDates: true }) => {
+      if (!user) throw new Error('Sign in required');
+      const ids = 'clearDates' in action ? clearDateIds : selectedIds;
+      if (!ids.length) throw new Error('Select tasks first');
+      // Complete/reset children before parents only when explicitly requested.
+      for (let offset = 0; offset < ids.length; offset += 200) {
+        const batch = ids.slice(offset, offset + 200);
+        if ('status' in action && action.includeSubtasks) {
+          const { error } = await supabase.from('subtasks').update({ Progress: action.status })
+            .in('Parent Task ID', batch).eq('user_id', user.id);
+          if (error) throw error;
+        }
+        const patch = 'clearDates' in action ? { date_started: null } : { Progress: action.status };
+        const { error } = await supabase.from('Tasks').update(patch).in('id', batch).eq('user_id', user.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { setBulkSelection([]); toast.success('Selected tasks updated'); },
+    onError: () => toast.error('Some changes could not be saved. Review the selected tasks and try again.'),
+    onSettled: () => {
+      ['tasks', 'subtasks', 'active-tasks', 'today-subtasks', 'phased-tasks', 'phased-subtasks', 'phased-projects'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
+    },
+  });
+
   // Visual-only open state while searching; real state is untouched
   const effectiveCollapsedLists = isSearching ? [] : collapsedLists;
   const effectiveExpandedTasks = React.useMemo(() => {
@@ -1033,6 +1075,12 @@ export function TaskView() {
             />
           </div>
 
+          <TaskBulkToolbar enabled={bulkMode} count={selectedIds.length} busy={bulkMutation.isPending} phasedCount={clearDateIds.length}
+            onToggle={() => { setBulkMode(v => !v); setBulkSelection([]); }}
+            onSelectAll={() => setBulkSelection(bulkCandidates.map(t => t.id))} onClear={() => setBulkSelection([])}
+            onProgress={(status, includeSubtasks) => bulkMutation.mutate({ status, includeSubtasks })}
+            onClearDates={() => bulkMutation.mutate({ clearDates: true })} />
+
           <DndContext collisionDetection={closestCenter}>
             {isSearching && filteredAndGroupedTasks.size === 0 && (
               <p className="text-center text-muted-foreground py-8">No matches for "{activeQuery}"</p>
@@ -1228,6 +1276,7 @@ export function TaskView() {
                           <SortableContext items={getProjectTasks(project.id).map(t => t.id)} strategy={verticalListSortingStrategy}>
                             <TaskListComponent
                               tasks={getProjectTasks(project.id)}
+                              bulkMode={bulkMode} selectedTaskIds={selectedIds} onToggleTaskSelection={toggleBulkSelection}
                               subtasks={subtasks}
                               expandedTasks={effectiveExpandedTasks}
                               highlightQuery={activeQuery}
@@ -1248,8 +1297,8 @@ export function TaskView() {
                               onTimelineEdit={(taskId, start, end) => {
                                 updateTaskTimelineMutation.mutate({ 
                                   taskId, 
-                                  start: new Date(start), 
-                                  end: new Date(end) 
+                                  start,
+                                  end
                                 });
                               }}
                               onUnarchiveTask={handleUnarchiveTask}
@@ -1264,6 +1313,7 @@ export function TaskView() {
                     <SortableContext items={listTasks.filter(t => sortBy === 'project' ? !t.project_id : true).map(t => t.id)} strategy={verticalListSortingStrategy}>
                       <TaskListComponent
                         tasks={listTasks.filter(t => sortBy === 'project' ? !t.project_id : true)}
+                        bulkMode={bulkMode} selectedTaskIds={selectedIds} onToggleTaskSelection={toggleBulkSelection}
                         subtasks={subtasks}
                         expandedTasks={effectiveExpandedTasks}
                               highlightQuery={activeQuery}
@@ -1284,8 +1334,8 @@ export function TaskView() {
                         onTimelineEdit={(taskId, start, end) => {
                           updateTaskTimelineMutation.mutate({ 
                             taskId, 
-                            start: new Date(start), 
-                            end: new Date(end) 
+                            start,
+                            end
                           });
                         }}
                         onUnarchiveTask={handleUnarchiveTask}

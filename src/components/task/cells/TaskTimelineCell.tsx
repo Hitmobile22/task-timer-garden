@@ -14,6 +14,7 @@ interface TaskTimelineCellProps {
   endDate: Date | undefined;
   isEditing: boolean;
   isTimeBlock?: boolean;
+  allowClearStart?: boolean;
   onTimelineUpdate: (startDate?: Date, endDate?: Date) => void;
 }
 
@@ -22,6 +23,7 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
   endDate: selectedEndDate,
   isEditing,
   isTimeBlock = false,
+  allowClearStart = false,
   onTimelineUpdate,
 }) => {
   const [tempStartDate, setTempStartDate] = React.useState<Date | undefined>(selectedStartDate);
@@ -137,6 +139,10 @@ export const TaskTimelineCell: React.FC<TaskTimelineCellProps> = ({
               </div>
             </PopoverContent>
           </Popover>
+
+          {allowClearStart && tempStartDate && <Button variant="ghost" size="icon" title="Clear start date" aria-label="Clear start date" onClick={() => setTempStartDate(undefined)}>
+            <span aria-hidden="true">×</span>
+          </Button>}
 
           <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
             <PopoverTrigger asChild>

@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Clock, Plus, Minus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useLocation } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { SubtaskItem } from './SubtaskItem';
@@ -30,6 +31,7 @@ interface TaskEditModalProps {
 
 export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave }: TaskEditModalProps) => {
   const { user } = useAuth();
+  const location = useLocation();
   const [editedTask, setEditedTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<any[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -561,6 +563,9 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
                     </div>
                   </PopoverContent>
                 </Popover>
+                {location.pathname === '/tasks' && editedTask.phase != null && startDate && (
+                  <Button variant="ghost" size="sm" onClick={() => setStartDate(undefined)}>Clear start date</Button>
+                )}
               </div>
               
               <div className="space-y-2">

@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Task, Subtask } from '@/types/task.types';
 import { TaskItem } from './TaskItem';
 import { SubtaskItem } from './SubtaskItem';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface TaskListProps {
   tasks: Task[];
@@ -21,7 +22,10 @@ interface TaskListProps {
   onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
-  onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onTimelineEdit: (taskId: number, start?: Date, end?: Date) => void;
+  bulkMode?: boolean;
+  selectedTaskIds?: number[];
+  onToggleTaskSelection?: (taskId: number) => void;
   onUnarchiveTask?: (taskId: number) => void;
   highlightQuery?: string;
 }
@@ -45,6 +49,9 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
   onTimelineEdit,
   onUnarchiveTask,
   highlightQuery,
+  bulkMode,
+  selectedTaskIds = [],
+  onToggleTaskSelection,
 }) => {
   console.log('TaskListComponent: Received onMoveTask function:', !!onMoveTask);
   console.log('TaskListComponent: Received tasks:', tasks.length, 'items');
@@ -53,6 +60,7 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
     <Table>
       <TableHeader>
         <TableRow>
+          {bulkMode && <TableHead className="w-10">Select</TableHead>}
           <TableHead>Task Name</TableHead>
           <TableHead>Progress</TableHead>
           <TableHead>Timeline</TableHead>
@@ -81,8 +89,9 @@ export const TaskListComponent: React.FC<TaskListProps> = ({
               onTimelineEdit={onTimelineEdit}
               onUnarchiveTask={onUnarchiveTask}
               highlightQuery={highlightQuery}
+              selectionCell={bulkMode ? <Checkbox aria-label={`Select ${task['Task Name']}`} checked={selectedTaskIds.includes(task.id)} onCheckedChange={() => onToggleTaskSelection?.(task.id)} /> : undefined}
             />
-            {expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
+            {!bulkMode && expandedTasks.includes(task.id) && subtasks?.filter(st => st["Parent Task ID"] === task.id).map(subtask => (
               <SubtaskItem
                 key={subtask.id}
                 subtask={subtask}

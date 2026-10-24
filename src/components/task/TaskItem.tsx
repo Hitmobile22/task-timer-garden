@@ -1,5 +1,5 @@
 import React from 'react';
-import { TableRow } from "@/components/ui/table";
+import { TableRow, TableCell } from "@/components/ui/table";
 import { Task, Subtask } from '@/types/task.types';
 import { TaskNameCell } from './cells/TaskNameCell';
 import { TaskProgressCell } from './cells/TaskProgressCell';
@@ -27,7 +27,8 @@ interface TaskItemProps {
   onUpdateProgress: (taskId: number, progress: Task['Progress'], isSubtask?: boolean) => void;
   onMoveTask: (taskId: number, listId: number) => void;
   onDeleteTask: (taskId: number) => void;
-  onTimelineEdit: (taskId: number, start: Date, end: Date) => void;
+  onTimelineEdit: (taskId: number, start?: Date, end?: Date) => void;
+  selectionCell?: React.ReactNode;
   onUnarchiveTask?: (taskId: number) => void;
   highlightQuery?: string;
 }
@@ -52,6 +53,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onTimelineEdit,
   onUnarchiveTask,
   highlightQuery,
+  selectionCell,
 }) => {
   const [selectedStartDate, setSelectedStartDate] = React.useState<Date | undefined>(
     task.date_started ? new Date(task.date_started) : undefined
@@ -96,7 +98,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const isEditing = editingTaskId === task.id;
 
   const handleSave = () => {
-    if (selectedStartDate && selectedEndDate && (!isTimeBlock || isTaskViewPage)) {
+    if ((selectedStartDate && selectedEndDate || task.phase != null) && (!isTimeBlock || isTaskViewPage)) {
       onTimelineEdit(task.id, selectedStartDate, selectedEndDate);
     }
     if (tempProgress !== task.Progress) {
@@ -114,6 +116,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       style={task.task_list_id !== 1 ? {
         borderLeftColor: borderColor
       } : undefined}>
+        {selectionCell !== undefined && <TableCell>{selectionCell}</TableCell>}
         <TaskNameCell
           task={task}
           subtasks={subtasks}
@@ -142,6 +145,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           isEditing={isEditing && (!isTimeBlock || isTaskViewPage)}
           isTimeBlock={isTimeBlock && !isTaskViewPage}
           onTimelineUpdate={handleTimelineUpdate}
+          allowClearStart={isTaskViewPage && task.phase != null}
         />
         <TaskActionsCell
           task={task}

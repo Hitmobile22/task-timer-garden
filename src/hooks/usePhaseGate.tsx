@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { supabase } from '@/integrations/supabase/client';
@@ -97,7 +98,8 @@ export const usePhaseFeed = () => {
     for (const s of states.values()) {
       for (const id of s.queue.slice(0, pace(s.projectId))) {
         const t = byId.get(id)!;
-        if (!t.date_started || new Date(t.date_started) >= cutoff) toPull.push(t);
+        // Marked Completed but subtasks still open: it blocks the phase, so reopen it visibly.
+        if (t.Progress === 'Completed' || !t.date_started || new Date(t.date_started) >= cutoff) toPull.push(t);
       }
     }
     if (!toPull.length) return;
@@ -105,12 +107,25 @@ export const usePhaseFeed = () => {
     (async () => {
       let cursor = new Date();
       for (const t of toPull) {
+        const reopen = t.Progress === 'Completed';
+        const keepDate = reopen && t.date_started && new Date(t.date_started) < cutoff;
         const dur = t.date_started && t.date_due
           ? Math.max(5 * 60000, new Date(t.date_due).getTime() - new Date(t.date_started).getTime()) : 25 * 60000;
         const start = new Date(cursor); const due = new Date(start.getTime() + dur);
-        await supabase.from('Tasks').update({ date_started: start.toISOString(), date_due: due.toISOString() }).eq('id', t.id);
-        cursor = due;
+        await supabase.from('Tasks').update({
+          ...(keepDate ? {} : { date_started: start.toISOString(), date_due: due.toISOString() }),
+          ...(reopen ? { Progress: 'In progress' } : {}),
+        }).eq('id', t.id);
+        if (reopen) {
+          const name = projectMap.get(t.project_id as number)?.['Project Name'] ?? 'your project';
+          toast.info(`A Phase ${t.phase} task in ${name} was reopened`, {
+            description: 'It was marked complete, but some subtasks are still unchecked. Finish them to unlock the next phase.',
+            duration: 10000,
+          });
+        }
+        if (!keepDate) cursor = due;
       }
+
       busy.current = false;
       ['phased-tasks', 'active-tasks', 'tasks'].forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
     })();

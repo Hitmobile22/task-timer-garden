@@ -363,6 +363,8 @@ export function TaskView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task timeline updated');
+      queryClient.invalidateQueries({ queryKey: ['phased-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
     },
     onError: (error) => {
       toast.error('Failed to update task timeline');

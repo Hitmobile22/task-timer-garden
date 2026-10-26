@@ -313,6 +313,8 @@ export const TaskEditModal = ({ task, open, onOpenChange, taskLists = [], onSave
       queryClient.invalidateQueries({ queryKey: ['active-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['task-lists'] });
       queryClient.invalidateQueries({ queryKey: ['subtasks'] });
+      queryClient.invalidateQueries({ queryKey: ['phased-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['phased-subtasks'] });
       
       if (onSave) {
         onSave(updatedTask);

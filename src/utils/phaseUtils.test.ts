@@ -1,11 +1,26 @@
 // @ts-ignore bun's built-in test runner (run with: bun test)
 import { describe, expect, test } from 'bun:test';
-import { computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween, withSubtaskCompletion, filterPhaseTimerTasks } from './phaseUtils';
+import { computePhaseStates, isPhaseTaskUnlocked, paceFor, completedPhasesBetween, withSubtaskCompletion, filterPhaseTimerTasks, activePhaseRecoveryIds } from './phaseUtils';
 
 const t = (id: number, phase: number | null, Progress = 'Not started', h = id) =>
   ({ id, project_id: 1, phase, Progress, date_started: `2026-10-15T${String(h).padStart(2, '0')}:00:00Z` });
 
 describe('phase system', () => {
+  test('recover four existing phase 3 tasks despite open future phases and blank dates', () => {
+    const rows = [t(1, 2, 'Completed'), ...[2, 3, 4, 5].map(id => ({ ...t(id, 3), date_started: null })), t(6, 4), t(7, null)];
+    expect(activePhaseRecoveryIds(rows, [], 1, 4)).toEqual([2, 3, 4, 5]);
+  });
+  test('recovery respects the saved pace and never includes other projects', () => {
+    const rows = [t(1, 3), t(2, 3), { ...t(3, 3), project_id: 2 }];
+    expect(activePhaseRecoveryIds(rows, [], 1, 1)).toEqual([1]);
+  });
+  test('fully finished phases produce no recovery placeholders', () => {
+    expect(activePhaseRecoveryIds([t(1, 3, 'Completed')], [], 1, 4)).toEqual([]);
+  });
+  test('recovery keeps a parent with unfinished subtasks in the earlier phase', () => {
+    const rows = [t(1, 2, 'Completed'), t(2, 3)];
+    expect(activePhaseRecoveryIds(rows, [{ 'Parent Task ID': 1, Progress: 'Not started' }], 1, 4)).toEqual([1]);
+  });
   test('phase 4 cannot be timed while phase 2 is unfinished', () => {
     const rows = [t(1, 2), t(2, 4), t(3, null)];
     const states = computePhaseStates(rows);

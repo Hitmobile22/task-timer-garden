@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isTaskInFuture, isTaskInBacklog, isTaskTimeBlock } from '@/utils/taskUtils';
 import { calculateTimeUntilTaskStart, shouldShowCountdownForTask } from '@/utils/timerUtils';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { estTodayWindow } from '@/utils/estDayWindow';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const { filterUnlocked, filterTimerUnlocked } = usePhaseGate();

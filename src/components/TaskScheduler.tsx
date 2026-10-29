@@ -17,6 +17,7 @@ import { NotificationBell } from './notifications/NotificationBell';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { estTodayWindow } from '@/utils/estDayWindow';
 import { useTheme } from 'next-themes';
 
 interface SubTask {
@@ -425,10 +426,8 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
         return;
       }
       
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      // EST end of today: never pull future-day tasks into today's reschedule
+      const { end: tomorrow } = estTodayWindow();
       
       const tasksToReschedule = eligibleTasks.filter(t => {
         if (isTaskTimeBlock(t)) {

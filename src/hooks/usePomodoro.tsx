@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isTaskInFuture, isTaskInBacklog, isTaskTimeBlock } from '@/utils/taskUtils';
 import { calculateTimeUntilTaskStart, shouldShowCountdownForTask } from '@/utils/timerUtils';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { estTodayWindow } from '@/utils/estDayWindow';
 
 export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
   const { filterUnlocked, filterTimerUnlocked } = usePhaseGate();
@@ -367,8 +368,11 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
         })
         .eq('id', currentTask.id);
 
+      // Never touch tasks planned for a future day, even if they slipped into the list
+      const { end: todayEnd } = estTodayWindow();
       const remainingTasks = todayTasks
-        .filter(t => t.Progress !== 'Completed' && t.id !== currentTask.id)
+        .filter(t => t.Progress !== 'Completed' && t.id !== currentTask.id
+          && t.date_started && new Date(t.date_started) < todayEnd)
         .sort((a, b) => new Date(a.date_started).getTime() - new Date(b.date_started).getTime());
 
       let nextStartTime = new Date(currentTaskEndTime.getTime() + 5 * 60 * 1000);
@@ -454,69 +458,13 @@ export const usePomodoro = (activeTaskId?: number, autoStart = false) => {
     
     tasks = filterUnlocked(tasks.filter(task => task.Progress !== 'Backlog'));
     
-    const now = new Date();
-    
-    // Get current time in EST/EDT
-    const nowEST = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
-    const estHour = nowEST.getHours();
-    const isEveningMode = estHour >= 21 || estHour < 3;
-    
-    if (isEveningMode) {
-      // Evening mode: 9 PM EST - 3 AM EST (show current evening session tasks)
-      let startTime: Date, endTime: Date;
-      
-      if (estHour >= 21) {
-        // Currently after 9 PM - show from 9 PM today to 3 AM tomorrow
-        startTime = new Date(nowEST);
-        startTime.setHours(21, 0, 0, 0);
-        
-        endTime = new Date(nowEST);
-        endTime.setDate(endTime.getDate() + 1);
-        endTime.setHours(3, 0, 0, 0);
-      } else {
-        // Currently before 3 AM - show from 9 PM yesterday to 3 AM today
-        startTime = new Date(nowEST);
-        startTime.setDate(startTime.getDate() - 1);
-        startTime.setHours(21, 0, 0, 0);
-        
-        endTime = new Date(nowEST);
-        endTime.setHours(3, 0, 0, 0);
-      }
-      
-      // Convert EST times to UTC by calculating offset manually
-      // EST is UTC-5, EDT is UTC-4
-      const isDST = nowEST.getTimezoneOffset() === 240; // 240 minutes = 4 hours (EDT)
-      const offsetHours = isDST ? 4 : 5;
-      
-      const startTimeUTC = new Date(startTime.getTime() + (offsetHours * 60 * 60 * 1000));
-      const endTimeUTC = new Date(endTime.getTime() + (offsetHours * 60 * 60 * 1000));
-      
-      return tasks.filter(task => {
-        const taskDate = task.date_started ? new Date(task.date_started) : null;
-        if (!taskDate) return false;
-        return taskDate < endTimeUTC;
-      });
-    } else {
-      // Normal mode: show only today's tasks (not tomorrow's)
-      const todayEST = new Date(nowEST);
-      todayEST.setHours(0, 0, 0, 0);
-      
-      const tomorrowEST = new Date(todayEST);
-      tomorrowEST.setDate(tomorrowEST.getDate() + 1);
-      
-      // Convert to UTC
-      const isDST = nowEST.getTimezoneOffset() === 240;
-      const offsetHours = isDST ? 4 : 5;
-      
-      const todayUTC = new Date(todayEST.getTime() + (offsetHours * 60 * 60 * 1000));
-      const tomorrowUTC = new Date(tomorrowEST.getTime() + (offsetHours * 60 * 60 * 1000));
-      
-      return tasks.filter(task => {
-        const taskDate = task.date_started ? new Date(task.date_started) : null;
-        if (!taskDate) return false;
-        return taskDate >= todayUTC && taskDate < tomorrowUTC;
-      });
-    }
+    // Correct EST boundaries via date-fns-tz (old manual offset leaked tomorrow's early tasks)
+    const { start, end, evening } = estTodayWindow();
+    return tasks.filter(task => {
+      const taskDate = task.date_started ? new Date(task.date_started) : null;
+      if (!taskDate) return false;
+      return evening ? taskDate < end : taskDate >= start && taskDate < end;
+    });
   };
 
   const requestFullscreenSafely = async (element: HTMLElement | null) => {

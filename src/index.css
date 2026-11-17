@@ -74,6 +74,16 @@
   :root {
     --page-gradient-top: 210 100% 12%;
     --page-gradient-bottom: 210 100% 25%;
+    --sticky-paper: 48 96% 82%;
+    --sticky-paper-edge: 42 90% 70%;
+    --sticky-ink: 30 35% 18%;
+    --sticky-glow: 45 100% 60%;
+  }
+  .night {
+    --sticky-paper: 38 40% 14%;
+    --sticky-paper-edge: 32 60% 22%;
+    --sticky-ink: 42 80% 82%;
+    --sticky-glow: 35 100% 50%;
   }
 }
  
@@ -294,3 +304,22 @@ html, body {
   50% { box-shadow: 0 0 25px rgba(139, 92, 246, 0.7); }
 }
 
+
+/* Sticky notes tray */
+.sticky-tray { scrollbar-width: thin; mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); }
+.sticky-tray-toggle { background: hsl(var(--sticky-paper) / .9); color: hsl(var(--sticky-ink)); box-shadow: 0 4px 14px -6px hsl(var(--sticky-glow) / .6); }
+.sticky-note {
+  --sticky-tint: transparent;
+  background:
+    linear-gradient(135deg, transparent 0 0) ,
+    linear-gradient(160deg, hsl(var(--sticky-paper)), hsl(var(--sticky-paper-edge)));
+  border-radius: 6px 6px 18px 6px;
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--sticky-tint) 22%, transparent),
+              0 10px 18px -10px hsl(var(--sticky-ink) / .55), 0 0 0 1px hsl(var(--sticky-paper-edge) / .6);
+  scroll-snap-align: start;
+}
+.night .sticky-note { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--sticky-tint) 18%, transparent), 0 0 22px -6px hsl(var(--sticky-glow) / .45), 0 0 0 1px hsl(var(--sticky-paper-edge)); }
+.sticky-note::after { content: ''; position: absolute; right: 0; bottom: 0; width: 18px; height: 18px; border-radius: 0 0 18px 0; background: linear-gradient(315deg, hsl(var(--sticky-ink) / .12) 45%, hsl(var(--sticky-paper)) 50%); }
+.sticky-pin { position: absolute; top: 6px; left: 50%; width: 10px; height: 10px; margin-left: -5px; border-radius: 9999px; background: radial-gradient(circle at 35% 35%, hsl(var(--sticky-glow)), hsl(var(--sticky-ink) / .7)); box-shadow: 0 2px 3px hsl(var(--sticky-ink) / .4); }
+.sticky-add { border: 2px dashed hsl(var(--sticky-paper-edge)); border-radius: 10px; color: hsl(var(--sticky-paper)); transition: transform .3s, background .3s; }
+.sticky-add:hover { transform: translateY(-3px); background: hsl(var(--sticky-paper) / .12); }

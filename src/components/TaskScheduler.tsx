@@ -1,3 +1,4 @@
+import { StickyTray } from '@/components/sticky/StickyTray';
 import { usePhaseGate } from '@/hooks/usePhaseGate';
 import React, { useState, useEffect } from 'react';
 import { TaskForm } from './TaskForm';
@@ -851,6 +852,7 @@ export const TaskScheduler: React.FC<TaskSchedulerProps> = ({ onShuffleTasks }) 
             </div>
           </div>
         </div>
+        <StickyTray />
       </main>
     </div>;
 };

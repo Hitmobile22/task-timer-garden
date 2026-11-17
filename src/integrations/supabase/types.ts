@@ -481,6 +481,48 @@ export type Database = {
           },
         ]
       }
+      sticky_notes: {
+        Row: {
+          color: string | null
+          content: string
+          created_at: string
+          id: number
+          is_archived: boolean
+          last_queued_at: string | null
+          project_id: number | null
+          sort_order: number
+          task_id: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          content: string
+          created_at?: string
+          id?: number
+          is_archived?: boolean
+          last_queued_at?: string | null
+          project_id?: number | null
+          sort_order?: number
+          task_id?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          color?: string | null
+          content?: string
+          created_at?: string
+          id?: number
+          is_archived?: boolean
+          last_queued_at?: string | null
+          project_id?: number | null
+          sort_order?: number
+          task_id?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       subtask_presets: {
         Row: {
           created_at: string

@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+// @ts-ignore bun's built-in test runner (run with: bun test)
+import { describe, it, expect } from 'bun:test';
 import { nextOpenSlot, stickyTaskListId } from './stickyQueue';
 
 const now = new Date('2026-11-17T16:00:00Z'); // 11 AM EST

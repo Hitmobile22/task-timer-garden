@@ -3,3 +3,4 @@
 - Timer current/next selection, manual starts, and page shuffle use the shared readiness-aware phase timer filter; this keeps locked tasks out without altering unphased date rules.
 - Project-only recovery uses the shared phase queue to schedule existing active-phase tasks on the client; it bypasses recurring placeholder generation without changing the engine.
 - Task View owns bulk selection and mutations, scoped to rendered tasks; child rows receive selection callbacks so filters and hierarchy cannot widen bulk writes.
+- Sticky notes live in their own `sticky_notes` table with UI in src/components/sticky and queue logic in src/utils/stickyQueue.ts; keeps them separate from task/project data.
